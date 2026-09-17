@@ -256,16 +256,16 @@ public class DefaultWidgetPainter : IWidgetPainter
     {
         var rect = visual.Rect;
 
-        // 細い溝と小さな丸つまみは、値の読み取りにも操作にも向かない。
-        // ウィジェットの高さいっぱいのバーにして、掴める面積と見やすさを確保する
+        // 溝は細く、つまみは溝より高く。
+        // 高さいっぱいを塗ると埋まり具合が主張しすぎて、画面の中で浮いてしまう
         var trackHeight = Metrics.SliderTrackHeight > 0f
             ? MathF.Min(Metrics.SliderTrackHeight, rect.Height)
             : rect.Height;
 
         var trackRect = Rect.FromCenter(rect.Center, new Vector2(rect.Width, trackHeight));
-        var rounding = Metrics.WidgetRounding;
+        var trackRounding = trackHeight * 0.5f;
 
-        Painter.Rect(trackRect, Colors.Track, rounding);
+        Painter.Rect(trackRect, Colors.Track, trackRounding);
 
         // 埋まっている部分はつまみの中心まで
         var fillWidth = knob.Center.X - trackRect.Min.X;
@@ -274,7 +274,7 @@ public class DefaultWidgetPainter : IWidgetPainter
         {
             var fillRect = trackRect.WithWidth(fillWidth);
 
-            var fillTop = EuColor.Lighten(Colors.TrackFill, 0.18f);
+            var fillTop = EuColor.Lighten(Colors.TrackFill, 0.15f);
             var fillBottom = Colors.TrackFill;
 
             if (visual.Disabled > 0f)
@@ -282,30 +282,47 @@ public class DefaultWidgetPainter : IWidgetPainter
                 fillTop = EuColor.Lerp(fillTop, Colors.WidgetDisabled, visual.Disabled);
                 fillBottom = EuColor.Lerp(fillBottom, Colors.WidgetDisabled, visual.Disabled);
             }
-            else if (visual.Hover > 0.01f)
-            {
-                fillTop = EuColor.Lighten(fillTop, visual.Hover * 0.15f);
-                fillBottom = EuColor.Lighten(fillBottom, visual.Hover * 0.15f);
-            }
 
-            Painter.RectGradientV(fillRect, fillTop, fillBottom, rounding, Corners.Left);
+            Painter.RectGradientV(fillRect, fillTop, fillBottom, trackRounding, Corners.Left);
         }
 
-        // つまみは縦の帯。数字へかぶっても読み取りを邪魔しない
-        var knobColor = EuColor.Lerp(Colors.Knob, EuColor.Lighten(Colors.Knob, 0.3f), visual.Hover);
+        Painter.RectOutline(trackRect, Colors.WidgetBorder, Metrics.WidgetBorderWidth, trackRounding);
 
-        if (visual.Disabled > 0f)
-            knobColor = EuColor.Lerp(knobColor, Colors.WidgetDisabled, visual.Disabled);
+        // つまみ。溝より高くして、掴む場所をはっきりさせる
+        var knobHeight = MathF.Min(
+            Metrics.SliderKnobHeight > 0f ? Metrics.SliderKnobHeight : rect.Height,
+            rect.Height);
 
+        var grow = visual.Hover * 1.5f;
         var knobRect = Rect.FromCenter(
             new Vector2(knob.Center.X, trackRect.Center.Y),
-            new Vector2(knob.Width, trackHeight - 2f));
+            new Vector2(knob.Width + grow, knobHeight + grow));
 
-        Painter.Rect(knobRect, knobColor, MathF.Min(rounding, knob.Width * 0.5f));
-        Painter.RectOutline(knobRect, Colors.KnobBorder, 1f, MathF.Min(rounding, knob.Width * 0.5f));
+        var knobRounding = MathF.Min(Metrics.WidgetRounding, knobRect.Width * 0.5f);
 
-        var border = EuColor.Lerp(Colors.WidgetBorder, Colors.WidgetBorderHover, visual.Hover);
-        Painter.RectOutline(trackRect, border, Metrics.WidgetBorderWidth, rounding);
+        var knobTop = EuColor.Lighten(Colors.Knob, 0.12f + (visual.Hover * 0.15f));
+        var knobBottom = EuColor.Darken(Colors.Knob, 0.10f);
+
+        if (visual.Disabled > 0f)
+        {
+            knobTop = EuColor.Lerp(knobTop, Colors.WidgetDisabled, visual.Disabled);
+            knobBottom = EuColor.Lerp(knobBottom, Colors.WidgetDisabled, visual.Disabled);
+        }
+
+        // 掴んでいる間は下へわずかに沈ませ、押している手応えを出す
+        if (visual.Press > 0.01f)
+            knobRect = knobRect.Offset(0f, visual.Press * 0.5f);
+
+        Painter.Shadow(knobRect, EuColor.WithAlpha(Colors.Shadow, 0.5f), 3f, knobRounding, new Vector2(0f, 1f));
+        Painter.RectGradientV(knobRect, knobTop, knobBottom, knobRounding);
+
+        var knobBorder = EuColor.Lerp(Colors.KnobBorder, Colors.WidgetBorderHover, visual.Hover);
+        Painter.RectOutline(knobRect, knobBorder, 1f, knobRounding);
+
+        // つまみの中央に細い線を入れて、掴む部分だと分かるようにする
+        var gripColor = EuColor.WithAlpha(Colors.KnobBorder, 0.7f);
+        Painter.VLine(
+            knobRect.Center.X, knobRect.Min.Y + 4f, knobRect.Max.Y - 4f, gripColor);
     }
 
     /// <inheritdoc/>

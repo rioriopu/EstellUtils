@@ -369,6 +369,23 @@ public sealed class GalleryWindow : EuWindow
         if (EUi.SliderFloat("ウィンドウ", ref windowRounding, 0f, 16f, 220f, "px", false, 1))
             metrics.WindowRounding = windowRounding;
 
+        EUi.Separator("スライダーの形");
+
+        var trackHeight = metrics.SliderTrackHeight;
+        if (EUi.SliderFloat("溝の高さ", ref trackHeight, 0f, 24f, 200f, "px", false, 0)
+                .Tip("0 にするとウィジェットの高さいっぱいのバーになります。"))
+        {
+            metrics.SliderTrackHeight = trackHeight;
+        }
+
+        var knobWidth = metrics.SliderKnobWidth;
+        if (EUi.SliderFloat("つまみの幅", ref knobWidth, 3f, 20f, 200f, "px", false, 0))
+            metrics.SliderKnobWidth = knobWidth;
+
+        var knobHeight = metrics.SliderKnobHeight;
+        if (EUi.SliderFloat("つまみの高さ", ref knobHeight, 6f, 28f, 200f, "px", false, 0))
+            metrics.SliderKnobHeight = knobHeight;
+
         EUi.Muted("拡大率を変えると、テーマの既定値へ戻ります。");
 
         EUi.Separator("動きの速さ");

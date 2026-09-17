@@ -107,7 +107,7 @@ public static partial class EUi
         // 値をバーへ重ねて描くと、つまみが数字にかぶって読めなくなるため欄を分ける
         var labelSize = display.IsEmpty ? Vector2.Zero : TextPainter.Measure(display);
         var labelSpace = display.IsEmpty ? 0f : labelSize.X + Metrics.LabelSpacing;
-        var valueSpace = Metrics.SliderValueWidth + Metrics.SpacingSm;
+        var valueSpace = Metrics.SliderValueWidth + Metrics.SpacingMd;
 
         var available = AvailableWidth;
         var barWidth = width?.Resolve(available)
@@ -156,7 +156,7 @@ public static partial class EUi
         var text = FormatValue(buffer, value, isInteger, decimals, suffix);
 
         var valueRect = Rect.FromSize(
-            new Vector2(sliderRect.Max.X + Metrics.SpacingSm, rowRect.Min.Y),
+            new Vector2(sliderRect.Max.X + Metrics.SpacingMd, rowRect.Min.Y),
             new Vector2(Metrics.SliderValueWidth, height));
 
         var textColor = disabled ? Colors.TextDisabled : Colors.Text;
@@ -165,7 +165,7 @@ public static partial class EUi
         if (!display.IsEmpty)
         {
             var labelRect = new Rect(
-                new Vector2(valueRect.Max.X + Metrics.LabelSpacing, rowRect.Min.Y), rowRect.Max);
+                new Vector2(valueRect.Max.X + Metrics.SpacingLg, rowRect.Min.Y), rowRect.Max);
 
             TextPainter.TextIn(
                 labelRect,

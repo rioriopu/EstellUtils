@@ -85,9 +85,16 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 [████████░░░░░░]   22   ホバーの速さ
 ```
 
-値欄の幅は `Metrics.SliderValueWidth`、つまみの幅は `Metrics.SliderKnobWidth` で調整できます。
-`Metrics.SliderTrackHeight` は 0 のときバーがウィジェットの高さいっぱいになります
-（値を入れると細い溝になります）。
+見た目はテーマトークンで調整できます。
+
+| トークン | 既定 | 説明 |
+|---|---|---|
+| `SliderTrackHeight` | 7 | 溝の高さ。0 にするとウィジェットの高さいっぱいのバーになる |
+| `SliderKnobWidth` | 10 | つまみの幅 |
+| `SliderKnobHeight` | 18 | つまみの高さ。溝より高くすると掴む場所がはっきりする |
+| `SliderValueWidth` | 58 | 値を表示する欄の幅 |
+
+当たり判定はウィジェットの高さ全体なので、溝を細くしても掴みにくくはなりません。
 
 ## 入力・選択
 

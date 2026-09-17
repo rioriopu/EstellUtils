@@ -104,12 +104,21 @@ public sealed class ThemeMetrics
     public float ToggleHeight { get; set; } = 18f;
 
     /// <summary>
-    /// スライダーのバーの高さ。0 以下ならウィジェットの高さいっぱいを使う。
+    /// スライダーの溝の高さ。0 以下ならウィジェットの高さいっぱいを使う。
     /// </summary>
-    public float SliderTrackHeight { get; set; } = 0f;
+    /// <remarks>
+    /// 高さいっぱいのバーは埋まり具合が目立ちすぎて、画面の中で浮いてしまう。
+    /// 細めの溝にして、つまみで位置を示すほうが落ち着いて見える。
+    /// </remarks>
+    public float SliderTrackHeight { get; set; } = 7f;
 
     /// <summary>スライダーのつまみの幅。</summary>
-    public float SliderKnobWidth { get; set; } = 5f;
+    public float SliderKnobWidth { get; set; } = 10f;
+
+    /// <summary>
+    /// スライダーのつまみの高さ。溝より高くすると、掴む場所がはっきりする。
+    /// </summary>
+    public float SliderKnobHeight { get; set; } = 18f;
 
     /// <summary>
     /// スライダーの値を表示する欄の幅。バーの右側に確保する。
@@ -185,6 +194,7 @@ public sealed class ThemeMetrics
         m.ToggleHeight *= scale;
         m.SliderTrackHeight *= scale;
         m.SliderKnobWidth *= scale;
+        m.SliderKnobHeight *= scale;
         m.SliderValueWidth *= scale;
         m.FocusRingWidth *= scale;
 
