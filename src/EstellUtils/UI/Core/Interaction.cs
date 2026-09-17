@@ -239,6 +239,9 @@ public static class Interaction
 
         var hoveredDuration = hovered && state.Custom1 > 0f ? ctx.Time - state.Custom1 : 0f;
 
+        // 後から EUi.Tip() を呼べるよう、直前のウィジェットとして控えておく
+        ctx.SetLastItem(rect, hoveredDuration);
+
         return new InteractionResult
         {
             Id = id,

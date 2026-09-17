@@ -176,23 +176,43 @@ using (EUi.HStack())
 設定項目が多い画面は、最後に属性へ移すと画面側のコードがほぼ消えます。
 詳しくは [binding.md](binding.md) を参照してください。
 
-## 混在時の注意
+## 生 ImGui との混在
 
-EstellUtils のウィジェットは、領域を確保するときに ImGui 側のカーソルも一緒に動かします。
-そのため **「EstellUtils → 生 ImGui」の順に書く分には、何もしなくても位置が揃います**。
-
-逆に「生 ImGui → EstellUtils」と続けるときは、間に `EUi.SyncFromImGui()` を挟みます。
-ImGui が進めたカーソルをレイアウト側へ取り込むためです。
+EstellUtils のレイアウトは独自のカーソルで位置を決めます。
+そのため、**生の `ImGui.*` は `EUi.RawImGui()` のスコープで囲んでください。**
+囲まないと ImGui 側のカーソルが合わず、見えない場所へ描かれて何も出ていないように見えます。
 
 ```csharp
-EUi.Label("ここまで EstellUtils");
+EUi.Heading("プレビュー");
 
-ImGui.TextColored(color, "生の ImGui");
-ImGui.SmallButton("ボタン");
+using (EUi.RawImGui())
+{
+    ImGui.BeginChild("preview", new Vector2(0, 120), true);
+    ImGui.Image(handle, size);
+    ImGui.EndChild();
+}
 
-EUi.SyncFromImGui();               // ImGui が進めた分を取り込む
-EUi.Label("続きも正しい位置に出る");
+EUi.Muted("続きはここから");     // 正しい位置に出る
+```
+
+スコープを開くとき ImGui のカーソルが「次に置かれるはずの位置」へ合わせられ、
+閉じるとき ImGui が進めた分だけレイアウトが進みます。
+`BeginChild` や `Columns` のように ImGui の仕組みへ依存した部分を、
+そのまま残したまま移行できます。
+
+移行の途中では、置き換えていない部分をまるごとこのスコープへ入れておくのが楽です。
+
+```csharp
+public override void Draw()
+{
+    EUi.Separator("共通設定");
+    this.binder.DrawGroup("共通設定");        // 置き換え済み
+
+    using (EUi.RawImGui())
+        this.DrawLegacyTabs();                // まだ生 ImGui のまま
+}
 ```
 
 - `ImGui.SameLine()` は EstellUtils のウィジェットには効きません。`EUi.HStack()` を使ってください
 - ラベルの `##` / `###` の扱いは ImGui と同じです。既存のラベルをそのまま使えます
+- `EUi.SyncFromImGui()` は、スコープを使わずカーソルだけ取り込みたい場合の低レベル版です

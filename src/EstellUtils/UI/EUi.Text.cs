@@ -59,6 +59,47 @@ public static partial class EUi
     public static WidgetResult Muted(ReadOnlySpan<char> text, Align align = Align.Start)
         => Label(text, Colors.TextMuted, align);
 
+    /// <summary>色を <see cref="Vector4"/> (RGBA, 0〜1) で指定する版。</summary>
+    public static WidgetResult Label(ReadOnlySpan<char> text, Vector4 color, Align align = Align.Start)
+        => Label(text, EuColor.FromVector(color), align);
+
+    /// <summary>
+    /// 幅を決めて 1 行を表示する。収まらない場合は末尾を省略記号にする。
+    /// </summary>
+    /// <param name="text">表示する文字列。</param>
+    /// <param name="maxWidth">この幅に収める。</param>
+    /// <param name="color">文字色。省略するとテーマの標準色。</param>
+    /// <param name="align">横方向の寄せ。</param>
+    /// <param name="tipWhenTruncated">省略したときに、全文をツールチップで見せるか。</param>
+    /// <remarks>
+    /// 長いファイルパスなどをそのまま置くと、ウィンドウの幅が押し広げられてしまう。
+    /// 幅を決めておけばレイアウトが崩れない。
+    /// </remarks>
+    public static WidgetResult LabelClipped(
+        ReadOnlySpan<char> text, SizeSpec maxWidth, uint? color = null,
+        Align align = Align.Start, bool tipWhenTruncated = true)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var lineHeight = TextPainter.LineHeight;
+        var rect = ctx.Allocate(maxWidth, lineHeight);
+
+        if (!Painter.IsVisible(rect))
+            return MakeTextResult(ctx, rect);
+
+        var truncated = TextPainter.Measure(text).X > rect.Width;
+        TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
+
+        var result = MakeTextResult(ctx, rect);
+
+        // 省略したときは、全文をツールチップで読めるようにする
+        if (truncated && tipWhenTruncated)
+            result.Tip(text);
+
+        return result;
+    }
+
     /// <summary>
     /// 幅に合わせて折り返すテキスト。長い説明文に使う。
     /// </summary>
@@ -75,6 +116,10 @@ public static partial class EUi
 
         return MakeTextResult(ctx, rect);
     }
+
+    /// <summary>色を <see cref="Vector4"/> (RGBA, 0〜1) で指定する版。</summary>
+    public static WidgetResult Paragraph(ReadOnlySpan<char> text, Vector4 color)
+        => Paragraph(text, EuColor.FromVector(color));
 
     /// <summary>状態色付きの折り返しテキスト。注意書きなどに使う。</summary>
     public static WidgetResult Note(ReadOnlySpan<char> text, NoteKind kind = NoteKind.Info)
@@ -161,10 +206,44 @@ public static partial class EUi
     public static void Toast(string title, string message, NoteKind kind = NoteKind.Info, float duration = 4f)
         => ToastManager.Show(title, message, kind, duration);
 
+    // ── 文字の大きさを測る ────────────────────────────────────
+
+    /// <summary>現在のフォントでの行の高さ。</summary>
+    public static float LineHeight => TextPainter.LineHeight;
+
+    /// <summary>文字列の描画サイズを測る。</summary>
+    /// <remarks>結果はフォントごとにキャッシュされるので、毎フレーム呼んでも構わない。</remarks>
+    public static Vector2 Measure(ReadOnlySpan<char> text) => TextPainter.Measure(text);
+
+    /// <summary>
+    /// 折り返したときの描画サイズを測る。領域の高さを先に決めたいときに使う。
+    /// </summary>
+    /// <param name="text">測る文字列。</param>
+    /// <param name="width">折り返す幅。</param>
+    /// <remarks>
+    /// <code>
+    /// var height = EUi.MeasureWrapped(description, EUi.AvailableWidth).Y;
+    /// using (EUi.Scroll("desc", height + EUi.Metrics.SpacingMd))
+    ///     EUi.Paragraph(description);
+    /// </code>
+    /// </remarks>
+    public static Vector2 MeasureWrapped(ReadOnlySpan<char> text, float width)
+        => TextPainter.Measure(text, width);
+
+    /// <summary>
+    /// 指定幅に収まるよう切り詰めた文字列を返す。収まる場合はそのまま返す。
+    /// </summary>
+    /// <remarks>
+    /// 戻り値は使い回しのバッファを指すので、次に呼ぶまでの間に使い切ること。
+    /// </remarks>
+    public static ReadOnlySpan<char> Truncate(ReadOnlySpan<char> text, float maxWidth)
+        => TextPainter.Truncate(text, maxWidth);
+
     /// <summary>ID を持たないテキスト系ウィジェットの戻り値を組み立てる。</summary>
     private static WidgetResult MakeTextResult(UiContext ctx, Rect rect)
     {
         var duration = ctx.TrackHover(rect);
+        ctx.SetLastItem(rect, duration);
 
         return new WidgetResult
         {

@@ -137,4 +137,91 @@ public static partial class EUi
     /// フレームを進める。通常は各 API が自動で呼ぶため、明示的に呼ぶ必要はない。
     /// </summary>
     public static void NewFrame() => UiContext.Current.EnsureFrame();
+
+    private static int disabledDepth;
+
+    /// <summary>まとめて無効化されている最中か。</summary>
+    public static bool IsDisabled => disabledDepth > 0;
+
+    /// <summary>
+    /// このスコープの中のウィジェットをまとめて無効にする。
+    /// </summary>
+    /// <param name="disabled">無効にするか。false なら何もしない。</param>
+    /// <remarks>
+    /// 前提条件が揃わないときに、ひとまとまりの操作を丸ごと止めたい場面で使う。
+    /// ウィジェットごとに <c>disabled:</c> を書いて回ると、条件が変わったときに
+    /// 直し漏れが起きる。
+    /// <code>
+    /// using (EUi.Disabled(!this.config.OverlayEnabled))
+    /// {
+    ///     EUi.SliderInt("更新間隔", ref interval, 1, 6);
+    ///     EUi.Checkbox("デバッグ表示", ref debug);
+    /// }
+    /// </code>
+    /// </remarks>
+    public static DisabledScope Disabled(bool disabled = true)
+    {
+        if (!disabled)
+            return default;
+
+        disabledDepth++;
+        return new DisabledScope(true);
+    }
+
+    /// <summary>無効化スコープを 1 段戻す。</summary>
+    internal static void PopDisabled()
+    {
+        if (disabledDepth > 0)
+            disabledDepth--;
+    }
+
+    /// <summary>無効化スコープを空にする。フレーム境界での保険。</summary>
+    internal static void ResetDisabled() => disabledDepth = 0;
+
+    /// <summary>
+    /// 直前に置いたウィジェットへツールチップを付ける。
+    /// </summary>
+    /// <remarks>
+    /// 戻り値へ <c>.Tip()</c> をつなげられない場面 (戻り値を返さない自前のラッパーや、
+    /// <c>using</c> を返す <see cref="Section(ReadOnlySpan{char}, bool, bool)"/> のあと) で使う。
+    /// <code>
+    /// using (var s = EUi.Section("試験機能"))
+    /// {
+    ///     EUi.Tip("動作が不安定になる場合があります。");
+    ///     // ...
+    /// }
+    /// </code>
+    /// </remarks>
+    public static void Tip(ReadOnlySpan<char> text)
+    {
+        var ctx = UiContext.Current;
+
+        if (!text.IsEmpty && ctx.LastItemHoveredDuration > 0f)
+            Widgets.Tooltip.Show(text, ctx.LastItemHoveredDuration);
+    }
+
+    /// <summary>条件を満たすときだけ、直前のウィジェットへツールチップを付ける。</summary>
+    public static void TipIf(bool condition, ReadOnlySpan<char> text)
+    {
+        if (condition)
+            Tip(text);
+    }
+}
+
+/// <summary>
+/// <c>using</c> でまとめ無効化を解除するスコープ。
+/// 既定値 (<c>default</c>) のスコープは何もしない。
+/// </summary>
+public readonly struct DisabledScope : IDisposable
+{
+    private readonly bool active;
+
+    internal DisabledScope(bool active) => this.active = active;
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (this.active)
+            EUi.PopDisabled();
+    }
 }

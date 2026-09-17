@@ -160,5 +160,12 @@ using (EUi.PushFont(FontRole.Large))
 ```
 
 `Default` / `Small` / `Body` / `Large` / `Title` / `Mono` / `Icon` の 7 種類です。
+診断表示のように桁を揃えたいときは `FontRole.Mono` を使います。
+
+```csharp
+using (EUi.PushFont(FontRole.Mono))
+    EUi.Label($"0x{address:X8}   ({x,5}, {y,5})");
+```
+
 `Body` 系はゲームフォント（Axis）を使います。Dalamud の既定フォントにしたい場合は
 `EUi.Fonts.UseGameFont = false` を設定してください。

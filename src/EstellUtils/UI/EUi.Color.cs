@@ -31,19 +31,24 @@ public static partial class EUi
     /// <param name="color">対象の色 (RGBA, 0〜1)。</param>
     /// <param name="showAlpha">不透明度も編集するか。</param>
     /// <param name="width">見本の幅。省略すると標準のウィジェット幅。</param>
+    /// <param name="disabled">無効にするか。</param>
     /// <remarks>
     /// 色相・彩度・明度の選択面はすべて自前描画。ImGui のカラーピッカーは使わない。
     /// </remarks>
     public static WidgetResult ColorEdit(
-        string id, ref Vector4 color, bool showAlpha = true, SizeSpec? width = null)
+        string id, ref Vector4 color, bool showAlpha = true, SizeSpec? width = null, bool disabled = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        disabled |= IsDisabled;
+
         var euId = ctx.GetId(id);
         var rect = ctx.Allocate(width ?? SizeSpec.Px(Metrics.WidgetHeight * 2.5f), Metrics.WidgetHeight);
 
-        var interaction = Interaction.Behavior(rect, euId);
+        var interaction = Interaction.Behavior(
+            rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
+
         var packed = EuColor.FromVector(color);
 
         // 半透明のときだけ、下地に市松模様を敷いて透け具合が分かるようにする
@@ -57,7 +62,7 @@ public static partial class EUi
 
         var popupId = id + "##euColorPopup";
 
-        if (interaction.Clicked && !ImGui.IsPopupOpen(popupId))
+        if (interaction.Clicked && !disabled && !ImGui.IsPopupOpen(popupId))
             ImGui.OpenPopup(popupId);
 
         var changed = false;
@@ -93,10 +98,10 @@ public static partial class EUi
 
     /// <summary>色を <c>uint</c> (0xAABBGGRR) で扱う版。</summary>
     public static WidgetResult ColorEdit(
-        string id, ref uint color, bool showAlpha = true, SizeSpec? width = null)
+        string id, ref uint color, bool showAlpha = true, SizeSpec? width = null, bool disabled = false)
     {
         var vector = EuColor.ToVector(color);
-        var result = ColorEdit(id, ref vector, showAlpha, width);
+        var result = ColorEdit(id, ref vector, showAlpha, width, disabled);
 
         if (result.Changed)
             color = EuColor.FromVector(vector);

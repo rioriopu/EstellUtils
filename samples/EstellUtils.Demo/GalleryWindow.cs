@@ -84,6 +84,9 @@ public sealed class GalleryWindow : EuWindow
     private int themeIndex;
     private float scale = 1f;
     private int stressRows = 300;
+    private int posX = 120;
+    private float factor = 1.25f;
+    private bool sectionEnabled = true;
 
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
@@ -247,6 +250,45 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Muted("一覧");
         EUi.ListBox("##list", ref this.listIndex, ComboItems, 110f);
+
+        EUi.Separator("数値の直接入力");
+
+        using (EUi.LabelColumn("numberFields"))
+        {
+            using (EUi.Field("X 座標"))
+                EUi.InputInt("##posX", ref this.posX, 1, -4000, 4000);
+
+            using (EUi.Field("倍率"))
+                EUi.InputFloat("##factor", ref this.factor, 0.05f, 0f, 10f);
+        }
+
+        EUi.Muted("範囲の広い値は、スライダーより直接入力のほうが合わせやすい。");
+
+        EUi.Separator("まとめて無効化");
+
+        EUi.Checkbox("この節を有効にする", ref this.sectionEnabled);
+
+        using (EUi.Disabled(!this.sectionEnabled))
+        {
+            EUi.SliderInt("内側のスライダー", ref this.sliderInt, 1, 10, 200f, "回");
+
+            using (EUi.HStack())
+            {
+                EUi.Button("内側のボタン##grouped");
+                EUi.Checkbox("内側のチェック##grouped", ref this.checkboxValue);
+            }
+        }
+
+        EUi.Separator("長い文字列");
+
+        EUi.LabelClipped(
+            @"C:\Users\Administrator\AppData\Roaming\XIVLauncher\pluginConfigs\MaskedDalamud\shaders\overlay.hlsl",
+            SizeSpec.Fill);
+
+        EUi.Muted("幅に収まらない分は省略され、全文はマウスを乗せると出ます。");
+
+        using (EUi.PushFont(FontRole.Mono))
+            EUi.Label("等幅フォント:  0x1A2B3C4D   ( 1234, 5678 )");
 
         EUi.Separator("注意書き");
 
@@ -532,14 +574,21 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Separator("生 ImGui との混在");
 
-        EUi.Paragraph("以下は素の ImGui 呼び出しです。同じフレーム内で混ぜても配置は崩れません。");
+        EUi.Paragraph(
+            "EUi.RawImGui() のスコープで囲むと、生の ImGui をそのまま書けます。" +
+            "囲まないと ImGui 側のカーソルが合わず、見えない場所へ描かれてしまいます。");
 
-        ImGui.Separator();
-        ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), "これは ImGui.TextColored です");
-        ImGui.SmallButton("これは ImGui.SmallButton です");
+        using (EUi.RawImGui())
+        {
+            ImGui.Separator();
+            ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), "これは ImGui.TextColored です");
+            ImGui.SmallButton("これは ImGui.SmallButton です");
 
-        // 生 ImGui が進めたカーソルを取り込んでから EstellUtils へ戻る
-        EUi.SyncFromImGui();
+            ImGui.BeginChild("rawChild", new Vector2(0f, 60f), true);
+            ImGui.TextUnformatted("ImGui.BeginChild の中です");
+            ImGui.TextUnformatted("スクロールも ImGui 側の仕組みがそのまま動きます");
+            ImGui.EndChild();
+        }
 
         EUi.Label("ここから再び EstellUtils の描画に戻ります。");
     }

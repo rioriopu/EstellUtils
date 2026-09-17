@@ -122,6 +122,9 @@ public sealed class UiContext
         Render.Painter.ResetClipStack();
         Render.Painter.ResetAlpha();
         EUi.ResetLabelColumns();
+        EUi.ResetDisabled();
+
+        this.LastItemHoveredDuration = 0f;
 
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する
         if (!this.activeIdIsAlive && !this.ActiveId.IsNone)
@@ -179,6 +182,22 @@ public sealed class UiContext
         }
 
         return this.Time - this.hoverStartTime;
+    }
+
+    /// <summary>直前に置かれたウィジェットの矩形。</summary>
+    public Rect LastItemRect { get; private set; }
+
+    /// <summary>
+    /// 直前に置かれたウィジェットのホバー継続時間。
+    /// 0 ならマウスは乗っていない。後付けのツールチップに使う。
+    /// </summary>
+    public float LastItemHoveredDuration { get; private set; }
+
+    /// <summary>直前のウィジェットとして記録する。</summary>
+    internal void SetLastItem(Rect rect, float hoveredDuration)
+    {
+        this.LastItemRect = rect;
+        this.LastItemHoveredDuration = hoveredDuration;
     }
 
     /// <summary>キーボードフォーカスを移す。</summary>

@@ -32,6 +32,8 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        disabled |= IsDisabled;
+
         var id = ctx.GetId(label, out var display);
         var textSize = TextPainter.Measure(display);
 
@@ -62,6 +64,8 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        disabled |= IsDisabled;
+
         var widgetId = ctx.GetId(id);
         var size = MathF.Max(Metrics.WidgetHeight, Metrics.IconSize + Metrics.SpacingSm);
         var rect = ctx.Allocate(new Vector2(size, size));
@@ -87,6 +91,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var id = ctx.GetId(label, out var display);
         var boxSize = Metrics.CheckboxSize;
@@ -126,6 +132,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var id = ctx.GetId(label, out var display);
         var switchSize = new Vector2(Metrics.ToggleWidth, Metrics.ToggleHeight);
@@ -168,6 +176,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var id = ctx.GetId(label, out var display);
         var circleSize = Metrics.CheckboxSize;

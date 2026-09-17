@@ -55,6 +55,7 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Note(text, kind)` | 状態色付きの折り返しテキスト（Info / Success / Warning / Danger） |
 | `EUi.Heading(text)` | 大きめのフォントの見出し |
 | `EUi.Bullet(text)` | 行頭に点を打つ箇条書き |
+| `EUi.LabelClipped(text, maxWidth, color, align)` | 幅を決めて 1 行表示。溢れたら省略し、全文をツールチップで見せる |
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
 | `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |
@@ -105,6 +106,11 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Combo(id, ref index, items, width, disabled)` | ドロップダウン |
 | `EUi.ListBox(id, ref index, items, height, disabled)` | スクロールする一覧 |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
+| `EUi.InputInt(id, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
+| `EUi.InputFloat(id, ref value, step, min, max, width)` | 小数の直接入力 |
+
+座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれません。
+そうした値は `InputInt` / `InputFloat` で直接打ち込みます。
 
 `ColorEdit` は `Vector4` と `uint`(0xAABBGGRR) の両方に対応します。
 
@@ -134,6 +140,69 @@ using (var section = EUi.Section("共通設定"))
             EUi.Combo("##mode", ref mode, ModeNames);
     }
 }
+```
+
+## まとめて無効にする
+
+前提条件が揃わないときは、ひとまとまりの操作を丸ごと止められます。
+ウィジェットごとに `disabled:` を書いて回る必要はありません。
+
+```csharp
+using (EUi.Disabled(!this.config.OverlayEnabled))
+{
+    EUi.SliderInt("更新間隔", ref interval, 1, 6);
+    EUi.Checkbox("デバッグ表示", ref debug);
+}
+```
+
+## 後からツールチップを付ける
+
+戻り値へ `.Tip()` をつなげられない場面（戻り値を返さない自前のラッパーや、
+`using` を返す `Section` のあと）では `EUi.Tip()` を使います。
+
+```csharp
+using (var s = EUi.Section("試験機能"))
+{
+    EUi.Tip("動作が不安定になる場合があります。");
+    // ...
+}
+```
+
+## 文字の大きさを測る
+
+| API | 説明 |
+|---|---|
+| `EUi.Measure(text)` | 描画サイズ。結果はフォントごとにキャッシュされる |
+| `EUi.MeasureWrapped(text, width)` | 折り返したときのサイズ。領域の高さを先に決めたいときに |
+| `EUi.Truncate(text, maxWidth)` | 幅に収まるよう切り詰めた文字列 |
+| `EUi.LineHeight` | 現在のフォントでの行の高さ |
+
+```csharp
+var height = EUi.MeasureWrapped(description, EUi.AvailableWidth).Y;
+
+using (EUi.Scroll("desc", height + EUi.Metrics.SpacingMd))
+    EUi.Paragraph(description);
+```
+
+## クリップボード
+
+```csharp
+EUi.SetClipboard(diagnosticsText);
+var pasted = EUi.GetClipboard();
+```
+
+## 色の指定
+
+色は `uint`（0xAABBGGRR）で受け取りますが、`Vector4`（RGBA, 0〜1）のオーバーロードも
+用意しています。ImGui / Dalamud 由来のコードをそのまま移せます。
+
+```csharp
+EUi.Label("警告", new Vector4(1f, 0.4f, 0.3f, 1f));
+EUi.Paragraph(text, someVector4Color);
+
+// 変換もできる
+var packed = EuColor.FromVector(vector4);
+var vector = EuColor.ToVector(packed);
 ```
 
 ## レイアウト

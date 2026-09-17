@@ -101,6 +101,8 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        disabled |= IsDisabled;
+
         var id = ctx.GetId(label, out var display);
 
         // 「バー」「値」「ラベル」の 3 つを横に並べる。

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
@@ -38,6 +39,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var euId = ctx.GetId(id);
         var height = Metrics.WidgetHeight;
@@ -101,6 +104,8 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        disabled |= IsDisabled;
+
         var euId = ctx.GetId(id);
         var rect = ctx.Allocate(SizeSpec.Fill, height);
 
@@ -136,6 +141,134 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 整数を直接入力する欄。
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="value">対象の値。</param>
+    /// <param name="step">増減ボタンの刻み。0 にするとボタンを出さない。</param>
+    /// <param name="min">下限。省略すると制限しない。</param>
+    /// <param name="max">上限。省略すると制限しない。</param>
+    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれない。
+    /// そうした値はこちらで直接打ち込む。
+    /// </remarks>
+    public static WidgetResult InputInt(
+        string id, ref int value, int step = 1,
+        int? min = null, int? max = null, SizeSpec? width = null, bool disabled = false)
+    {
+        var text = value.ToString(CultureInfo.InvariantCulture);
+        var result = NumberInput(id, ref text, width, disabled, step != 0, out var stepped);
+
+        var changed = false;
+
+        if (stepped != 0)
+        {
+            value = ApplyLimits(value + (stepped * step), min, max);
+            changed = true;
+        }
+        else if (result.Changed && int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = ApplyLimits(parsed, min, max);
+            changed = true;
+        }
+
+        return result with { Changed = changed };
+    }
+
+    /// <summary>
+    /// 小数を直接入力する欄。
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="value">対象の値。</param>
+    /// <param name="step">増減ボタンの刻み。0 にするとボタンを出さない。</param>
+    /// <param name="min">下限。省略すると制限しない。</param>
+    /// <param name="max">上限。省略すると制限しない。</param>
+    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="disabled">無効にするか。</param>
+    public static WidgetResult InputFloat(
+        string id, ref float value, float step = 0f,
+        float? min = null, float? max = null, SizeSpec? width = null, bool disabled = false)
+    {
+        var text = value.ToString("G", CultureInfo.InvariantCulture);
+        var result = NumberInput(id, ref text, width, disabled, step != 0f, out var stepped);
+
+        var changed = false;
+
+        if (stepped != 0)
+        {
+            value = ApplyLimits(value + (stepped * step), min, max);
+            changed = true;
+        }
+        else if (result.Changed && float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = ApplyLimits(parsed, min, max);
+            changed = true;
+        }
+
+        return result with { Changed = changed };
+    }
+
+    /// <summary>数値入力の共通部分。文字列として編集し、増減ボタンを添える。</summary>
+    private static WidgetResult NumberInput(
+        string id, ref string text, SizeSpec? width, bool disabled, bool withStepper, out int stepped)
+    {
+        stepped = 0;
+
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        using var scope = ctx.ScopedId(id);
+
+        var buttonWidth = withStepper ? Metrics.WidgetHeight : 0f;
+        var totalWidth = width?.Resolve(AvailableWidth) ?? AvailableWidth;
+        var fieldWidth = MathF.Max(Metrics.WidgetMinWidth, totalWidth - (buttonWidth * 2f));
+
+        WidgetResult result;
+
+        using (Row(SizeSpec.Px(fieldWidth), SizeSpec.Px(buttonWidth), SizeSpec.Px(buttonWidth)))
+        {
+            result = TextInput("##value", ref text, null, 32, SizeSpec.Fill, disabled);
+
+            if (!withStepper)
+                return result;
+
+            if (Button("-##down", ButtonStyle.Normal, SizeSpec.Fill, disabled))
+                stepped = -1;
+
+            if (Button("+##up", ButtonStyle.Normal, SizeSpec.Fill, disabled))
+                stepped = 1;
+        }
+
+        return result;
+    }
+
+    /// <summary>上下限があれば丸める。</summary>
+    private static int ApplyLimits(int value, int? min, int? max)
+    {
+        if (min.HasValue)
+            value = Math.Max(min.Value, value);
+
+        if (max.HasValue)
+            value = Math.Min(max.Value, value);
+
+        return value;
+    }
+
+    /// <summary>上下限があれば丸める。</summary>
+    private static float ApplyLimits(float value, float? min, float? max)
+    {
+        if (min.HasValue)
+            value = MathF.Max(min.Value, value);
+
+        if (max.HasValue)
+            value = MathF.Min(max.Value, value);
+
+        return value;
+    }
+
+    /// <summary>
     /// ドロップダウン。選択が変わると <c>Changed</c> が立つ。
     /// </summary>
     /// <param name="id">識別子。</param>
@@ -153,6 +286,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var euId = ctx.GetId(id);
         var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
@@ -243,6 +378,8 @@ public static partial class EUi
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
 
         var euId = ctx.GetId(id);
         var available = ctx.Layout.AvailableRect;
