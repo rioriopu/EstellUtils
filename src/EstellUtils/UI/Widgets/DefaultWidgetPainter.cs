@@ -411,7 +411,8 @@ public class DefaultWidgetPainter : IWidgetPainter
     }
 
     /// <inheritdoc/>
-    public virtual void DrawWindowChrome(Rect window, Rect titleBar, ReadOnlySpan<char> title, bool focused)
+    public virtual void DrawWindowChrome(
+        Rect window, Rect titleBar, Rect titleTextArea, ReadOnlySpan<char> title, bool focused)
     {
         var rounding = Metrics.WindowRounding;
 
@@ -442,9 +443,9 @@ public class DefaultWidgetPainter : IWidgetPainter
 
             Painter.HLine(titleBar.Min.X, titleBar.Max.X, titleBar.Max.Y, Colors.TitleUnderline);
 
-            var textRect = titleBar.Shrink(EdgeInsets.Symmetric(Metrics.SpacingMd, 0f));
+            // 文字はボタンを除いた範囲へ。長いタイトルは末尾が省略される
             var titleColor = focused ? Colors.TitleText : EuColor.ScaleAlpha(Colors.TitleText, 0.6f);
-            TextPainter.TextIn(textRect, titleColor, title, Align.Start, Align.Center);
+            TextPainter.TextIn(titleTextArea, titleColor, title, Align.Start, Align.Center);
         }
 
         // 内側に一本細い線を入れると、ゲーム UI に近い二重枠になる

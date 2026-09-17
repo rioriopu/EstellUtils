@@ -135,7 +135,14 @@ public interface IWidgetPainter
     void DrawInputFrame(in WidgetVisual visual);
 
     /// <summary>ウィンドウの枠・タイトルバーを描く。</summary>
-    void DrawWindowChrome(Rect window, Rect titleBar, ReadOnlySpan<char> title, bool focused);
+    /// <param name="window">ウィンドウ全体の矩形。</param>
+    /// <param name="titleBar">タイトルバーの矩形 (背景を描く範囲)。</param>
+    /// <param name="titleTextArea">
+    /// タイトル文字を置ける範囲。右側のボタンを除いた領域が渡される。
+    /// </param>
+    /// <param name="title">タイトル。</param>
+    /// <param name="focused">このウィンドウが手前にあるか。</param>
+    void DrawWindowChrome(Rect window, Rect titleBar, Rect titleTextArea, ReadOnlySpan<char> title, bool focused);
 
     /// <summary>タイトルバーのボタンを描く。</summary>
     void DrawWindowButton(in WidgetVisual visual, WindowButtonKind kind);

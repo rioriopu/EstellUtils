@@ -332,10 +332,15 @@ public abstract class EuWindow
         var titleHeight = this.HasTitleBar ? metrics.TitleBarHeight : 0f;
         var titleRect = this.HasTitleBar ? windowRect.WithHeight(titleHeight) : Rect.Zero;
 
+        // タイトル文字を置ける範囲は、右側に並ぶボタンの分だけ狭める
+        var buttonCount = (this.Closable ? 1 : 0) + (this.Collapsible ? 1 : 0) + (this.HasCompactMode ? 1 : 0);
+        var titleTextArea = titleRect.Shrink(new EdgeInsets(
+            metrics.SpacingMd, 0f, (buttonCount * titleHeight) + metrics.SpacingSm, 0f));
+
         // 影や枠がウィンドウ矩形の外へはみ出すので、クリップを画面全体へ広げる
         var drawList = ctx.DrawList;
         drawList.PushClipRectFullScreen();
-        painter.DrawWindowChrome(windowRect, titleRect, this.Name, focused);
+        painter.DrawWindowChrome(windowRect, titleRect, titleTextArea, this.Name, focused);
         drawList.PopClipRect();
 
         if (this.HasTitleBar)

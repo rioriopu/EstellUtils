@@ -113,6 +113,9 @@ theme.Painter = new MyPainter();
 `DrawProgressBar` / `DrawCard` / `DrawSectionHeader` / `DrawSeparator` / `DrawTab` /
 `DrawInputFrame` / `DrawWindowChrome` / `DrawWindowButton` / `DrawResizeGrip`
 
+`DrawWindowChrome` にはタイトルバー全体の矩形と、ボタンを除いた「文字を置ける範囲」の
+両方が渡されます。ボタンが増えてもタイトルが重なりません。
+
 `WidgetVisual` が持つ情報：
 
 | フィールド | 意味 |
