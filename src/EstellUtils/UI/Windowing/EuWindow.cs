@@ -460,14 +460,16 @@ public abstract class EuWindow
         var titleTextArea = titleRect.Shrink(new EdgeInsets(
             metrics.SpacingMd, 0f, (buttonCount * titleHeight) + metrics.SpacingSm, 0f));
 
-        // 影や枠がウィンドウ矩形の外へはみ出すので、クリップを画面全体へ広げる
-        var drawList = ctx.DrawList;
-        drawList.PushClipRectFullScreen();
-        painter.DrawWindowChrome(windowRect, titleRect, titleTextArea, this.GetTitle(), focused);
-        drawList.PopClipRect();
+        // 枠や影はウィンドウ矩形の外へはみ出し、タイトルバーのボタンは縁ぎりぎりに置かれる。
+        // ImGui はウィンドウの内側でクリップをかけるので、そのままだと切られてしまう。
+        // クローム一式はクリップを画面全体へ広げて描く
+        using (Painter.ClipFullScreen())
+        {
+            painter.DrawWindowChrome(windowRect, titleRect, titleTextArea, this.GetTitle(), focused);
 
-        if (this.HasTitleBar)
-            this.HandleTitleBar(ctx, titleRect, painter);
+            if (this.HasTitleBar)
+                this.HandleTitleBar(ctx, titleRect, painter);
+        }
 
         // 文字入力の最中は Esc が入力の取り消しに使われるので、そこでは反応させない
         if (this.CloseOnEscape && focused && !ImGui.GetIO().WantTextInput &&
@@ -481,7 +483,11 @@ public abstract class EuWindow
         var showContent = contentHeight > 4f;
 
         if (this.Resizable && !this.Locked && !this.IsCollapsed)
+        {
+            // グリップも右下の縁にあるので、同じくクリップを広げて描く
+            using var gripClip = Painter.ClipFullScreen();
             this.HandleResizeGrip(ctx, windowRect, painter, metrics.ResizeGripSize);
+        }
 
         if (showContent)
         {
@@ -549,7 +555,11 @@ public abstract class EuWindow
     /// <summary>タイトルバーのボタンとドラッグ移動を処理する。</summary>
     private void HandleTitleBar(UiContext ctx, Rect titleRect, IWidgetPainter painter)
     {
-        var buttonArea = titleRect;
+        // 右端いっぱいに置くと、ウィンドウの角丸へ食い込んで角が欠けて見える。
+        // 角丸の分だけ内側から並べ始める
+        var buttonArea = titleRect.Shrink(
+            new EdgeInsets(0f, 0f, MathF.Max(2f, ThemeManager.Current.Metrics.WindowRounding * 0.6f), 0f));
+
         var buttonSize = titleRect.Height;
 
         // 右から順に「閉じる」「最小化」「小窓」

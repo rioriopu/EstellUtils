@@ -573,6 +573,20 @@ public static class Painter
 
     private static readonly List<Core.Rect> ClipStack = new(8);
 
+    /// <summary>
+    /// 画面全体をクリップ範囲にする。現在のクリップは引き継がない。
+    /// </summary>
+    /// <remarks>
+    /// ImGui はウィンドウの内側 (余白の半分ほど) でクリップをかけるため、
+    /// ウィンドウの縁ぎりぎりに置いたものは切られてしまう。
+    /// 枠・タイトルバー・その上のボタンのように、縁まで描きたいものはこれで囲む。
+    /// </remarks>
+    public static ClipScope ClipFullScreen()
+    {
+        var viewport = ImGui.GetMainViewport();
+        return Clip(Core.Rect.FromSize(viewport.Pos, viewport.Size), intersectWithCurrent: false);
+    }
+
     /// <summary><c>using</c> で解除できるクリップ領域。</summary>
     public static ClipScope Clip(Rect rect, bool intersectWithCurrent = true)
     {
