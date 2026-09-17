@@ -117,6 +117,12 @@ public abstract class EuWindow
     /// <summary>開閉を切り替える。</summary>
     public void Toggle() => this.IsOpen = !this.IsOpen;
 
+    /// <summary>
+    /// 位置を確定済みとして扱い、初回の自動中央寄せを行わないようにする。
+    /// 設定から読み込んだ位置を使う場合などに呼ぶ。
+    /// </summary>
+    protected void MarkPlaced() => this.placed = true;
+
     /// <summary>画面の中央へ移動する。</summary>
     public void CenterOnScreen()
     {
