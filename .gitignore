@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────
+# EstellUtils .gitignore
+# ─────────────────────────────────────────────
+
+# ビルド成果物・中間物
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+artifacts/
+
+# Visual Studio / Rider / VS Code のユーザー固有ファイル
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# 配布ステージング用 zip（GitHub Release で配布するため追跡不要）
+/*.zip
+
+# OS 生成ファイル
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ログ・一時ファイル
+*.log
+*.tmp

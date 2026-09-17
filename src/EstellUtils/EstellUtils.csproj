@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Authors>Estell</Authors>
+    <Description>FFXIV / Dalamud プラグイン向けの独自 UI ライブラリ</Description>
+    <Version>0.1.0.0</Version>
+    <AssemblyName>EstellUtils</AssemblyName>
+    <RootNamespace>EstellUtils</RootNamespace>
+    <OutputPath>bin\</OutputPath>
+    <!-- 利用側プラグインが XML ドキュメントを参照できるようにする -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- 未記述の XML コメントは警告にしない (段階的に追加していくため) -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,21 @@
+# 既定: テキストファイルはリポジトリ内で LF に正規化する
+* text=auto
+
+# C# / プロジェクトファイルは作業ツリーでは CRLF (Visual Studio の既定に合わせる)
+*.cs        text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.sln       text eol=crlf
+
+# ドキュメント類は LF
+*.md        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+
+# バイナリ
+*.png       binary
+*.jpg       binary
+*.dll       binary
+*.ttf       binary
+*.otf       binary
