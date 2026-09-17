@@ -113,11 +113,21 @@ public static partial class EUi
         var valueSpace = Metrics.SliderValueWidth + Metrics.SpacingMd;
 
         var available = AvailableWidth;
-        var barWidth = width?.Resolve(available)
-            ?? MathF.Max(Metrics.WidgetMinWidth, available - labelSpace - valueSpace);
-
         var height = Metrics.WidgetHeight;
-        var rowRect = ctx.Allocate(SizeSpec.Px(barWidth + valueSpace + labelSpace), height);
+
+        // 希望する行の幅。幅の指定が無ければ、値とラベルの分を残して残り幅いっぱい
+        var desiredBar = width is { Mode: SizeMode.Fixed } fixedWidth
+            ? fixedWidth.Value
+            : MathF.Max(Metrics.WidgetMinWidth, (width?.Resolve(available) ?? available) - labelSpace - valueSpace);
+
+        var rowRect = ctx.Allocate(SizeSpec.Px(desiredBar + valueSpace + labelSpace), height);
+
+        // 実際に確保できた幅からバーの幅を決め直す。
+        // 列を宣言した行の中では列幅が優先されるため、希望のまま描くと行からはみ出し、
+        // 値がスクロールバーへ重なってしまう
+        var barWidth = MathF.Max(
+            Metrics.WidgetMinWidth,
+            MathF.Min(desiredBar, rowRect.Width - valueSpace - labelSpace));
 
         var sliderRect = rowRect.WithWidth(barWidth);
 

@@ -51,12 +51,16 @@ public static class ScrollArea
 
         var barWidth = showBar ? theme.Metrics.ScrollbarWidth : 0f;
 
+        // 内容はスクロールバーより手前で止める。ぴったりまで使うと、
+        // 行末の文字やスライダーの値がつまみに触れて読みにくい
+        var contentInset = showBar ? barWidth + theme.Metrics.SpacingSm : 0f;
+
         // 内容はクリップ矩形の中へ、スクロール量だけ上へずらして描く
         var clip = Painter.Clip(rect);
 
         var contentBounds = new Rect(
             new Vector2(rect.Min.X, rect.Min.Y - state.Scroll),
-            new Vector2(rect.Max.X - barWidth, rect.Min.Y - state.Scroll + 1_000_000f));
+            new Vector2(rect.Max.X - contentInset, rect.Min.Y - state.Scroll + 1_000_000f));
 
         var gap = new Vector2(0f, spacing ?? theme.Metrics.ItemSpacing.Y);
         ctx.Layout.Push(LayoutKind.Vertical, contentBounds, gap);

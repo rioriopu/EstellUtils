@@ -245,6 +245,14 @@ internal static class Program
 
         Expect(roomForLabel >= LabelWidth,
             $"ラベルの幅が足りない (確保 {roomForLabel} / 必要 {LabelWidth})");
+
+        // 列の宣言によって、希望より狭い幅しか確保できなかった場合。
+        // 希望のままバーを描くと行からはみ出し、値がスクロールバーへ重なる
+        const float Granted = 300f;
+        var barInNarrowRow = MathF.Max(40f, MathF.Min(BarWidth, Granted - valueSpace - labelSpace));
+
+        Expect(barInNarrowRow + valueSpace + labelSpace <= Granted + 0.01f,
+            $"行からはみ出している (バー {barInNarrowRow} + 値 {valueSpace} + ラベル {labelSpace} > {Granted})");
     }
 
     private static void Expect(bool condition, string message)
