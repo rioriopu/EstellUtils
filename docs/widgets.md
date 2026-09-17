@@ -78,6 +78,17 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.SliderFloat(label, ref value, min, max, width, suffix, disabled, decimals)` | 小数スライダー。ドラッグ中に Shift で微調整 |
 | `EUi.ProgressBar(fraction, overlay, width, height)` | 進捗バー。文字を省略すると百分率 |
 
+スライダーは「バー / 値 / ラベル」の 3 つを横に並べます。
+値をバーへ重ねると、つまみが数字にかぶって読めなくなるため、欄を分けています。
+
+```
+[████████░░░░░░]   22   ホバーの速さ
+```
+
+値欄の幅は `Metrics.SliderValueWidth`、つまみの幅は `Metrics.SliderKnobWidth` で調整できます。
+`Metrics.SliderTrackHeight` は 0 のときバーがウィジェットの高さいっぱいになります
+（値を入れると細い溝になります）。
+
 ## 入力・選択
 
 | API | 説明 |

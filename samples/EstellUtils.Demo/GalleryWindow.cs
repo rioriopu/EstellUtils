@@ -135,6 +135,8 @@ public sealed class GalleryWindow : EuWindow
     /// </summary>
     public override void DrawCompact()
     {
+        this.UpdateProgress();
+
         EUi.Muted("小窓（本体とは別のウィンドウ）");
 
         using (EUi.Row(SizeSpec.Fill, SizeSpec.Fill))
@@ -153,6 +155,8 @@ public sealed class GalleryWindow : EuWindow
     /// <inheritdoc/>
     public override void Draw()
     {
+        this.UpdateProgress();
+
         var tabs = EUi.TabBar(
             "##galleryTabs", "ウィジェット", "レイアウト", "テーマ", "設定バインディング", "動作確認");
 
@@ -222,7 +226,6 @@ public sealed class GalleryWindow : EuWindow
         EUi.SliderFloat("小数スライダー", ref this.sliderFloat, 0f, 1f, 220f, default, false, 2)
            .Tip("ドラッグ中に Shift を押すと細かく動きます。");
 
-        this.progress = (MathF.Sin(EUi.Context.Time * 0.8f) * 0.5f) + 0.5f;
         EUi.ProgressBar(this.progress, default, 220f);
 
         EUi.Separator("入力");
@@ -582,6 +585,16 @@ public sealed class GalleryWindow : EuWindow
         using (EUi.Field(label))
             EUi.Label(value, EUi.Colors.TextHeading);
     }
+
+    /// <summary>
+    /// 進捗バーのデモ用の値を進める。
+    /// </summary>
+    /// <remarks>
+    /// 以前は「ウィジェット」タブの描画中にしか更新しておらず、小窓だけを開いていると
+    /// 止まって見えていた。表示している場所に関係なく進むよう、描画の入口で更新する。
+    /// </remarks>
+    private void UpdateProgress()
+        => this.progress = (MathF.Sin(EUi.Context.Time * 0.8f) * 0.5f) + 0.5f;
 
     /// <summary>選択中のテーマを反映する。</summary>
     private void ApplyTheme()

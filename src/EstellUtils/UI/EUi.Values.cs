@@ -103,26 +103,20 @@ public static partial class EUi
 
         var id = ctx.GetId(label, out var display);
 
-        // ラベルはスライダーの右へ置く。幅指定が無ければラベル分を差し引いた残りを使う
+        // 「バー」「値」「ラベル」の 3 つを横に並べる。
+        // 値をバーへ重ねて描くと、つまみが数字にかぶって読めなくなるため欄を分ける
         var labelSize = display.IsEmpty ? Vector2.Zero : TextPainter.Measure(display);
         var labelSpace = display.IsEmpty ? 0f : labelSize.X + Metrics.LabelSpacing;
+        var valueSpace = Metrics.SliderValueWidth + Metrics.SpacingSm;
 
-        var sliderWidth = width ?? SizeSpec.Px(MathF.Max(Metrics.WidgetMinWidth, AvailableWidth - labelSpace));
-        var height = MathF.Max(Metrics.WidgetHeight, Metrics.SliderKnobRadius * 2f);
+        var available = AvailableWidth;
+        var barWidth = width?.Resolve(available)
+            ?? MathF.Max(Metrics.WidgetMinWidth, available - labelSpace - valueSpace);
 
-        var rowRect = ctx.Allocate(
-            SizeSpec.Px(sliderWidth.Resolve(AvailableWidth) + labelSpace), height);
+        var height = Metrics.WidgetHeight;
+        var rowRect = ctx.Allocate(SizeSpec.Px(barWidth + valueSpace + labelSpace), height);
 
-        var sliderRect = display.IsEmpty ? rowRect : rowRect.CutLeft(rowRect.Width - labelSpace, out var labelRect);
-
-        if (!display.IsEmpty)
-        {
-            labelRect = new Rect(new Vector2(sliderRect.Max.X + Metrics.LabelSpacing, rowRect.Min.Y), rowRect.Max);
-            TextPainter.TextIn(
-                labelRect,
-                disabled ? Colors.TextDisabled : Colors.Text,
-                display, Align.Start, Align.Center);
-        }
+        var sliderRect = rowRect.WithWidth(barWidth);
 
         var flags = disabled
             ? InteractionFlags.Disabled
@@ -133,9 +127,9 @@ public static partial class EUi
         var range = max - min;
         var normalized = range > 0f ? Math.Clamp((value - min) / range, 0f, 1f) : 0f;
 
-        var knobRadius = Metrics.SliderKnobRadius;
-        var trackMin = sliderRect.Min.X + knobRadius;
-        var trackMax = sliderRect.Max.X - knobRadius;
+        var knobHalf = Metrics.SliderKnobWidth * 0.5f;
+        var trackMin = sliderRect.Min.X + knobHalf;
+        var trackMax = sliderRect.Max.X - knobHalf;
         var travel = MathF.Max(1f, trackMax - trackMin);
 
         var changed = false;
@@ -143,7 +137,7 @@ public static partial class EUi
         if (!disabled && (interaction.Pressed || interaction.Held))
         {
             changed = DragSlider(
-                ctx, id, ref value, min, max, range, trackMin, travel, knobRadius,
+                ctx, id, ref value, min, max, range, trackMin, travel, knobHalf + 2f,
                 normalized, isInteger, interaction.Pressed);
 
             if (changed)
@@ -151,17 +145,33 @@ public static partial class EUi
         }
 
         var knobCenter = new Vector2(trackMin + (travel * normalized), sliderRect.Center.Y);
-        var knobRect = Rect.FromCenter(knobCenter, new Vector2(knobRadius * 2f, knobRadius * 2f));
+        var knobRect = Rect.FromCenter(
+            knobCenter, new Vector2(Metrics.SliderKnobWidth, sliderRect.Height));
 
         var visual = WidgetVisual.From(interaction, false, 0f, normalized) with { Rect = sliderRect };
         WidgetPainter.DrawSlider(visual, knobRect);
 
-        // 値はスライダーの中央に重ねて表示する
+        // 値はバーの右の欄へ。つまみの位置に関係なく読める
         Span<char> buffer = stackalloc char[ValueBufferLength];
         var text = FormatValue(buffer, value, isInteger, decimals, suffix);
 
+        var valueRect = Rect.FromSize(
+            new Vector2(sliderRect.Max.X + Metrics.SpacingSm, rowRect.Min.Y),
+            new Vector2(Metrics.SliderValueWidth, height));
+
         var textColor = disabled ? Colors.TextDisabled : Colors.Text;
-        TextPainter.TextIn(sliderRect, textColor, text, Align.Center, Align.Center, ellipsize: false);
+        TextPainter.TextIn(valueRect, textColor, text, Align.End, Align.Center, ellipsize: false);
+
+        if (!display.IsEmpty)
+        {
+            var labelRect = new Rect(
+                new Vector2(valueRect.Max.X + Metrics.LabelSpacing, rowRect.Min.Y), rowRect.Max);
+
+            TextPainter.TextIn(
+                labelRect,
+                disabled ? Colors.TextDisabled : Colors.Text,
+                display, Align.Start, Align.Center);
+        }
 
         return WidgetResult.From(interaction, changed);
     }

@@ -103,11 +103,22 @@ public sealed class ThemeMetrics
     /// <summary>トグルスイッチの高さ。</summary>
     public float ToggleHeight { get; set; } = 18f;
 
-    /// <summary>スライダーの溝の高さ。</summary>
-    public float SliderTrackHeight { get; set; } = 4f;
+    /// <summary>
+    /// スライダーのバーの高さ。0 以下ならウィジェットの高さいっぱいを使う。
+    /// </summary>
+    public float SliderTrackHeight { get; set; } = 0f;
 
-    /// <summary>スライダーのつまみの半径。</summary>
-    public float SliderKnobRadius { get; set; } = 7f;
+    /// <summary>スライダーのつまみの幅。</summary>
+    public float SliderKnobWidth { get; set; } = 5f;
+
+    /// <summary>
+    /// スライダーの値を表示する欄の幅。バーの右側に確保する。
+    /// </summary>
+    /// <remarks>
+    /// 値をバーに重ねて描くと、つまみが数字へかぶって読めなくなる。
+    /// 別の欄に分けておけば、つまみがどこにあっても値が読める。
+    /// </remarks>
+    public float SliderValueWidth { get; set; } = 58f;
 
     /// <summary>フォーカスリングの太さ。</summary>
     public float FocusRingWidth { get; set; } = 2f;
@@ -173,7 +184,8 @@ public sealed class ThemeMetrics
         m.ToggleWidth *= scale;
         m.ToggleHeight *= scale;
         m.SliderTrackHeight *= scale;
-        m.SliderKnobRadius *= scale;
+        m.SliderKnobWidth *= scale;
+        m.SliderValueWidth *= scale;
         m.FocusRingWidth *= scale;
 
         m.TooltipRounding *= scale;
