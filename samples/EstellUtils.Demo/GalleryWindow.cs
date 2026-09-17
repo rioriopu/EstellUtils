@@ -106,7 +106,8 @@ public sealed class GalleryWindow : EuWindow
             Id = "demoGithub",
             Icon = FontAwesomeIcon.Bell.ToIconString(),
             Tooltip = "通知を出す",
-            OnClick = () => EUi.Toast("タイトルバーのボタンから実行しました。", NoteKind.Info),
+            OnClick = () => EUi.Toast(
+                "タイトルバーから実行", "追加したボタンから処理を呼び出しました。", NoteKind.Info),
         });
 
         this.TitleBarButtons.Add(new TitleBarButton
@@ -142,7 +143,7 @@ public sealed class GalleryWindow : EuWindow
                 this.ApplyTheme();
 
             if (EUi.Button("通知##compact", ButtonStyle.Primary, SizeSpec.Fill))
-                EUi.Toast("小窓から実行しました。", NoteKind.Success);
+                EUi.Toast("小窓から実行", "小窓のボタンから処理を呼び出しました。", NoteKind.Success);
         }
 
         EUi.Toggle("デバッグ表示##compact", ref this.toggleValue);
@@ -199,7 +200,7 @@ public sealed class GalleryWindow : EuWindow
             EUi.Button("無効##disabled2", ButtonStyle.Primary, null, true);
 
             if (EUi.Button("通知を出す"))
-                EUi.Toast("ボタンが押されました。", NoteKind.Success);
+                EUi.Toast("実行しました", "ボタンが押されたので処理を行いました。", NoteKind.Success);
         }
 
         EUi.Separator("切り替え");
@@ -427,7 +428,7 @@ public sealed class GalleryWindow : EuWindow
             if (EUi.Button("既定値へ戻す", ButtonStyle.Danger))
             {
                 this.binder.ResetAll();
-                EUi.Toast("設定を既定値へ戻しました。", NoteKind.Warning);
+                EUi.Toast("既定値へ戻しました", "すべての設定を初期状態に戻しました。", NoteKind.Warning);
             }
 
             EUi.Muted(this.binder.HasChanges() ? "既定値から変更されています" : "すべて既定値です");
@@ -461,19 +462,24 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Separator("通知");
 
-        using (EUi.HStack())
+        EUi.Muted("マウスを乗せると時間が止まり、クリックで閉じられます。");
+
+        using (EUi.HStack(wrap: true))
         {
             if (EUi.Button("情報##toastInfo"))
-                EUi.Toast("情報の通知です。", NoteKind.Info);
+                EUi.Toast("読み込み完了", "アイテムの一覧を 1,284 件読み込みました。", NoteKind.Info);
 
             if (EUi.Button("成功##toastOk"))
-                EUi.Toast("処理が完了しました。", NoteKind.Success);
+                EUi.Toast("保存しました", "設定をファイルへ書き出しました。", NoteKind.Success);
 
             if (EUi.Button("注意##toastWarn"))
-                EUi.Toast("設定を確認してください。", NoteKind.Warning);
+                EUi.Toast("設定を確認してください", "オーバーレイ更新間隔が 1 のため、動作が重くなる場合があります。", NoteKind.Warning);
 
             if (EUi.Button("危険##toastErr"))
-                EUi.Toast("処理に失敗しました。詳細はログを確認してください。", NoteKind.Danger);
+                EUi.Toast("処理に失敗しました", "テクスチャの読み込みに失敗しました。詳細は /xllog を確認してください。", NoteKind.Danger);
+
+            if (EUi.Button("見出しなし##toastPlain"))
+                EUi.Toast("見出しを付けない通知です。", NoteKind.Info);
         }
 
         EUi.Separator("負荷の確認");
@@ -590,7 +596,7 @@ public sealed class GalleryWindow : EuWindow
         theme.Scale = this.scale;
 
         ThemeManager.SetDefault(theme);
-        EUi.Toast($"テーマを「{theme.Name}」に切り替えました。", NoteKind.Info);
+        EUi.Toast("テーマを切り替えました", $"「{theme.Name}」を適用しました。", NoteKind.Info);
     }
 
     /// <summary>拡大率を反映する。</summary>

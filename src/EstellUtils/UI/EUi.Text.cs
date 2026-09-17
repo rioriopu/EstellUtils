@@ -143,10 +143,23 @@ public static partial class EUi
     /// 画面隅に通知を出す。ウィンドウが閉じていても表示される。
     /// </summary>
     /// <param name="message">本文。</param>
-    /// <param name="kind">種類。色が変わる。</param>
+    /// <param name="kind">種類。色とアイコンが変わる。</param>
     /// <param name="duration">表示し続ける秒数。</param>
-    public static void Toast(string message, NoteKind kind = NoteKind.Info, float duration = 3.5f)
+    /// <remarks>
+    /// マウスを乗せている間は時間が止まり、クリックすると閉じる。
+    /// </remarks>
+    public static void Toast(string message, NoteKind kind = NoteKind.Info, float duration = 4f)
         => ToastManager.Show(message, kind, duration);
+
+    /// <summary>
+    /// 見出し付きの通知を出す。何が起きたのかを一目で伝えたいときに使う。
+    /// </summary>
+    /// <param name="title">見出し。</param>
+    /// <param name="message">本文。</param>
+    /// <param name="kind">種類。色とアイコンが変わる。</param>
+    /// <param name="duration">表示し続ける秒数。</param>
+    public static void Toast(string title, string message, NoteKind kind = NoteKind.Info, float duration = 4f)
+        => ToastManager.Show(title, message, kind, duration);
 
     /// <summary>ID を持たないテキスト系ウィジェットの戻り値を組み立てる。</summary>
     private static WidgetResult MakeTextResult(UiContext ctx, Rect rect)

@@ -34,6 +34,17 @@ EUi.Button("削除", ButtonStyle.Danger)
 
 ドラッグ終了時にだけ保存したい場合は `Deactivated` を使います。
 
+## 通知
+
+```csharp
+EUi.Toast("保存しました", "設定をファイルへ書き出しました。", NoteKind.Success);
+EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
+```
+
+種類ごとにアイコンと色が変わり（情報・成功・注意・危険）、下端に残り時間が出ます。
+**マウスを乗せている間は時間が止まる**ので、読んでいる最中に消えません。
+クリックするとその場で閉じます。
+
 ## テキスト
 
 | API | 説明 |
@@ -46,6 +57,7 @@ EUi.Button("削除", ButtonStyle.Danger)
 | `EUi.Bullet(text)` | 行頭に点を打つ箇条書き |
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
+| `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |
 
 ## 操作
 
