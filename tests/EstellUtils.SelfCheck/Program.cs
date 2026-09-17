@@ -34,6 +34,7 @@ internal static class Program
         CheckSizeSpecs();
         CheckEasingAndAnim();
         CheckLabelRoom();
+        CheckEdgeSnap();
 
         if (Failures.Count == 0)
         {
@@ -253,6 +254,41 @@ internal static class Program
 
         Expect(barInNarrowRow + valueSpace + labelSpace <= Granted + 0.01f,
             $"行からはみ出している (バー {barInNarrowRow} + 値 {valueSpace} + ラベル {labelSpace} > {Granted})");
+    }
+
+    /// <summary>
+    /// 画面端への吸着が、ドラッグの邪魔をしないかの確認。
+    /// </summary>
+    /// <remarks>
+    /// 吸着後の位置へマウスの移動量を積むと、吸着の範囲内で動かしても毎フレーム
+    /// 端へ戻され、ウィンドウが貼り付いて動かせなくなる。
+    /// 移動量は「吸着していない位置」へ積み、吸着は見た目にだけ効かせる。
+    /// </remarks>
+    private static void CheckEdgeSnap()
+    {
+        const float SnapDistance = 8f;
+        const float ScreenLeft = 0f;
+
+        // 端に吸い付いた状態から、少しずつ右へ動かしていく
+        var logical = ScreenLeft;
+        var shown = Snap(logical);
+
+        Expect(shown == ScreenLeft, "端に置いたのに吸着していない");
+
+        // 吸着の範囲内 (3px ずつ) でも、本来の位置は進み続ける
+        for (var i = 0; i < 3; i++)
+            logical += 3f;
+
+        Expect(logical == 9f, $"移動量が失われている: {logical}");
+
+        shown = Snap(logical);
+        Expect(shown == 9f, $"吸着の範囲を出たのに端へ戻されている: {shown}");
+
+        // 範囲内ならまだ吸着したまま
+        Expect(Snap(ScreenLeft + 5f) == ScreenLeft, "近いのに吸着していない");
+
+        static float Snap(float x)
+            => MathF.Abs(x - ScreenLeft) < SnapDistance ? ScreenLeft : x;
     }
 
     private static void Expect(bool condition, string message)

@@ -46,6 +46,7 @@ public abstract class EuWindow
     private bool resizing;
     private Vector2 animatedSize;
     private bool sizeInitialized;
+    private Vector2 dragPosition;
     private EuCompanionWindow? companion;
 
     /// <summary>ウィンドウを作る。</summary>
@@ -546,10 +547,13 @@ public abstract class EuWindow
         var drag = Interaction.Behavior(area, dragId, InteractionFlags.AllowDragOutside);
 
         if (drag.Pressed)
+        {
+            this.BeginDrag();
             ImGui.SetWindowFocus(this.imguiId);
+        }
 
         if (drag.Held)
-            this.MoveBy(ctx.Input.MouseDelta, ctx.Input.MousePos);
+            this.MoveBy(ctx.Input.MouseDelta);
     }
 
     /// <summary>タイトルバーのボタンとドラッグ移動を処理する。</summary>
@@ -640,15 +644,19 @@ public abstract class EuWindow
         var dragId = ctx.GetId("##euWindowDrag");
         var drag = Interaction.Behavior(buttonArea, dragId, InteractionFlags.AllowDragOutside);
 
+        if (drag.Pressed)
+        {
+            this.BeginDrag();
+
+            // タイトルバーをクリックしたらウィンドウを手前へ持ってくる
+            ImGui.SetWindowFocus(this.imguiId);
+        }
+
         // タイトルバーのダブルクリックで畳む (ウィンドウ操作としてよくある挙動)
         if (drag.DoubleClicked && this.Collapsible)
             this.IsCollapsed = !this.IsCollapsed;
         else if (drag.Held)
-            this.MoveBy(ctx.Input.MouseDelta, ctx.Input.MousePos);
-
-        // タイトルバーをクリックしたらウィンドウを手前へ持ってくる
-        if (drag.Pressed)
-            ImGui.SetWindowFocus(this.imguiId);
+            this.MoveBy(ctx.Input.MouseDelta);
     }
 
     /// <summary>今フレームに表示される追加ボタンの数。</summary>
@@ -697,32 +705,35 @@ public abstract class EuWindow
         }
     }
 
-    /// <summary>ウィンドウを動かす。画面端への吸着もここで行う。</summary>
-    private void MoveBy(Vector2 delta, Vector2 mousePos)
-    {
-        this.Position += delta;
+    /// <summary>ドラッグの開始。吸着していない「本来の位置」を覚えておく。</summary>
+    private void BeginDrag() => this.dragPosition = this.Position;
 
-        if (this.SnapToScreenEdges)
-            this.ApplyEdgeSnap();
+    /// <summary>
+    /// ウィンドウを動かす。画面端への吸着もここで行う。
+    /// </summary>
+    /// <remarks>
+    /// マウスの移動量は吸着していない位置へ積む。吸着後の位置へ積んでしまうと、
+    /// 吸着の範囲内で動かしても毎フレーム端へ戻され、貼り付いて動かせなくなる。
+    /// </remarks>
+    private void MoveBy(Vector2 delta)
+    {
+        this.dragPosition += delta;
+
+        this.Position = this.SnapToScreenEdges
+            ? ApplyEdgeSnap(this.dragPosition, this.animatedSize)
+            : this.dragPosition;
     }
 
     /// <summary>
-    /// 画面の端に近づいたら、そこへ吸い付かせる。
+    /// 画面の端に近いときだけ、見た目の位置を端へ合わせる。
     /// </summary>
-    /// <remarks>
-    /// 吸着は見た目の位置だけを合わせるもので、マウスの移動量は常に反映している。
-    /// そのまま動かし続ければ吸着から外れる。
-    /// </remarks>
-    private void ApplyEdgeSnap()
+    private static Vector2 ApplyEdgeSnap(Vector2 position, Vector2 size)
     {
-        const float SnapDistance = 12f;
+        const float SnapDistance = 8f;
 
         var viewport = ImGui.GetMainViewport();
         var min = viewport.WorkPos;
         var max = viewport.WorkPos + viewport.WorkSize;
-        var size = this.animatedSize;
-
-        var position = this.Position;
 
         if (MathF.Abs(position.X - min.X) < SnapDistance)
             position.X = min.X;
@@ -734,7 +745,7 @@ public abstract class EuWindow
         else if (MathF.Abs(position.Y + size.Y - max.Y) < SnapDistance)
             position.Y = max.Y - size.Y;
 
-        this.Position = position;
+        return position;
     }
 
     /// <summary>右下のリサイズグリップを処理する。</summary>
