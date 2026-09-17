@@ -101,6 +101,9 @@ public sealed class UiContext
         if (this.idStack.Count > 1)
             this.idStack.RemoveRange(1, this.idStack.Count - 1);
 
+        // テーマスコープも同様に、閉じ忘れをフレーム境界で回収する
+        Theming.ThemeManager.ResetStack();
+
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する
         if (!this.activeIdIsAlive && !this.ActiveId.IsNone)
             this.ActiveId = EuId.None;
