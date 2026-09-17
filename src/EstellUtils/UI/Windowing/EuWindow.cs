@@ -47,6 +47,8 @@ public abstract class EuWindow
     private Vector2 animatedSize;
     private bool sizeInitialized;
     private Vector2 dragPosition;
+    private bool stateRestored;
+    private bool stateDirty;
     private EuCompanionWindow? companion;
 
     /// <summary>ウィンドウを作る。</summary>
@@ -188,6 +190,22 @@ public abstract class EuWindow
     /// <summary>このウィンドウだけで使うテーマ。省略すると既定テーマ。</summary>
     public Theme? Theme { get; set; }
 
+    /// <summary>
+    /// 位置や大きさを覚えておく入れ物。設定しておくと自動で復元・保存される。
+    /// </summary>
+    /// <remarks>
+    /// 複数のウィンドウをまとめて扱うなら <see cref="EuWindowManager.BindLayout"/> が楽。
+    /// </remarks>
+    public EuWindowState? State { get; set; }
+
+    /// <summary>
+    /// 状態が変わったときに呼ばれる。設定の保存へつなぐ。
+    /// </summary>
+    /// <remarks>
+    /// 毎フレームではなく、動かし終えた・大きさを変え終えた時点で 1 度だけ呼ばれる。
+    /// </remarks>
+    public Action? StateChanged { get; set; }
+
     /// <summary>追加で指定する ImGui のウィンドウフラグ。</summary>
     public ImGuiWindowFlags ExtraFlags { get; set; } = ImGuiWindowFlags.None;
 
@@ -320,6 +338,13 @@ public abstract class EuWindow
 
         this.PreDraw();
 
+        // 覚えていた位置や大きさは、最初の描画の前に読み戻す
+        if (!this.stateRestored)
+        {
+            this.stateRestored = true;
+            this.RestoreState();
+        }
+
         if (!this.placed)
             this.CenterOnScreen();
 
@@ -395,6 +420,8 @@ public abstract class EuWindow
         {
             ImGui.End();
         }
+
+        this.FlushStateIfSettled();
     }
 
     /// <summary>表示状態 (通常 / 小窓 / 最小化) に応じた目標の大きさを求める。</summary>
@@ -553,7 +580,10 @@ public abstract class EuWindow
         }
 
         if (drag.Held)
+        {
             this.MoveBy(ctx.Input.MouseDelta);
+            this.MarkStateDirty();
+        }
     }
 
     /// <summary>タイトルバーのボタンとドラッグ移動を処理する。</summary>
@@ -587,7 +617,10 @@ public abstract class EuWindow
                 WidgetVisual.From(interaction, !this.IsCollapsed), WindowButtonKind.Collapse);
 
             if (interaction.Clicked)
+            {
                 this.IsCollapsed = !this.IsCollapsed;
+                this.MarkStateDirty();
+            }
 
             if (interaction.Hovered)
                 Tooltip.Show(this.IsCollapsed ? "元の大きさに戻す" : "タイトルバーだけに畳む", interaction.HoveredDuration);
@@ -602,7 +635,10 @@ public abstract class EuWindow
                 WidgetVisual.From(interaction, this.IsCompanionOpen), WindowButtonKind.Compact);
 
             if (interaction.Clicked)
+            {
                 this.ToggleCompanion();
+                this.MarkStateDirty();
+            }
 
             if (interaction.Hovered)
                 Tooltip.Show("小窓で開く", interaction.HoveredDuration);
@@ -630,7 +666,10 @@ public abstract class EuWindow
             painter.DrawWindowButton(WidgetVisual.From(interaction, this.Locked), WindowButtonKind.Lock);
 
             if (interaction.Clicked)
+            {
                 this.Locked = !this.Locked;
+                this.MarkStateDirty();
+            }
 
             if (interaction.Hovered)
                 Tooltip.Show(this.Locked ? "固定を解除する" : "位置と大きさを固定する", interaction.HoveredDuration);
@@ -654,9 +693,15 @@ public abstract class EuWindow
 
         // タイトルバーのダブルクリックで畳む (ウィンドウ操作としてよくある挙動)
         if (drag.DoubleClicked && this.Collapsible)
+        {
             this.IsCollapsed = !this.IsCollapsed;
+            this.MarkStateDirty();
+        }
         else if (drag.Held)
+        {
             this.MoveBy(ctx.Input.MouseDelta);
+            this.MarkStateDirty();
+        }
     }
 
     /// <summary>今フレームに表示される追加ボタンの数。</summary>
@@ -703,6 +748,89 @@ public abstract class EuWindow
             if (interaction.Hovered && button.Tooltip is not null)
                 Tooltip.Show(button.Tooltip, interaction.HoveredDuration);
         }
+    }
+
+    /// <summary>覚えていた状態を読み戻す。</summary>
+    private void RestoreState()
+    {
+        var state = this.State;
+
+        if (state is null)
+            return;
+
+        if (state.Size.X > 1f && state.Size.Y > 1f)
+            this.Size = state.Size;
+
+        if (state.HasPosition)
+        {
+            this.Position = state.Position;
+            this.MarkPlaced();
+        }
+
+        this.IsCollapsed = state.Collapsed;
+        this.Locked = state.Locked;
+        this.Opacity = state.Opacity <= 0f ? 1f : state.Opacity;
+
+        if (this.HasCompanion && state.CompanionOpen)
+        {
+            this.EnsureCompanion();
+
+            if (this.companion is not null)
+            {
+                if (state.CompanionSize.X > 1f && state.CompanionSize.Y > 1f)
+                    this.companion.Size = state.CompanionSize;
+
+                if (state.HasCompanionPosition)
+                {
+                    this.companion.Position = state.CompanionPosition;
+                    this.companion.MarkPlaced();
+                }
+
+                this.companion.IsOpen = true;
+            }
+        }
+    }
+
+    /// <summary>今の状態を入れ物へ書き出す。</summary>
+    private void CaptureState()
+    {
+        var state = this.State;
+
+        if (state is null)
+            return;
+
+        state.Position = this.Position;
+        state.Size = this.Size;
+        state.HasPosition = true;
+        state.Collapsed = this.IsCollapsed;
+        state.Locked = this.Locked;
+        state.Opacity = this.Opacity;
+
+        if (this.companion is not null)
+        {
+            state.CompanionOpen = this.companion.IsOpen;
+            state.CompanionPosition = this.companion.Position;
+            state.CompanionSize = this.companion.Size;
+            state.HasCompanionPosition = true;
+        }
+    }
+
+    /// <summary>状態が変わったことを控える。保存は操作が終わってから 1 度だけ行う。</summary>
+    private void MarkStateDirty() => this.stateDirty = true;
+
+    /// <summary>操作が終わっていれば、状態を書き出して保存を促す。</summary>
+    private void FlushStateIfSettled()
+    {
+        if (!this.stateDirty || this.State is null)
+            return;
+
+        // 掴んでいる間は保存しない。離した時点で 1 度だけ書き出す
+        if (this.resizing || UiContext.Current.Input.IsDown(MouseButton.Left))
+            return;
+
+        this.CaptureState();
+        this.stateDirty = false;
+        this.StateChanged?.Invoke();
     }
 
     /// <summary>ドラッグの開始。吸着していない「本来の位置」を覚えておく。</summary>
@@ -763,6 +891,9 @@ public abstract class EuWindow
         this.resizing = interaction.Held;
 
         if (interaction.Held)
+        {
             this.Size = Vector2.Clamp(this.Size + ctx.Input.MouseDelta, this.MinSize, this.MaxSize);
+            this.MarkStateDirty();
+        }
     }
 }

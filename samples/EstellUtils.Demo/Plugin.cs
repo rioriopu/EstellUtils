@@ -5,6 +5,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 
 using EstellUtils.UI;
+using EstellUtils.UI.Windowing;
 
 namespace EstellUtils.Demo;
 
@@ -23,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commandManager;
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly GalleryWindow window;
+    private readonly EuWindowLayout layout = new();
 
     /// <summary>プラグインを初期化する。</summary>
     public Plugin(
@@ -38,6 +40,9 @@ public sealed class Plugin : IDalamudPlugin
 
         this.window = new GalleryWindow { IsOpen = true };
         EUi.Windows.Add(this.window);
+
+        // 位置と大きさをまとめて覚えさせる。動かし終えた時点で保存が呼ばれる
+        EUi.Windows.BindLayout(this.layout, this.SaveLayout);
 
         this.commandManager.AddHandler(CommandName, new CommandInfo(this.OnCommand)
         {
@@ -60,6 +65,13 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     private void OnCommand(string command, string arguments) => this.window.Toggle();
+
+    /// <summary>
+    /// 本来はここで設定ファイルへ書き出す。デモではログだけ残す。
+    /// </summary>
+    private void SaveLayout()
+        => EstellUtils.Diagnostics.UiLog.Debug(
+            $"ウィンドウの配置が変わりました ({this.layout.Windows.Count} 件)");
 
     private void OpenWindow() => this.window.IsOpen = true;
 }

@@ -34,6 +34,21 @@ EUi.Button("削除", ButtonStyle.Danger)
 
 ドラッグ終了時にだけ保存したい場合は `Deactivated` を使います。
 
+### 文字が切られたとき
+
+幅に収まらない文字は省略記号で切られますが、**黙って消えることはありません**。
+
+- 戻り値の `Truncated` が立つので、コードから判定できます
+- 既定では全文がツールチップで出ます（`tipWhenTruncated: false` で止められます）
+- `ellipsize: false` にすると切らずにはみ出すので、レイアウトの不足に気づけます
+
+```csharp
+var result = EUi.Label(path);
+
+if (result.Truncated)
+    EUi.Muted("(幅が足りていません)");
+```
+
 ## 通知
 
 ```csharp
@@ -56,6 +71,9 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Heading(text)` | 大きめのフォントの見出し |
 | `EUi.Bullet(text)` | 行頭に点を打つ箇条書き |
 | `EUi.LabelClipped(text, maxWidth, color, align)` | 幅を決めて 1 行表示。溢れたら省略し、全文をツールチップで見せる |
+| `EUi.Selectable(label, selected, width, height)` | 選択できる 1 行。一覧を自前で組むときに |
+| `EUi.Image(texture, size, tint)` | 画像。アイテムアイコンなどの表示に |
+| `EUi.ImageButton(texture, id, size)` | 押せる画像 |
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
 | `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |

@@ -145,6 +145,38 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 開閉の状態を呼び出し側で持つセクション。
+    /// </summary>
+    /// <param name="label">見出し。</param>
+    /// <param name="open">開いているか。クリックで書き換わる。</param>
+    /// <param name="collapsible">クリックで折りたためるか。</param>
+    /// <remarks>
+    /// 開閉の状態を設定へ保存したい場合や、コードから開け閉めしたい場合に使う。
+    /// </remarks>
+    public static SectionHandle Section(ReadOnlySpan<char> label, ref bool open, bool collapsible = true)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var id = ctx.GetId(label);
+        ref var state = ref ctx.Store.GetRef(id);
+
+        // 呼び出し側の値を正として、内部の状態へ写してから通常の処理に乗せる
+        if (!state.Initialized)
+        {
+            state.Initialized = true;
+            state.OpenAmount = open ? 1f : 0f;
+        }
+
+        state.Open = open;
+
+        var handle = Section(label, collapsible, open);
+        open = handle.IsOpen;
+
+        return handle;
+    }
+
+    /// <summary>
     /// コールバックで中身を書くセクション。
     /// 閉じているとき (畳むアニメーションも終わっているとき) は中身が呼ばれない。
     /// </summary>

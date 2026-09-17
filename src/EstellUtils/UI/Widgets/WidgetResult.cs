@@ -54,6 +54,15 @@ public readonly record struct WidgetResult
     /// <summary>ホバーが続いている秒数。</summary>
     public float HoveredDuration { get; init; }
 
+    /// <summary>
+    /// 文字が幅に収まらず、省略記号で切られたか。
+    /// </summary>
+    /// <remarks>
+    /// 切られたことに気づけるよう、値として返している。
+    /// 表示だけの問題なのか、渡した文字列がそもそも違うのかを切り分けられる。
+    /// </remarks>
+    public bool Truncated { get; init; }
+
     /// <summary>クリックされた、または値が変わった。</summary>
     public static implicit operator bool(WidgetResult result) => result.Clicked || result.Changed;
 

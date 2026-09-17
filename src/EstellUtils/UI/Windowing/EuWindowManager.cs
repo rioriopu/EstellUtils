@@ -17,6 +17,8 @@ public sealed class EuWindowManager : IDisposable
     private readonly List<EuWindow> windows = new();
     private readonly List<EuWindow> drawBuffer = new();
 
+    private EuWindowLayout? layout;
+    private Action? layoutSave;
     private bool disposed;
 
     /// <summary>管理しているウィンドウの数。</summary>
@@ -30,8 +32,52 @@ public sealed class EuWindowManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        if (!this.windows.Contains(window))
-            this.windows.Add(window);
+        if (this.windows.Contains(window))
+            return;
+
+        this.windows.Add(window);
+        this.AttachState(window);
+    }
+
+    /// <summary>
+    /// ウィンドウの位置と大きさを、まとめて保存・復元するようにする。
+    /// </summary>
+    /// <param name="windowLayout">
+    /// 状態の入れ物。プラグインの設定クラスへ持たせて保存する。
+    /// </param>
+    /// <param name="save">
+    /// 保存処理。ウィンドウを動かし終えた・大きさを変え終えた時点で呼ばれる。
+    /// </param>
+    /// <remarks>
+    /// 起動時に一度呼べば、以降は登録済み・未登録を問わずすべてのウィンドウへ適用される。
+    /// <code>
+    /// // 設定クラス
+    /// public EuWindowLayout WindowLayout { get; set; } = new();
+    ///
+    /// // 起動時
+    /// EUi.Windows.BindLayout(this.config.WindowLayout, this.config.Save);
+    /// </code>
+    /// </remarks>
+    public void BindLayout(EuWindowLayout windowLayout, Action? save = null)
+    {
+        ArgumentNullException.ThrowIfNull(windowLayout);
+
+        this.layout = windowLayout;
+        this.layoutSave = save;
+
+        foreach (var window in this.windows)
+            this.AttachState(window);
+    }
+
+    /// <summary>ウィンドウへ状態の入れ物を割り当てる。</summary>
+    private void AttachState(EuWindow window)
+    {
+        if (this.layout is null)
+            return;
+
+        // 既に個別の入れ物が設定されている場合は、そちらを尊重する
+        window.State ??= this.layout.GetOrCreate(window.Name);
+        window.StateChanged ??= this.layoutSave;
     }
 
     /// <summary>ウィンドウを取り除く。</summary>

@@ -153,7 +153,35 @@ using (Painter.ClipFullScreen())
 
 ## 位置とサイズの保存
 
-ImGui の ini には保存されません。覚えておきたい場合はプラグインの設定へ保存します。
+ImGui の ini には保存されません。設定クラスへ `EuWindowLayout` を 1 つ持たせ、
+起動時に結びつければ、以降は自動で復元・保存されます。
+
+```csharp
+// 設定クラス
+public EuWindowLayout WindowLayout { get; set; } = new();
+
+// 起動時
+EUi.Initialize(pluginInterface, log: log);
+EUi.Windows.Add(this.configWindow);
+EUi.Windows.BindLayout(this.config.WindowLayout, this.config.Save);
+```
+
+覚えられるのは、位置・大きさ・畳んでいるか・固定しているか・不透明度、
+そして小窓の開閉と位置・大きさです。
+
+保存処理は**動かし終えた・大きさを変え終えた時点で 1 度だけ**呼ばれます。
+ドラッグ中に毎フレーム書き出すことはありません。
+
+ウィンドウごとに別の入れ物を使いたい場合は、直接割り当てられます。
+
+```csharp
+this.configWindow.State = this.config.ConfigWindowState;
+this.configWindow.StateChanged = this.config.Save;
+```
+
+### 手動で扱う
+
+自分で読み書きしたい場合は `Position` / `Size` をそのまま使えます。
 
 ```csharp
 public override void OnClose()

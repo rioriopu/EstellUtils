@@ -23,7 +23,20 @@ public static partial class EUi
     /// <param name="text">表示する文字列。</param>
     /// <param name="color">文字色。省略するとテーマの標準色。</param>
     /// <param name="align">横方向の寄せ。</param>
-    public static WidgetResult Label(ReadOnlySpan<char> text, uint? color = null, Align align = Align.Start)
+    /// <param name="ellipsize">
+    /// 幅に収まらないとき、末尾を省略記号にするか。
+    /// false にすると収まらない分がはみ出すので、レイアウトの不足に気づきやすい。
+    /// </param>
+    /// <param name="tipWhenTruncated">
+    /// 省略したときに、全文をツールチップで見せるか。
+    /// </param>
+    /// <remarks>
+    /// 省略された場合は戻り値の <see cref="WidgetResult.Truncated"/> が立つ。
+    /// 黙って切られて気づけない、ということがないようにしてある。
+    /// </remarks>
+    public static WidgetResult Label(
+        ReadOnlySpan<char> text, uint? color = null, Align align = Align.Start,
+        bool ellipsize = true, bool tipWhenTruncated = true)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -41,9 +54,17 @@ public static partial class EUi
         var width = align == Align.Start ? SizeSpec.Px(size.X) : SizeSpec.Fill;
         var rect = ctx.Allocate(width, MathF.Max(size.Y, lineHeight));
 
-        TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
+        // 確保できた幅に収まらなければ切られる。1px の丸め差では立てない
+        var truncated = size.X > rect.Width + 1f;
 
-        return MakeTextResult(ctx, rect);
+        TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize);
+
+        var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
+
+        if (truncated && ellipsize && tipWhenTruncated)
+            result.Tip(text);
+
+        return result;
     }
 
     /// <summary>次に配置される行が、クリップ範囲に入っているか。</summary>
@@ -88,10 +109,10 @@ public static partial class EUi
         if (!Painter.IsVisible(rect))
             return MakeTextResult(ctx, rect);
 
-        var truncated = TextPainter.Measure(text).X > rect.Width;
+        var truncated = TextPainter.Measure(text).X > rect.Width + 1f;
         TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
 
-        var result = MakeTextResult(ctx, rect);
+        var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 
         // 省略したときは、全文をツールチップで読めるようにする
         if (truncated && tipWhenTruncated)

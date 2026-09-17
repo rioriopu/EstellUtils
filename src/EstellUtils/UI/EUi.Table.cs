@@ -116,8 +116,10 @@ public static partial class EUi
     /// <param name="text">表示する文字列。</param>
     /// <param name="align">寄せ方。</param>
     /// <param name="color">文字色。</param>
+    /// <param name="tipWhenTruncated">省略したときに、全文をツールチップで見せるか。</param>
     public static WidgetResult TableCell(
-        ReadOnlySpan<char> text, Align align = Align.Start, uint? color = null)
+        ReadOnlySpan<char> text, Align align = Align.Start, uint? color = null,
+        bool tipWhenTruncated = true)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -126,11 +128,17 @@ public static partial class EUi
         var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
         var rect = ctx.Allocate(SizeSpec.Fill, height);
 
-        TextPainter.TextIn(
-            rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm)),
-            color ?? Colors.Text, text, align, Align.Center);
+        var textRect = rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
+        var truncated = TextPainter.Measure(text).X > textRect.Width + 1f;
 
-        return MakeTextResult(ctx, rect);
+        TextPainter.TextIn(textRect, color ?? Colors.Text, text, align, Align.Center);
+
+        var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
+
+        if (truncated && tipWhenTruncated)
+            result.Tip(text);
+
+        return result;
     }
 }
 
