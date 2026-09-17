@@ -74,6 +74,9 @@ public readonly record struct InteractionResult
 
     /// <summary>押し始めてからのマウス移動量。ドラッグ操作で使う。</summary>
     public System.Numerics.Vector2 DragDelta { get; init; }
+
+    /// <summary>ホバーが続いている秒数。ツールチップの遅延表示に使う。</summary>
+    public float HoveredDuration { get; init; }
 }
 
 /// <summary>
@@ -200,6 +203,19 @@ public static class Interaction
         state.Press = Anim.Approach(state.Press, pressTarget, PressSpeed, dt);
         state.Toggle = Anim.Approach(state.Toggle, disabledTarget, HoverSpeed, dt);
 
+        // ホバーが始まった時刻を控えて、継続時間を出す (ツールチップの遅延に使う)
+        if (hovered)
+        {
+            if (state.Custom1 <= 0f)
+                state.Custom1 = ctx.Time;
+        }
+        else
+        {
+            state.Custom1 = 0f;
+        }
+
+        var hoveredDuration = hovered && state.Custom1 > 0f ? ctx.Time - state.Custom1 : 0f;
+
         return new InteractionResult
         {
             Id = id,
@@ -216,6 +232,7 @@ public static class Interaction
             PressAmount = state.Press,
             DisabledAmount = state.Toggle,
             DragDelta = isActive ? input.DragDelta(MouseButton.Left) : System.Numerics.Vector2.Zero,
+            HoveredDuration = hoveredDuration,
         };
     }
 

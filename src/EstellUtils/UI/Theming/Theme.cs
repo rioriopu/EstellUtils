@@ -44,6 +44,12 @@ public sealed class Theme
     /// <summary>モーショントークン。</summary>
     public ThemeMotion Motion { get; set; }
 
+    /// <summary>
+    /// ウィジェットの描画担当。トークンの変更だけでは足りない見た目にしたいときは、
+    /// <see cref="Widgets.DefaultWidgetPainter"/> を継承したものを差し込む。
+    /// </summary>
+    public Widgets.IWidgetPainter Painter { get; set; } = new Widgets.DefaultWidgetPainter();
+
     /// <summary>追加の色トークン。ライブラリが用意していない色を足したいときに使う。</summary>
     public Dictionary<string, uint> CustomColors { get; } = new(StringComparer.Ordinal);
 
@@ -91,6 +97,7 @@ public sealed class Theme
         var clone = new Theme(this.Name, this.Colors.Clone(), this.baseMetrics.Clone(), this.Motion.Clone())
         {
             scale = this.scale,
+            Painter = this.Painter,
         };
 
         clone.Metrics = this.baseMetrics.Scaled(this.scale);

@@ -31,6 +31,8 @@ public sealed class UiContext
 
     private int lastImGuiFrame = -1;
     private bool activeIdIsAlive;
+    private Rect hoverRect;
+    private float hoverStartTime;
 
     private UiContext()
     {
@@ -76,7 +78,7 @@ public sealed class UiContext
     /// <remarks>
     /// 子ウィンドウごとに別の描画リストになるため、キャッシュせず都度取得する。
     /// </remarks>
-    public ImDrawListPtr DrawList => ImGui.GetWindowDrawList();
+    public ImDrawListPtr DrawList => Render.Painter.DrawList;
 
     /// <summary>ID スタックの現在値。<see cref="EuId"/> 生成時のシードになる。</summary>
     public ulong IdSeed => this.idStack[^1];
@@ -107,9 +109,11 @@ public sealed class UiContext
         if (this.idStack.Count > 1)
             this.idStack.RemoveRange(1, this.idStack.Count - 1);
 
-        // テーマ・レイアウトのスコープも同様に、閉じ忘れをフレーム境界で回収する
+        // テーマ・レイアウト・描画先のスコープも同様に、閉じ忘れをフレーム境界で回収する
         Theming.ThemeManager.ResetStack();
         this.Layout.Reset();
+        Render.Painter.ResetDrawListStack();
+        EUi.ResetLabelColumns();
 
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する
         if (!this.activeIdIsAlive && !this.ActiveId.IsNone)
@@ -145,6 +149,27 @@ public sealed class UiContext
     {
         this.ActiveId = EuId.None;
         this.activeIdIsAlive = false;
+    }
+
+    /// <summary>
+    /// ID を持たない要素 (ラベルなど) のホバー継続時間を測る。
+    /// 同じ矩形にマウスが留まり続けている秒数を返す。
+    /// </summary>
+    /// <remarks>
+    /// ホバーは同時に 1 箇所しか起きないため、直近の矩形だけを覚えておけば足りる。
+    /// </remarks>
+    public float TrackHover(Rect rect)
+    {
+        if (!this.Input.HasMousePos || !rect.Contains(this.Input.MousePos) || !this.IsWindowHovered)
+            return 0f;
+
+        if (rect != this.hoverRect)
+        {
+            this.hoverRect = rect;
+            this.hoverStartTime = this.Time;
+        }
+
+        return this.Time - this.hoverStartTime;
     }
 
     /// <summary>キーボードフォーカスを移す。</summary>

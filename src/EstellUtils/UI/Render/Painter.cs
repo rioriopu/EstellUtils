@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
@@ -42,11 +43,40 @@ public enum Direction
 /// </remarks>
 public static class Painter
 {
-    /// <summary>現在のウィンドウの描画リスト。</summary>
-    public static ImDrawListPtr DrawList => ImGui.GetWindowDrawList();
+    private static readonly List<ImDrawListPtr> DrawListStack = new(4);
+
+    /// <summary>
+    /// 描画先。既定では現在のウィンドウの描画リスト。
+    /// <see cref="UseDrawList"/> で一時的に差し替えられる。
+    /// </summary>
+    public static ImDrawListPtr DrawList
+        => DrawListStack.Count > 0 ? DrawListStack[^1] : ImGui.GetWindowDrawList();
 
     /// <summary>ウィンドウより手前 (すべての UI の上) に描く描画リスト。ツールチップなどに使う。</summary>
     public static ImDrawListPtr ForegroundDrawList => ImGui.GetForegroundDrawList();
+
+    /// <summary>
+    /// 描画先を一時的に差し替える。<c>using</c> で元へ戻る。
+    /// ウィジェットの描画コードをそのまま別のレイヤーへ出したいときに使う。
+    /// </summary>
+    public static DrawListScope UseDrawList(ImDrawListPtr drawList)
+    {
+        DrawListStack.Add(drawList);
+        return new DrawListScope();
+    }
+
+    /// <summary>描画先を最前面レイヤーへ切り替える。</summary>
+    public static DrawListScope UseForeground() => UseDrawList(ImGui.GetForegroundDrawList());
+
+    /// <summary>差し替えた描画先を 1 段戻す。</summary>
+    internal static void PopDrawList()
+    {
+        if (DrawListStack.Count > 0)
+            DrawListStack.RemoveAt(DrawListStack.Count - 1);
+    }
+
+    /// <summary>描画先スタックを空にする。フレーム境界での保険。</summary>
+    internal static void ResetDrawListStack() => DrawListStack.Clear();
 
     // ── 矩形 ──────────────────────────────────────────────────
 
@@ -437,8 +467,9 @@ public static class Painter
     /// <summary><c>using</c> で解除できるクリップ領域。</summary>
     public static ClipScope Clip(Rect rect, bool intersectWithCurrent = true)
     {
-        DrawList.PushClipRect(rect.Min, rect.Max, intersectWithCurrent);
-        return new ClipScope();
+        var dl = DrawList;
+        dl.PushClipRect(rect.Min, rect.Max, intersectWithCurrent);
+        return new ClipScope(dl);
     }
 
     // ── 補助 ──────────────────────────────────────────────────
@@ -469,6 +500,17 @@ public static class Painter
 /// <summary><c>using</c> でクリップ領域を解除するスコープ。</summary>
 public readonly struct ClipScope : IDisposable
 {
+    private readonly ImDrawListPtr drawList;
+
+    internal ClipScope(ImDrawListPtr drawList) => this.drawList = drawList;
+
     /// <inheritdoc/>
-    public void Dispose() => ImGui.GetWindowDrawList().PopClipRect();
+    public void Dispose() => this.drawList.PopClipRect();
+}
+
+/// <summary><c>using</c> で描画先を元へ戻すスコープ。</summary>
+public readonly struct DrawListScope : IDisposable
+{
+    /// <inheritdoc/>
+    public void Dispose() => Painter.PopDrawList();
 }
