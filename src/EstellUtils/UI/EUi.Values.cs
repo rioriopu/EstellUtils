@@ -162,8 +162,11 @@ public static partial class EUi
             new Vector2(sliderRect.Max.X + Metrics.SpacingMd, rowRect.Min.Y),
             new Vector2(Metrics.SliderValueWidth, height));
 
+        // 値はバーのすぐ右へ。欄の中で右に寄せると、バーとの間が空いて
+        // どのバーの値なのか分かりにくくなる。
+        // 欄の幅は固定なので、左寄せでもラベルの位置は揃う
         var textColor = disabled ? Colors.TextDisabled : Colors.Text;
-        TextPainter.TextIn(valueRect, textColor, text, Align.End, Align.Center, ellipsize: false);
+        TextPainter.TextIn(valueRect, textColor, text, Align.Start, Align.Center, ellipsize: false);
 
         if (!display.IsEmpty)
         {
