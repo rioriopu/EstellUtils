@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
@@ -23,6 +24,11 @@ public static class TextPainter
     [ThreadStatic]
     private static char[]? truncationBuffer;
 
+    /// <summary>計測結果のキャッシュ。これを超えたら丸ごと捨てる。</summary>
+    private const int MeasureCacheLimit = 1024;
+
+    private static readonly Dictionary<MeasureKey, Vector2> MeasureCache = new(256);
+
     /// <summary>現在のフォントでの行の高さ。</summary>
     public static float LineHeight => ImGui.GetTextLineHeight();
 
@@ -32,18 +38,71 @@ public static class TextPainter
     /// <summary>現在のフォントサイズ。</summary>
     public static float FontSize => ImGui.GetFontSize();
 
-    /// <summary>テキストの描画サイズを計測する。</summary>
+    /// <summary>
+    /// テキストの描画サイズを計測する。
+    /// </summary>
+    /// <remarks>
+    /// 計測は UTF-8 への変換とグリフの走査を伴うため、同じ文字列を毎フレーム測り直すと
+    /// 項目の多い画面では無視できないコストになる。結果はフォントごとにキャッシュする。
+    /// </remarks>
     public static Vector2 Measure(ReadOnlySpan<char> text)
-        => text.IsEmpty ? Vector2.Zero : ImGui.CalcTextSize(text);
+        => text.IsEmpty ? Vector2.Zero : MeasureCached(text, -1f);
 
     /// <summary>折り返しありでテキストの描画サイズを計測する。</summary>
     public static Vector2 Measure(ReadOnlySpan<char> text, float wrapWidth)
-        => text.IsEmpty ? Vector2.Zero : ImGui.CalcTextSize(text, false, wrapWidth);
+        => text.IsEmpty ? Vector2.Zero : MeasureCached(text, wrapWidth);
+
+    /// <summary>キャッシュを見てから計測する。</summary>
+    private static Vector2 MeasureCached(ReadOnlySpan<char> text, float wrapWidth)
+    {
+        var key = MeasureKey.For(text, wrapWidth);
+
+        if (MeasureCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var size = wrapWidth < 0f
+            ? ImGui.CalcTextSize(text)
+            : ImGui.CalcTextSize(text, false, wrapWidth);
+
+        // 際限なく溜めても仕方がないので、一定数を超えたら捨てて作り直す
+        if (MeasureCache.Count >= MeasureCacheLimit)
+            MeasureCache.Clear();
+
+        MeasureCache[key] = size;
+        return size;
+    }
+
+    /// <summary>計測キャッシュを捨てる。フォントを作り直したときに呼ぶ。</summary>
+    public static void ClearMeasureCache() => MeasureCache.Clear();
+
+    /// <summary>
+    /// 計測キャッシュの鍵。文字列そのものを持つとアロケーションが発生するため、
+    /// ハッシュに加えて長さと両端の文字も混ぜて取り違えを防いでいる。
+    /// </summary>
+    private readonly record struct MeasureKey(
+        int Hash, int Length, char First, char Last, float FontSize, float WrapWidth, nint Font)
+    {
+        public static unsafe MeasureKey For(ReadOnlySpan<char> text, float wrapWidth)
+            => new(
+                string.GetHashCode(text),
+                text.Length,
+                text[0],
+                text[^1],
+                ImGui.GetFontSize(),
+                wrapWidth,
+                (nint)ImGui.GetFont().Handle);
+    }
 
     /// <summary>指定座標を左上としてテキストを描く。</summary>
     public static void Text(Vector2 position, uint color, ReadOnlySpan<char> text)
     {
         if (text.IsEmpty || (color >> 24) == 0)
+            return;
+
+        // 幅は測らないと分からないので、縦方向だけで隠れているかを判定する。
+        // スクロール領域では大半がこれで省ける
+        var clip = Painter.CurrentClip;
+        if (position.Y > clip.Max.Y || position.Y + LineHeight < clip.Min.Y)
             return;
 
         Painter.DrawList.AddText(position, color, text);
@@ -80,7 +139,7 @@ public static class TextPainter
         Rect rect, uint color, ReadOnlySpan<char> text,
         Align horizontal = Align.Start, Align vertical = Align.Center, bool ellipsize = true)
     {
-        if (text.IsEmpty || rect.IsEmpty || (color >> 24) == 0)
+        if (text.IsEmpty || rect.IsEmpty || (color >> 24) == 0 || !Painter.IsVisible(rect))
             return;
 
         var size = Measure(text);

@@ -92,7 +92,7 @@ EUi.Button("削除", ButtonStyle.Danger)
 ```csharp
 using (var section = EUi.Section("共通設定"))
 {
-    if (!section.IsOpen)
+    if (!section.IsVisible)
         return;
 
     using (EUi.LabelColumn("common"))

@@ -121,7 +121,7 @@ public sealed class Binder<T>
         {
             using var section = EUi.Section(group);
 
-            if (!section.IsOpen)
+            if (!section.IsVisible)
                 continue;
 
             foreach (var binding in ConfigModel<T>.Bindings)

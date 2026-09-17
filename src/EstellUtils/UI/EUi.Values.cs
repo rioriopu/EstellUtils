@@ -111,7 +111,7 @@ public static partial class EUi
         var height = MathF.Max(Metrics.WidgetHeight, Metrics.SliderKnobRadius * 2f);
 
         var rowRect = ctx.Allocate(
-            new Vector2(sliderWidth.Resolve(AvailableWidth) + labelSpace, height));
+            SizeSpec.Px(sliderWidth.Resolve(AvailableWidth) + labelSpace), height);
 
         var sliderRect = display.IsEmpty ? rowRect : rowRect.CutLeft(rowRect.Width - labelSpace, out var labelRect);
 
@@ -126,7 +126,7 @@ public static partial class EUi
 
         var flags = disabled
             ? InteractionFlags.Disabled
-            : InteractionFlags.AllowDragOutside | InteractionFlags.ClickOnPress;
+            : InteractionFlags.AllowDragOutside;
 
         var interaction = Interaction.Behavior(sliderRect, id, flags);
 
@@ -140,22 +140,14 @@ public static partial class EUi
 
         var changed = false;
 
-        if (interaction.Held && !disabled)
+        if (!disabled && (interaction.Pressed || interaction.Held))
         {
-            var t = Math.Clamp((ctx.Input.MousePos.X - trackMin) / travel, 0f, 1f);
-            var newValue = min + (t * range);
+            changed = DragSlider(
+                ctx, id, ref value, min, max, range, trackMin, travel, knobRadius,
+                normalized, isInteger, interaction.Pressed);
 
-            if (isInteger)
-                newValue = MathF.Round(newValue);
-            else if (ctx.Input.Shift)
-                newValue = value + ((newValue - value) * 0.15f);   // Shift で微調整
-
-            if (MathF.Abs(newValue - value) > (isInteger ? 0.4f : 0.00001f))
-            {
-                value = Math.Clamp(newValue, min, max);
-                normalized = range > 0f ? (value - min) / range : 0f;
-                changed = true;
-            }
+            if (changed)
+                normalized = range > 0f ? Math.Clamp((value - min) / range, 0f, 1f) : 0f;
         }
 
         var knobCenter = new Vector2(trackMin + (travel * normalized), sliderRect.Center.Y);
@@ -172,6 +164,86 @@ public static partial class EUi
         TextPainter.TextIn(sliderRect, textColor, text, Align.Center, Align.Center, ellipsize: false);
 
         return WidgetResult.From(interaction, changed);
+    }
+
+    /// <summary>
+    /// スライダーのドラッグ処理。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// つまみを掴んだときは「掴んだ時点の値」を基準にした相対移動にしている。
+    /// マウス位置をそのまま値に変換すると、つまみの端を掴んだ瞬間に値が飛んでしまうため。
+    /// </para>
+    /// <para>
+    /// 溝を直接クリックしたときはその位置へ跳ばし、そこから掴んだものとして扱う。
+    /// Shift を押している間は移動量が 1/5 になり、押し直したところで基準を取り直すので
+    /// つまみとマウスがずれていかない。
+    /// </para>
+    /// </remarks>
+    private static bool DragSlider(
+        UiContext ctx, EuId id, ref float value, float min, float max, float range,
+        float trackMin, float travel, float knobRadius, float normalized, bool isInteger, bool pressed)
+    {
+        const float FineScale = 0.2f;
+
+        ref var state = ref ctx.Store.GetRef(id);
+
+        var mouseX = ctx.Input.MousePos.X;
+        var fine = ctx.Input.Shift;
+        var changed = false;
+
+        if (pressed)
+        {
+            var knobCenterX = trackMin + (travel * normalized);
+            var onKnob = MathF.Abs(mouseX - knobCenterX) <= knobRadius + 2f;
+
+            if (!onKnob)
+            {
+                // 溝をクリック: その位置へ跳ばす
+                var t = Math.Clamp((mouseX - trackMin) / travel, 0f, 1f);
+                var jumped = min + (t * range);
+
+                if (isInteger)
+                    jumped = MathF.Round(jumped);
+
+                jumped = Math.Clamp(jumped, min, max);
+
+                if (jumped != value)
+                {
+                    value = jumped;
+                    changed = true;
+                }
+            }
+
+            state.DragAnchorValue = value;
+            state.DragAnchorPos = mouseX;
+            state.DragFine = fine;
+
+            return changed;
+        }
+
+        // 修飾キーの状態が変わったら、そこを新しい基準にする (値が飛ばないように)
+        if (fine != state.DragFine)
+        {
+            state.DragAnchorValue = value;
+            state.DragAnchorPos = mouseX;
+            state.DragFine = fine;
+        }
+
+        var scale = fine ? FineScale : 1f;
+        var delta = (mouseX - state.DragAnchorPos) * scale / travel * range;
+        var next = state.DragAnchorValue + delta;
+
+        if (isInteger)
+            next = MathF.Round(next);
+
+        next = Math.Clamp(next, min, max);
+
+        if (next == value)
+            return false;
+
+        value = next;
+        return true;
     }
 
     /// <summary>値と単位を作業バッファへ書き出す。文字列のアロケーションを避けるため。</summary>

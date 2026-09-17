@@ -43,10 +43,6 @@ public static class ScrollArea
         var maxScroll = MathF.Max(0f, contentHeight - rect.Height);
         var showBar = maxScroll > 0.5f;
 
-        // ホイール操作。領域にマウスが乗っているときだけ拾う
-        if (showBar && Interaction.IsHovered(rect) && ctx.Input.WheelY != 0f)
-            state.ScrollTarget -= ctx.Input.WheelY * WheelStep;
-
         state.ScrollTarget = Math.Clamp(state.ScrollTarget, 0f, maxScroll);
 
         state.Scroll = theme.Motion.Enabled
@@ -56,7 +52,7 @@ public static class ScrollArea
         var barWidth = showBar ? theme.Metrics.ScrollbarWidth : 0f;
 
         // 内容はクリップ矩形の中へ、スクロール量だけ上へずらして描く
-        ctx.DrawList.PushClipRect(rect.Min, rect.Max, true);
+        var clip = Painter.Clip(rect);
 
         var contentBounds = new Rect(
             new Vector2(rect.Min.X, rect.Min.Y - state.Scroll),
@@ -65,7 +61,7 @@ public static class ScrollArea
         var gap = new Vector2(0f, spacing ?? theme.Metrics.ItemSpacing.Y);
         ctx.Layout.Push(LayoutKind.Vertical, contentBounds, gap);
 
-        return new ScrollHandle(euId, rect, barWidth, maxScroll);
+        return new ScrollHandle(euId, rect, barWidth, maxScroll, clip);
     }
 }
 
@@ -76,13 +72,15 @@ public readonly struct ScrollHandle : IDisposable
     private readonly Rect rect;
     private readonly float barWidth;
     private readonly float maxScroll;
+    private readonly ClipScope clip;
 
-    internal ScrollHandle(EuId id, Rect rect, float barWidth, float maxScroll)
+    internal ScrollHandle(EuId id, Rect rect, float barWidth, float maxScroll, ClipScope clip)
     {
         this.id = id;
         this.rect = rect;
         this.barWidth = barWidth;
         this.maxScroll = maxScroll;
+        this.clip = clip;
     }
 
     /// <summary>領域を閉じ、内容の高さを記録してスクロールバーを描く。</summary>
@@ -95,13 +93,38 @@ public readonly struct ScrollHandle : IDisposable
 
         // 領域は Begin で確保済みなので、外側へは申告しない
         ctx.Layout.Pop(commitToParent: false);
-        ctx.DrawList.PopClipRect();
+
+        // スクロールバーはクリップの外側へ描くので、先に解除する
+        this.clip.Dispose();
 
         ref var state = ref ctx.Store.GetRef(this.id);
         state.MeasuredHeight = contentHeight;
 
+        // ホイールは領域を閉じるときに拾う。入れ子になっている場合、内側の領域から
+        // 先に Dispose されるので、マウスが乗っている一番内側だけが反応する
+        this.HandleWheel(ctx, ref state, contentHeight);
+
         if (this.barWidth > 0f)
             this.DrawScrollbar(ctx, ref state, contentHeight);
+    }
+
+    /// <summary>ホイール入力を拾ってスクロール位置を動かす。</summary>
+    private void HandleWheel(UiContext ctx, ref WidgetState state, float contentHeight)
+    {
+        var wheel = ctx.Input.WheelY;
+
+        if (wheel == 0f || ctx.WheelConsumed)
+            return;
+
+        var maxScroll = MathF.Max(0f, contentHeight - this.rect.Height);
+        if (maxScroll <= 0.5f)
+            return;
+
+        if (!Interaction.IsHovered(this.rect))
+            return;
+
+        state.ScrollTarget = Math.Clamp(state.ScrollTarget - (wheel * ScrollArea.WheelStep), 0f, maxScroll);
+        ctx.WheelConsumed = true;
     }
 
     /// <summary>スクロールバーを描き、つまみのドラッグを処理する。</summary>
@@ -129,6 +152,21 @@ public readonly struct ScrollHandle : IDisposable
 
         var grabId = this.id.Child("scrollGrab");
         var result = Interaction.Behavior(grabRect, grabId, InteractionFlags.AllowDragOutside);
+
+        // つまみの外側 (溝) を押したときは、その位置へ飛ばす
+        if (!result.Hovered && this.maxScroll > 0f)
+        {
+            var trackResult = Interaction.Behavior(
+                trackRect, this.id.Child("scrollTrack"), InteractionFlags.ClickOnPress);
+
+            if (trackResult.Clicked)
+            {
+                var localY = ctx.Input.MousePos.Y - trackRect.Min.Y - (grabHeight * 0.5f);
+                var ratio = Math.Clamp(localY / MathF.Max(1f, trackRect.Height - grabHeight), 0f, 1f);
+
+                state.ScrollTarget = ratio * this.maxScroll;
+            }
+        }
 
         if (result.Held && this.maxScroll > 0f)
         {

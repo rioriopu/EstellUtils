@@ -149,7 +149,7 @@ if (ImGui.CollapsingHeader("現在の状態##statusFold"))
 // 移行後
 using (var s = EUi.Section("現在の状態##statusFold", defaultOpen: false))
 {
-    if (s.IsOpen)
+    if (s.IsVisible)
         DrawStatus();
 }
 ```

@@ -110,10 +110,22 @@ public sealed class LayoutEngine
 /// <summary><c>using</c> でレイアウトスコープを閉じるハンドル。</summary>
 public readonly struct LayoutHandle : IDisposable
 {
-    private readonly LayoutEngine engine;
+    private readonly LayoutEngine? engine;
+    private readonly bool commitToParent;
 
-    internal LayoutHandle(LayoutEngine engine) => this.engine = engine;
+    /// <summary>スコープを閉じるハンドルを作る。</summary>
+    /// <param name="engine">対象のレイアウトエンジン。</param>
+    /// <param name="commitToParent">
+    /// 閉じるときに消費した大きさを外側へ申告するか。
+    /// 領域を先に確保してから開いたスコープ (<c>Region</c> / <c>Sized</c> など) では
+    /// false にしないと、同じ領域を二重に消費してしまう。
+    /// </param>
+    internal LayoutHandle(LayoutEngine engine, bool commitToParent = true)
+    {
+        this.engine = engine;
+        this.commitToParent = commitToParent;
+    }
 
     /// <inheritdoc/>
-    public void Dispose() => this.engine?.Pop();
+    public void Dispose() => this.engine?.Pop(this.commitToParent);
 }

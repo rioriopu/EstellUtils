@@ -149,6 +149,9 @@ public sealed class FontManager : IDisposable
 
             this.gameFonts.Clear();
         }
+
+        // フォントが変わると計測結果も変わるので、キャッシュを捨てる
+        Render.TextPainter.ClearMeasureCache();
     }
 }
 

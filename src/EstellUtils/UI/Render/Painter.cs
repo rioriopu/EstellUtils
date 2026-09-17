@@ -62,6 +62,11 @@ public static class Painter
     public static DrawListScope UseDrawList(ImDrawListPtr drawList)
     {
         DrawListStack.Add(drawList);
+
+        // 別のレイヤーへ描くときは、元のレイヤーのクリップ範囲を引き継がない。
+        // スクロール領域の中から出したツールチップが切り取られてしまわないようにするため
+        ClipStack.Add(UnboundedClip);
+
         return new DrawListScope();
     }
 
@@ -73,6 +78,8 @@ public static class Painter
     {
         if (DrawListStack.Count > 0)
             DrawListStack.RemoveAt(DrawListStack.Count - 1);
+
+        PopClip();
     }
 
     /// <summary>描画先スタックを空にする。フレーム境界での保険。</summary>
@@ -83,7 +90,7 @@ public static class Painter
     /// <summary>塗りつぶし矩形。</summary>
     public static void Rect(Rect rect, uint color, float rounding = 0f, Corners corners = Corners.All)
     {
-        if (rect.IsEmpty || (color >> 24) == 0)
+        if (rect.IsEmpty || (color >> 24) == 0 || !IsVisible(rect))
             return;
 
         DrawList.AddRectFilled(rect.Min, rect.Max, color, rounding, ToDrawFlags(rounding, corners));
@@ -93,7 +100,7 @@ public static class Painter
     public static void RectOutline(
         Rect rect, uint color, float thickness = 1f, float rounding = 0f, Corners corners = Corners.All)
     {
-        if (rect.IsEmpty || (color >> 24) == 0 || thickness <= 0f)
+        if (rect.IsEmpty || (color >> 24) == 0 || thickness <= 0f || !IsVisible(rect))
             return;
 
         DrawList.AddRect(rect.Min, rect.Max, color, rounding, ToDrawFlags(rounding, corners), thickness);
@@ -105,7 +112,7 @@ public static class Painter
     public static void RectGradientV(
         Rect rect, uint top, uint bottom, float rounding = 0f, Corners corners = Corners.All)
     {
-        if (rect.IsEmpty)
+        if (rect.IsEmpty || !IsVisible(rect))
             return;
 
         if (rounding <= 0f)
@@ -121,7 +128,7 @@ public static class Painter
     public static void RectGradientH(
         Rect rect, uint left, uint right, float rounding = 0f, Corners corners = Corners.All)
     {
-        if (rect.IsEmpty)
+        if (rect.IsEmpty || !IsVisible(rect))
             return;
 
         if (rounding <= 0f)
@@ -178,9 +185,15 @@ public static class Painter
         if (rect.IsEmpty || size <= 0f || (color >> 24) == 0)
             return;
 
-        var baseAlpha = EuColor.AlphaOf(color);
-        var steps = Math.Clamp((int)MathF.Ceiling(size), 1, 24);
         var shifted = rect.Offset(offset);
+        if (!IsVisible(shifted.Expand(size)))
+            return;
+
+        var baseAlpha = EuColor.AlphaOf(color);
+
+        // にじみ幅そのままの回数を重ねると描画量が増えるだけなので、段数は抑える。
+        // 1 段あたりの広がりを大きく取っても、見た目はほとんど変わらない
+        var steps = Math.Clamp((int)MathF.Ceiling(size * 0.6f), 2, 8);
 
         for (var i = steps; i >= 1; i--)
         {
@@ -226,6 +239,10 @@ public static class Painter
         if ((color >> 24) == 0 || thickness <= 0f)
             return;
 
+        var bounds = new Core.Rect(Vector2.Min(a, b), Vector2.Max(a, b)).Expand(thickness);
+        if (!IsVisible(bounds))
+            return;
+
         DrawList.AddLine(a, b, color, thickness);
     }
 
@@ -249,6 +266,9 @@ public static class Painter
         if (radius <= 0f || (color >> 24) == 0)
             return;
 
+        if (!IsVisible(Core.Rect.FromCenter(center, new Vector2(radius * 2f, radius * 2f))))
+            return;
+
         DrawList.AddCircleFilled(center, radius, color, segments);
     }
 
@@ -257,6 +277,9 @@ public static class Painter
         Vector2 center, float radius, uint color, float thickness = 1f, int segments = 0)
     {
         if (radius <= 0f || (color >> 24) == 0)
+            return;
+
+        if (!IsVisible(Core.Rect.FromCenter(center, new Vector2((radius + thickness) * 2f, (radius + thickness) * 2f))))
             return;
 
         DrawList.AddCircle(center, radius, color, segments, thickness);
@@ -383,7 +406,7 @@ public static class Painter
     public static void Image(
         ImTextureID texture, Rect rect, uint tint, Vector2 uv0 = default, Vector2 uv1 = default)
     {
-        if (rect.IsEmpty)
+        if (rect.IsEmpty || !IsVisible(rect))
             return;
 
         if (uv1 == default)
@@ -404,7 +427,7 @@ public static class Painter
     public static void NineSlice(
         ImTextureID texture, Rect rect, EdgeInsets border, Vector2 textureSize, uint tint)
     {
-        if (rect.IsEmpty || textureSize.X <= 0f || textureSize.Y <= 0f)
+        if (rect.IsEmpty || textureSize.X <= 0f || textureSize.Y <= 0f || !IsVisible(rect))
             return;
 
         // 描画先が小さすぎて枠が重なる場合は縮める
@@ -464,13 +487,53 @@ public static class Painter
 
     // ── クリッピング ──────────────────────────────────────────
 
+    /// <summary>
+    /// 現在のクリップ領域。何も積まれていなければ画面全体より十分大きい矩形を返す。
+    /// </summary>
+    /// <remarks>
+    /// <c>ImDrawList</c> 側のクリップ矩形は読み出しにくいので、ライブラリでも並行して
+    /// 追跡している。これを使って、隠れているウィジェットの描画を省いたり、
+    /// クリップ外にあるウィジェットがホバーしないようにしている。
+    /// </remarks>
+    public static Core.Rect CurrentClip => ClipStack.Count > 0 ? ClipStack[^1] : UnboundedClip;
+
+    /// <summary>クリップが積まれていないときに使う、実質無制限の矩形。</summary>
+    private static readonly Core.Rect UnboundedClip = new(
+        new Vector2(-1_000_000f, -1_000_000f), new Vector2(1_000_000f, 1_000_000f));
+
+    private static readonly List<Core.Rect> ClipStack = new(8);
+
     /// <summary><c>using</c> で解除できるクリップ領域。</summary>
     public static ClipScope Clip(Rect rect, bool intersectWithCurrent = true)
     {
+        var effective = intersectWithCurrent && ClipStack.Count > 0
+            ? ClipStack[^1].Intersect(rect)
+            : rect;
+
+        ClipStack.Add(effective);
+
         var dl = DrawList;
         dl.PushClipRect(rect.Min, rect.Max, intersectWithCurrent);
         return new ClipScope(dl);
     }
+
+    /// <summary>クリップ領域を 1 段戻す。</summary>
+    internal static void PopClip()
+    {
+        if (ClipStack.Count > 0)
+            ClipStack.RemoveAt(ClipStack.Count - 1);
+    }
+
+    /// <summary>クリップスタックを空にする。フレーム境界での保険。</summary>
+    internal static void ResetClipStack() => ClipStack.Clear();
+
+    /// <summary>
+    /// 矩形が現在のクリップ領域と重なっているか。描画を省けるかの判定に使う。
+    /// </summary>
+    public static bool IsVisible(Rect rect) => CurrentClip.Overlaps(rect);
+
+    /// <summary>点が現在のクリップ領域の中にあるか。</summary>
+    public static bool IsInsideClip(Vector2 point) => CurrentClip.Contains(point);
 
     // ── 補助 ──────────────────────────────────────────────────
 
@@ -497,15 +560,30 @@ public static class Painter
     }
 }
 
-/// <summary><c>using</c> でクリップ領域を解除するスコープ。</summary>
+/// <summary>
+/// <c>using</c> でクリップ領域を解除するスコープ。
+/// 既定値 (<c>default</c>) のスコープは何もしない。
+/// </summary>
 public readonly struct ClipScope : IDisposable
 {
     private readonly ImDrawListPtr drawList;
+    private readonly bool active;
 
-    internal ClipScope(ImDrawListPtr drawList) => this.drawList = drawList;
+    internal ClipScope(ImDrawListPtr drawList)
+    {
+        this.drawList = drawList;
+        this.active = true;
+    }
 
     /// <inheritdoc/>
-    public void Dispose() => this.drawList.PopClipRect();
+    public void Dispose()
+    {
+        if (!this.active)
+            return;
+
+        this.drawList.PopClipRect();
+        Painter.PopClip();
+    }
 }
 
 /// <summary><c>using</c> で描画先を元へ戻すスコープ。</summary>

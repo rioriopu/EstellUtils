@@ -59,6 +59,15 @@ public struct WidgetState
 
     /// <summary>初期化済みか。既定値の投入を 1 度だけ行うために使う。</summary>
     public bool Initialized;
+
+    /// <summary>掴んだ時点の値。スライダーの相対ドラッグに使う。</summary>
+    public float DragAnchorValue;
+
+    /// <summary>掴んだ時点のマウス座標。</summary>
+    public float DragAnchorPos;
+
+    /// <summary>掴んだ時点で微調整キーが押されていたか。</summary>
+    public bool DragFine;
 }
 
 /// <summary>

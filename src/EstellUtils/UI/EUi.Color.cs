@@ -46,8 +46,10 @@ public static partial class EUi
         var interaction = Interaction.Behavior(rect, euId);
         var packed = EuColor.FromVector(color);
 
-        // 半透明の色が分かるよう、市松模様の上に色を重ねる
-        DrawCheckerboard(rect, Metrics.WidgetRounding);
+        // 半透明のときだけ、下地に市松模様を敷いて透け具合が分かるようにする
+        if (EuColor.AlphaOf(packed) < 0.999f)
+            DrawCheckerboard(rect, Metrics.WidgetRounding);
+
         Painter.Rect(rect, packed, Metrics.WidgetRounding);
 
         var border = EuColor.Lerp(Colors.WidgetBorder, Colors.WidgetBorderHover, interaction.HoverAmount);
@@ -55,7 +57,7 @@ public static partial class EUi
 
         var popupId = id + "##euColorPopup";
 
-        if (interaction.Clicked)
+        if (interaction.Clicked && !ImGui.IsPopupOpen(popupId))
             ImGui.OpenPopup(popupId);
 
         var changed = false;
@@ -68,8 +70,8 @@ public static partial class EUi
 
         const ImGuiWindowFlags popupFlags =
             ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoTitleBar |
-            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoMove |
-            ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings;
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse |
+            ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings;
 
         if (ImGui.BeginPopup(popupId, popupFlags))
         {

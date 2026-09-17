@@ -129,7 +129,9 @@ public static partial class EUi
 
         var gap = new Vector2(0f, spacing ?? Metrics.ItemSpacing.Y);
         ctx.Layout.Push(LayoutKind.Vertical, bounds, gap, default, false, padding ?? default);
-        return new LayoutHandle(ctx.Layout);
+
+        // 矩形を明示して開いたスコープなので、外側へは領域を申告しない
+        return new LayoutHandle(ctx.Layout, commitToParent: false);
     }
 
     /// <summary>
@@ -143,7 +145,9 @@ public static partial class EUi
         var rect = ctx.Allocate(width, height);
         var gap = new Vector2(0f, Metrics.ItemSpacing.Y);
         ctx.Layout.Push(LayoutKind.Vertical, rect, gap, default, false, padding ?? default);
-        return new LayoutHandle(ctx.Layout);
+
+        // 領域は上で確保済みなので、閉じるときに二重で消費しないようにする
+        return new LayoutHandle(ctx.Layout, commitToParent: false);
     }
 
     /// <summary>

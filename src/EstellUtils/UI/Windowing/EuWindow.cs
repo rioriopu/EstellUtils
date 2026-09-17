@@ -154,6 +154,7 @@ public abstract class EuWindow
             this.CenterOnScreen();
 
         this.Size = Vector2.Clamp(this.Size, this.MinSize, this.MaxSize);
+        this.ClampToViewport();
 
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -173,12 +174,42 @@ public abstract class EuWindow
 
         try
         {
-            this.RenderBody(ctx);
+            // ウィンドウ名で ID スコープを切る。これが無いと、複数のウィンドウで
+            // 同じラベルのウィジェット (閉じるボタンや同名の項目) が同じ ID になってしまう
+            using (ctx.ScopedId(this.imguiId))
+            {
+                this.RenderBody(ctx);
+            }
         }
         finally
         {
             ImGui.End();
         }
+    }
+
+    /// <summary>
+    /// ウィンドウが画面外へ行きすぎないよう位置を丸める。
+    /// タイトルバーが必ず画面内に残るので、掴み直せなくなることがない。
+    /// </summary>
+    private void ClampToViewport()
+    {
+        var viewport = ImGui.GetMainViewport();
+        var min = viewport.WorkPos;
+        var max = viewport.WorkPos + viewport.WorkSize;
+
+        // 最低限これだけは画面内に残す
+        const float KeepVisible = 80f;
+
+        var titleHeight = this.HasTitleBar
+            ? ThemeManager.Current.Metrics.TitleBarHeight
+            : 24f;
+
+        var position = this.Position;
+
+        position.X = Math.Clamp(position.X, min.X - this.Size.X + KeepVisible, max.X - KeepVisible);
+        position.Y = Math.Clamp(position.Y, min.Y, MathF.Max(min.Y, max.Y - titleHeight));
+
+        this.Position = position;
     }
 
     /// <summary>クローム・操作・中身を描く。</summary>

@@ -115,6 +115,7 @@ public static class ConfigModel<T>
         var valueType = member is FieldInfo field ? field.FieldType : ((PropertyInfo)member).PropertyType;
 
         var name = member.Name;
+        var widgetId = "##" + name;
         var label = member.GetCustomAttribute<EuLabelAttribute>()?.Label ?? Humanize(name);
         var tip = member.GetCustomAttribute<EuTipAttribute>()?.Tip;
         var group = member.GetCustomAttribute<EuGroupAttribute>()?.Group;
@@ -129,7 +130,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<bool>(member);
             return new BoolBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
                 UseToggle = member.GetCustomAttribute<EuToggleAttribute>() is not null,
             };
@@ -140,7 +141,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<int>(member);
             return new IntBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
                 Min = range is null ? 0 : (int)range.Min,
                 Max = range is null ? 100 : (int)range.Max,
@@ -153,7 +154,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<float>(member);
             return new FloatBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
                 Min = range?.Min ?? 0f,
                 Max = range?.Max ?? 1f,
@@ -167,7 +168,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<string>(member);
             return new StringBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
             };
         }
@@ -180,7 +181,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<uint>(member);
             return new ColorPackedBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
                 ShowAlpha = colorAttribute.ShowAlpha,
             };
@@ -191,7 +192,7 @@ public static class ConfigModel<T>
             var (getter, setter) = BuildAccessors<Vector4>(member);
             return new ColorVectorBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue, Getter = getter, Setter = setter,
                 ShowAlpha = colorAttribute?.ShowAlpha ?? true,
             };
@@ -207,7 +208,7 @@ public static class ConfigModel<T>
 
             return new EnumBinding<T>
             {
-                Name = name, Label = label, Tip = tip, Group = group, Order = order,
+                Name = name, WidgetId = widgetId, Label = label, Tip = tip, Group = group, Order = order,
                 DefaultValue = defaultValue is null ? null : Convert.ToInt32(defaultValue),
                 Getter = getter, Setter = setter, Names = names, Values = values,
             };

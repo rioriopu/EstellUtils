@@ -208,12 +208,10 @@ public sealed class LayoutScope
 
         if (this.Kind == LayoutKind.Horizontal && this.columnCount > 0)
         {
+            // 列が宣言されている行では、要素の希望幅より列幅を優先する。
+            // そうしないと中身の短い要素で列がずれてしまう
             var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
             resolved = this.columnWidths[index];
-
-            // 列定義がある場合、固定指定は列幅を上書きできる
-            if (width.Mode == SizeMode.Fixed)
-                resolved = MathF.Min(width.Value, resolved);
         }
         else
         {

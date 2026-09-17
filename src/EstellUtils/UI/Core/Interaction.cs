@@ -126,7 +126,12 @@ public static class Interaction
         if (isActive)
             ctx.KeepActiveIdAlive(id);
 
-        var inRect = input.HasMousePos && rect.Contains(input.MousePos);
+        // クリップ領域の外にあるウィジェットは見えていないので反応させない。
+        // スクロールで隠れた項目が、その下に見えている別のウィジェットと
+        // 一緒に反応してしまうのを防ぐ
+        var inRect = input.HasMousePos &&
+                     rect.Contains(input.MousePos) &&
+                     Render.Painter.IsInsideClip(input.MousePos);
 
         // 他のウィジェットを操作中ならホバーさせない (ドラッグ中に別のボタンが光らないように)
         var hovered = !disabled && inRect && ctx.IsWindowHovered &&
@@ -245,7 +250,10 @@ public static class Interaction
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        return ctx.Input.HasMousePos && rect.Contains(ctx.Input.MousePos) && ctx.IsWindowHovered;
+        return ctx.Input.HasMousePos &&
+               rect.Contains(ctx.Input.MousePos) &&
+               Render.Painter.IsInsideClip(ctx.Input.MousePos) &&
+               ctx.IsWindowHovered;
     }
 
     /// <summary>オートリピートの発火タイミングか判定する。</summary>

@@ -74,6 +74,12 @@ public sealed class UiContext
     /// <summary>このフレームで何らかのウィジェットがマウス入力を消費したか。</summary>
     public bool WantCaptureMouse { get; internal set; }
 
+    /// <summary>
+    /// このフレームでホイール入力が消費されたか。スクロール領域が入れ子になっているとき、
+    /// 一番内側だけが反応するようにするために使う。
+    /// </summary>
+    public bool WheelConsumed { get; set; }
+
     /// <summary>現在のウィンドウの描画リスト。ウィジェットはここへ直接描画する。</summary>
     /// <remarks>
     /// 子ウィンドウごとに別の描画リストになるため、キャッシュせず都度取得する。
@@ -113,6 +119,7 @@ public sealed class UiContext
         Theming.ThemeManager.ResetStack();
         this.Layout.Reset();
         Render.Painter.ResetDrawListStack();
+        Render.Painter.ResetClipStack();
         EUi.ResetLabelColumns();
 
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する
@@ -122,6 +129,7 @@ public sealed class UiContext
         this.activeIdIsAlive = false;
         this.HotId = EuId.None;
         this.WantCaptureMouse = false;
+        this.WheelConsumed = false;
     }
 
     /// <summary>ウィジェットを操作中にする。</summary>

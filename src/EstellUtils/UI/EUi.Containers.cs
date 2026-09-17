@@ -81,9 +81,9 @@ public static partial class EUi
         ref var state = ref ctx.Store.GetRef(id);
 
         // 初回だけ既定の開閉状態を入れる
-        if (state.Custom0 == 0f)
+        if (!state.Initialized)
         {
-            state.Custom0 = 1f;
+            state.Initialized = true;
             state.Open = defaultOpen;
             state.OpenAmount = defaultOpen ? 1f : 0f;
         }
@@ -106,24 +106,41 @@ public static partial class EUi
         var visual = WidgetVisual.From(interaction, state.Open, state.OpenAmount) with { Rect = headerRect };
         WidgetPainter.DrawSectionHeader(visual, display, collapsible);
 
-        var isOpen = state.Open || state.OpenAmount > 0.01f;
+        // 閉じきるまでは中身を描き続ける。高さを削りながらクリップすることで、
+        // ぱっと消えるのではなく畳まれていくように見える
+        var amount = state.OpenAmount;
+        var isOpen = state.Open || amount > 0.005f;
 
-        if (isOpen)
+        if (!isOpen)
+            return new SectionHandle(id, false, false, default, 0f);
+
+        var clip = default(ClipScope);
+
+        if (amount < 0.999f && state.MeasuredHeight > 0f)
         {
-            ctx.Layout.Push(
-                LayoutKind.Vertical, ctx.Layout.AvailableRect, new Vector2(0f, Metrics.ItemSpacing.Y),
-                default, false, new EdgeInsets(Metrics.SpacingMd, Metrics.SpacingSm, 0f, Metrics.SpacingMd));
+            var available = ctx.Layout.AvailableRect;
+            var visibleHeight = state.MeasuredHeight * amount;
+
+            clip = Painter.Clip(
+                Rect.FromSize(available.Min, new Vector2(available.Width, visibleHeight)));
         }
 
-        return new SectionHandle(id, state.Open, isOpen);
+        ctx.Layout.Push(
+            LayoutKind.Vertical, ctx.Layout.AvailableRect, new Vector2(0f, Metrics.ItemSpacing.Y),
+            default, false, new EdgeInsets(Metrics.SpacingMd, Metrics.SpacingSm, 0f, Metrics.SpacingMd));
+
+        return new SectionHandle(id, state.Open, true, clip, amount);
     }
 
-    /// <summary>コールバックで中身を書くセクション。閉じているときは中身が呼ばれない。</summary>
+    /// <summary>
+    /// コールバックで中身を書くセクション。
+    /// 閉じているとき (畳むアニメーションも終わっているとき) は中身が呼ばれない。
+    /// </summary>
     public static void Section(ReadOnlySpan<char> label, Action body, bool collapsible = true, bool defaultOpen = true)
     {
         using var section = Section(label, collapsible, defaultOpen);
 
-        if (section.IsOpen)
+        if (section.IsVisible)
             body();
     }
 
@@ -240,25 +257,49 @@ public readonly struct CardHandle : IDisposable
 public readonly struct SectionHandle : IDisposable
 {
     private readonly bool pushedLayout;
+    private readonly ClipScope clip;
+    private readonly float openAmount;
 
-    internal SectionHandle(EuId id, bool open, bool pushedLayout)
+    internal SectionHandle(EuId id, bool open, bool pushedLayout, ClipScope clip, float openAmount)
     {
         this.Id = id;
         this.IsOpen = open;
         this.pushedLayout = pushedLayout;
+        this.clip = clip;
+        this.openAmount = openAmount;
     }
 
     /// <summary>セクションの ID。</summary>
     public EuId Id { get; }
 
-    /// <summary>開いているか。閉じているときは中身を描かなくてよい。</summary>
+    /// <summary>見出しが開いた状態か。設定の表示条件などに使う。</summary>
     public bool IsOpen { get; }
+
+    /// <summary>
+    /// 中身を描く必要があるか。畳むアニメーションの最中も true になる。
+    /// 中身の描画はこちらで判定する。
+    /// </summary>
+    public bool IsVisible => this.pushedLayout;
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (this.pushedLayout)
-            UiContext.Current.Layout.Pop();
+        if (!this.pushedLayout)
+            return;
+
+        var ctx = UiContext.Current;
+        var consumed = ctx.Layout.Current?.ConsumedSize ?? Vector2.Zero;
+
+        // 実際に消費する高さは開閉の進み具合を掛けたもの。外側への申告は自分で行う
+        ctx.Layout.Pop(commitToParent: false);
+        this.clip.Dispose();
+
+        ref var state = ref ctx.Store.GetRef(this.Id);
+        state.MeasuredHeight = consumed.Y;
+
+        var height = consumed.Y * this.openAmount;
+        if (height > 0.5f)
+            ctx.Allocate(new Vector2(consumed.X, height));
     }
 }
 

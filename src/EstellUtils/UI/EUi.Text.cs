@@ -28,13 +28,31 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        var lineHeight = TextPainter.LineHeight;
+
+        // 画面の外に出ている行は、計測すらせず領域だけ確保して終える。
+        // 長い一覧をスクロールさせたときの負荷はこれでほぼ消える
+        if (!IsRowVisible(ctx, lineHeight))
+            return new WidgetResult { Rect = ctx.Allocate(SizeSpec.Fill, lineHeight) };
+
         var size = TextPainter.Measure(text);
-        var width = align == Align.Start ? size.X : AvailableWidth;
-        var rect = ctx.Allocate(new Vector2(width, MathF.Max(size.Y, TextPainter.LineHeight)));
+
+        // 列が宣言された行の中では、ここで渡した幅より列幅が優先される
+        var width = align == Align.Start ? SizeSpec.Px(size.X) : SizeSpec.Fill;
+        var rect = ctx.Allocate(width, MathF.Max(size.Y, lineHeight));
 
         TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
 
         return MakeTextResult(ctx, rect);
+    }
+
+    /// <summary>次に配置される行が、クリップ範囲に入っているか。</summary>
+    private static bool IsRowVisible(UiContext ctx, float height)
+    {
+        var clip = Painter.CurrentClip;
+        var top = ctx.Layout.AvailableRect.Min.Y;
+
+        return top <= clip.Max.Y && top + height >= clip.Min.Y;
     }
 
     /// <summary>補足説明用の控えめな色のテキスト。</summary>

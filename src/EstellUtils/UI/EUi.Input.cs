@@ -46,7 +46,9 @@ public static partial class EUi
         var interaction = Interaction.Behavior(
             rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
-        var focused = ImGui.IsItemActive() || ctx.FocusedId == euId;
+        // ImGui.IsItemActive() は直前のアイテムの状態を指すため、ここでは使えない。
+        // 入力欄がアクティブかどうかは、下で SetFocus した結果を次フレームに反映する
+        var focused = ctx.FocusedId == euId;
         var visual = WidgetVisual.From(interaction) with { Rect = rect, Focused = focused };
 
         WidgetPainter.DrawInputFrame(visual);
@@ -176,7 +178,9 @@ public static partial class EUi
 
         var popupId = id + "##euComboPopup";
 
-        if (interaction.Clicked && !disabled)
+        // 開いている状態でもう一度押したときは、ImGui 側が「外側のクリック」として
+        // 閉じてくれる。ここで開き直さないことで、クリックのたびに開閉が入れ替わる
+        if (interaction.Clicked && !disabled && !ImGui.IsPopupOpen(popupId))
             ImGui.OpenPopup(popupId);
 
         var changed = false;
@@ -191,8 +195,8 @@ public static partial class EUi
 
         const ImGuiWindowFlags popupFlags =
             ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoTitleBar |
-            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoMove |
-            ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings;
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse |
+            ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings;
 
         if (ImGui.BeginPopup(popupId, popupFlags))
         {

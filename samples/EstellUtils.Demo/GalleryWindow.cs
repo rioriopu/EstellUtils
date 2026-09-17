@@ -45,6 +45,23 @@ public sealed class GalleryWindow : EuWindow
         ("マテリジャ", "マテリア", 7),
     ];
 
+    /// <summary>負荷確認で使い回す文字列。毎フレームの文字列生成を避けるため。</summary>
+    private static readonly string[] StressIds = ["#01", "#02", "#03", "#04", "#05", "#06", "#07", "#08"];
+
+    private static readonly string[] StressNames =
+    [
+        "リムサ・ロミンサ：上甲板層",
+        "グリダニア：新市街",
+        "ウルダハ：ナル回廊",
+        "イシュガルド：上層",
+        "クガネ",
+        "クリスタリウム",
+        "オールド・シャーレアン",
+        "トライヨラ",
+    ];
+
+    private static readonly string[] StressValues = ["12", "48", "105", "7", "230", "64", "19", "88"];
+
     private readonly DemoConfig config;
     private readonly Binder<DemoConfig> binder;
     private readonly Theme xivTheme = XivNativeTheme.Create();
@@ -64,6 +81,7 @@ public sealed class GalleryWindow : EuWindow
     private Vector4 colorValue = new(0.85f, 0.70f, 0.41f, 1f);
     private int themeIndex;
     private float scale = 1f;
+    private int stressRows = 300;
 
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
@@ -226,7 +244,7 @@ public sealed class GalleryWindow : EuWindow
 
         using (var section = EUi.Section("折りたためるセクション"))
         {
-            if (section.IsOpen)
+            if (section.IsVisible)
             {
                 EUi.Paragraph(
                     "見出しをクリックすると開閉します。開閉はアニメーションし、状態はフレームをまたいで保持されます。");
@@ -358,6 +376,34 @@ public sealed class GalleryWindow : EuWindow
 
             if (EUi.Button("危険##toastErr"))
                 EUi.Toast("処理に失敗しました。詳細はログを確認してください。", NoteKind.Danger);
+        }
+
+        EUi.Separator("負荷の確認");
+
+        using (EUi.Row(160f, SizeSpec.Fill))
+        {
+            EUi.Label("行数");
+            EUi.SliderInt("##stressRows", ref this.stressRows, 0, 2000, SizeSpec.Fill, "行");
+        }
+
+        EUi.Muted("画面に映っていない行は描画を省くので、行数を増やしても fps はほとんど落ちません。");
+
+        if (this.stressRows > 0)
+        {
+            // 文字列を毎フレーム作ると、測っているのが描画性能ではなく
+            // 文字列生成と GC になってしまうので、あらかじめ用意したものを使い回す
+            using (EUi.Scroll("stressList", 140f, 0f))
+            {
+                for (var i = 0; i < this.stressRows; i++)
+                {
+                    using (EUi.Row(70f, SizeSpec.Fill, 80f))
+                    {
+                        EUi.Label(StressIds[i % StressIds.Length]);
+                        EUi.Label(StressNames[i % StressNames.Length]);
+                        EUi.Label(StressValues[i % StressValues.Length], null, Align.End);
+                    }
+                }
+            }
         }
 
         EUi.Separator("生 ImGui との混在");

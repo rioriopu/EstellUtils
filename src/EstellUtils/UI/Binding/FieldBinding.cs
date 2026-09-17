@@ -19,6 +19,12 @@ public abstract class FieldBinding<T>
     /// <summary>メンバー名。<c>nameof</c> で指定するときの鍵になる。</summary>
     public string Name { get; init; } = string.Empty;
 
+    /// <summary>
+    /// ウィジェットへ渡す識別子 (<c>"##" + メンバー名</c>)。
+    /// 毎フレーム文字列を作らないよう、解析時に一度だけ組み立てておく。
+    /// </summary>
+    public string WidgetId { get; init; } = "##";
+
     /// <summary>画面に出すラベル。</summary>
     public string Label { get; init; } = string.Empty;
 
@@ -178,7 +184,7 @@ public sealed class StringBinding<T> : FieldBinding<T, string>
         using (EUi.Field(this.Label))
         {
             var result = EUi.TextInput(
-                "##" + this.Name, ref value, this.Hint, this.MaxLength, SizeSpec.Fill, disabled);
+                this.WidgetId, ref value, this.Hint, this.MaxLength, SizeSpec.Fill, disabled);
 
             if (this.Tip is not null)
                 result.Tip(this.Tip);
@@ -211,7 +217,7 @@ public sealed class EnumBinding<T> : FieldBinding<T, int>
 
         using (EUi.Field(this.Label))
         {
-            var result = EUi.Combo("##" + this.Name, ref index, this.Names, SizeSpec.Fill, disabled);
+            var result = EUi.Combo(this.WidgetId, ref index, this.Names, SizeSpec.Fill, disabled);
 
             if (this.Tip is not null)
                 result.Tip(this.Tip);
@@ -238,7 +244,7 @@ public sealed class ColorVectorBinding<T> : FieldBinding<T, Vector4>
 
         using (EUi.Field(this.Label))
         {
-            var result = EUi.ColorEdit("##" + this.Name, ref value, this.ShowAlpha);
+            var result = EUi.ColorEdit(this.WidgetId, ref value, this.ShowAlpha);
 
             if (this.Tip is not null)
                 result.Tip(this.Tip);
@@ -265,7 +271,7 @@ public sealed class ColorPackedBinding<T> : FieldBinding<T, uint>
 
         using (EUi.Field(this.Label))
         {
-            var result = EUi.ColorEdit("##" + this.Name, ref value, this.ShowAlpha);
+            var result = EUi.ColorEdit(this.WidgetId, ref value, this.ShowAlpha);
 
             if (this.Tip is not null)
                 result.Tip(this.Tip);

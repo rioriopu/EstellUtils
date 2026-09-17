@@ -94,7 +94,7 @@ public static partial class EUi
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(boxSize, textSize.Y));
         var width = boxSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
-        var rect = ctx.Allocate(new Vector2(width, height));
+        var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
@@ -133,7 +133,7 @@ public static partial class EUi
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(switchSize.Y, textSize.Y));
         var width = switchSize.X + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
-        var rect = ctx.Allocate(new Vector2(width, height));
+        var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
@@ -175,7 +175,7 @@ public static partial class EUi
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(circleSize, textSize.Y));
         var width = circleSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
-        var rect = ctx.Allocate(new Vector2(width, height));
+        var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
         var amount = AnimateOn(id, selected);

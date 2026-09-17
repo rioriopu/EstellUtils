@@ -21,21 +21,35 @@ public static class Tooltip
     /// <summary>マウスカーソルからのずらし量。</summary>
     private static readonly Vector2 CursorOffset = new(16f, 20f);
 
+    /// <summary>直前にツールチップを出したフレーム。続けて出すときの待ち時間を省くのに使う。</summary>
+    private static uint lastShownFrame;
+
     /// <summary>
     /// ホバーが一定時間続いていればツールチップを表示する。
     /// </summary>
     /// <param name="text">表示する説明文。</param>
     /// <param name="hoveredDuration">ホバーが続いている秒数。</param>
+    /// <remarks>
+    /// 直前のフレームまでツールチップが出ていた場合は待ち時間を省く。
+    /// 説明の付いた項目を続けてなぞるときに、いちいち待たされないようにするため。
+    /// </remarks>
     public static void Show(ReadOnlySpan<char> text, float hoveredDuration)
     {
         if (text.IsEmpty)
             return;
 
+        var ctx = UiContext.Current;
         var motion = ThemeManager.Current.Motion;
-        if (hoveredDuration < motion.TooltipDelay)
+
+        // 2 フレーム以内に出ていたなら、続けて見ているとみなす
+        var continuing = lastShownFrame != 0 && ctx.FrameCount - lastShownFrame <= 2;
+        var delay = continuing ? 0f : motion.TooltipDelay;
+
+        if (hoveredDuration < delay)
             return;
 
         Draw(text);
+        lastShownFrame = ctx.FrameCount;
     }
 
     /// <summary>遅延なしでツールチップを表示する。</summary>
