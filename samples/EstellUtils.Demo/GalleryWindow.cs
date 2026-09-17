@@ -360,6 +360,29 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Muted("「すりガラス」テーマは、透過・上端の光沢・明るい細枠で厚みのある板に見せています。");
 
+        EUi.Separator("動きの速さ");
+
+        var motion = EUi.Motion;
+
+        var animEnabled = motion.Enabled;
+        if (EUi.Toggle("アニメーションを使う", ref animEnabled))
+            motion.Enabled = animEnabled;
+
+        var hoverSpeed = motion.HoverSpeed;
+        if (EUi.SliderFloat("ホバーの速さ", ref hoverSpeed, 6f, 40f, 220f, default, !animEnabled, 0))
+            motion.HoverSpeed = hoverSpeed;
+
+        var pressSpeed = motion.PressSpeed;
+        if (EUi.SliderFloat("押下の戻り", ref pressSpeed, 6f, 40f, 220f, default, !animEnabled, 0)
+                .Tip("押した瞬間は待たせないので、これは離したあとの戻り速度です。"))
+        {
+            motion.PressSpeed = pressSpeed;
+        }
+
+        var collapse = motion.CollapseDuration;
+        if (EUi.SliderFloat("折りたたみの時間", ref collapse, 0.05f, 0.6f, 220f, "秒", !animEnabled, 2))
+            motion.CollapseDuration = collapse;
+
         EUi.Separator("色トークン");
 
         var colors = EUi.Colors;

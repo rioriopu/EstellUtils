@@ -40,9 +40,10 @@ public class DefaultWidgetPainter : IWidgetPainter
         var rect = visual.Rect;
         var rounding = Metrics.WidgetRounding;
 
-        // 押し込んだときに 1px 沈ませて、触った手応えを出す
-        var sink = visual.Press * 1f;
-        var body = rect.Offset(0f, sink);
+        // 押し込んだときは沈ませたうえで、ほんの少し縮める。
+        // 位置と大きさの両方が動くと、指で押し込んだような手応えになる
+        var sink = visual.Press * 1.5f;
+        var body = rect.Offset(0f, sink).Shrink(visual.Press * 0.5f);
 
         switch (style)
         {
@@ -60,6 +61,14 @@ public class DefaultWidgetPainter : IWidgetPainter
             {
                 var (top, bottom, border) = this.ResolveButtonColors(visual, style);
                 Painter.RectGradientV(body, top, bottom, rounding);
+
+                // 押している間は内側に影を落として、へこんで見えるようにする
+                if (visual.Press > 0.01f)
+                {
+                    Painter.InnerShadow(
+                        body, EuColor.WithAlpha(EuColor.Black, 0.40f * visual.Press), 3f, rounding);
+                }
+
                 Painter.RectOutline(body, border, Metrics.WidgetBorderWidth, rounding);
                 break;
             }
@@ -150,7 +159,8 @@ public class DefaultWidgetPainter : IWidgetPainter
     /// <inheritdoc/>
     public virtual void DrawCheckbox(in WidgetVisual visual)
     {
-        var rect = visual.Rect;
+        // 押している間はわずかに縮めて、反応していることを見せる
+        var rect = visual.Rect.Shrink(visual.Press * 1.2f);
         var rounding = MathF.Min(Metrics.WidgetRounding, 3f);
 
         var top = EuColor.Lerp(Colors.Track, Colors.SurfaceHover, visual.Hover * 0.6f);
@@ -189,7 +199,7 @@ public class DefaultWidgetPainter : IWidgetPainter
     {
         var rect = visual.Rect;
         var center = rect.Center;
-        var radius = MathF.Min(rect.Width, rect.Height) * 0.5f;
+        var radius = (MathF.Min(rect.Width, rect.Height) * 0.5f) - (visual.Press * 1.2f);
 
         var fill = EuColor.Lerp(Colors.Track, Colors.SurfaceHover, visual.Hover * 0.6f);
         if (visual.Disabled > 0f)
@@ -213,7 +223,7 @@ public class DefaultWidgetPainter : IWidgetPainter
     /// <inheritdoc/>
     public virtual void DrawToggle(in WidgetVisual visual)
     {
-        var rect = visual.Rect;
+        var rect = visual.Rect.Shrink(visual.Press * 1f);
         var radius = rect.Height * 0.5f;
 
         var offColor = EuColor.Lerp(Colors.Track, Colors.SurfaceHover, visual.Hover * 0.5f);
@@ -365,7 +375,7 @@ public class DefaultWidgetPainter : IWidgetPainter
     /// <inheritdoc/>
     public virtual void DrawTab(in WidgetVisual visual, ReadOnlySpan<char> label)
     {
-        var rect = visual.Rect;
+        var rect = visual.Rect.Offset(0f, visual.Press * 1f);
         var rounding = Metrics.WidgetRounding;
 
         if (visual.On)

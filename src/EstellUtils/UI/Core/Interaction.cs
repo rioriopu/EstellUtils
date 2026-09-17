@@ -102,11 +102,8 @@ public static class Interaction
     /// <summary>オートリピートの発火間隔 (秒)。</summary>
     private const float RepeatRate = 0.05f;
 
-    /// <summary>ホバー遷移の速度。</summary>
-    private const float HoverSpeed = 16f;
-
-    /// <summary>押下遷移の速度。押下は即応性が要るのでホバーより速くする。</summary>
-    private const float PressSpeed = 30f;
+    /// <summary>ホバーから抜けるときの速度。入るときより緩やかにすると落ち着いて見える。</summary>
+    private const float HoverOutFactor = 0.6f;
 
     /// <summary>
     /// 矩形に対するマウス操作を判定し、ホバー/押下のアニメーション値も更新する。
@@ -198,15 +195,36 @@ public static class Interaction
 
         // ── アニメーション値の更新 ──
         var dt = ctx.DeltaTime;
+        var motion = Theming.ThemeManager.Current.Motion;
         ref var state = ref ctx.Store.GetRef(id);
 
         var hoverTarget = hovered ? 1f : 0f;
         var pressTarget = held && (inRect || (flags & InteractionFlags.AllowDragOutside) != 0) ? 1f : 0f;
         var disabledTarget = disabled ? 1f : 0f;
 
-        state.Hover = Anim.Approach(state.Hover, hoverTarget, HoverSpeed, dt);
-        state.Press = Anim.Approach(state.Press, pressTarget, PressSpeed, dt);
-        state.Toggle = Anim.Approach(state.Toggle, disabledTarget, HoverSpeed, dt);
+        if (!motion.Enabled)
+        {
+            state.Hover = hoverTarget;
+            state.Press = pressTarget;
+            state.Toggle = disabledTarget;
+        }
+        else
+        {
+            // 押した瞬間は待たせない。アニメーションを挟むと、その分だけ
+            // 反応が遅れて「もっさり」した手触りになる。戻りだけ滑らかにする
+            state.Press = pressTarget >= state.Press
+                ? pressTarget
+                : Anim.Approach(state.Press, pressTarget, motion.PressSpeed, dt);
+
+            // ホバーは入るときを速く、抜けるときを緩やかに。
+            // 入りが遅いと反応が鈍く感じ、抜けが速いとちらついて見える
+            var hoverSpeed = hoverTarget > state.Hover
+                ? motion.HoverSpeed
+                : motion.HoverSpeed * HoverOutFactor;
+
+            state.Hover = Anim.Approach(state.Hover, hoverTarget, hoverSpeed, dt);
+            state.Toggle = Anim.Approach(state.Toggle, disabledTarget, motion.HoverSpeed, dt);
+        }
 
         // ホバーが始まった時刻を控えて、継続時間を出す (ツールチップの遅延に使う)
         if (hovered)

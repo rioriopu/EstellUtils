@@ -195,11 +195,13 @@ public sealed class ThemeMotion
     /// <summary>アニメーションを使うか。false にすると全ての遷移が即座に切り替わる。</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>ホバー遷移の速度。</summary>
-    public float HoverSpeed { get; set; } = 16f;
+    /// <summary>ホバー遷移の速度。大きいほど速く反応する。</summary>
+    public float HoverSpeed { get; set; } = 22f;
 
-    /// <summary>押下遷移の速度。</summary>
-    public float PressSpeed { get; set; } = 30f;
+    /// <summary>
+    /// 押下から戻るときの速度。押した瞬間の反映は待たせないので、これは戻り専用。
+    /// </summary>
+    public float PressSpeed { get; set; } = 26f;
 
     /// <summary>チェックやトグルなど、ON/OFF が切り替わる速度。</summary>
     public float OpenSpeed { get; set; } = 14f;

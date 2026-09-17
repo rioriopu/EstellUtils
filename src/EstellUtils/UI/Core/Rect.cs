@@ -180,40 +180,67 @@ public readonly record struct Rect(Vector2 Min, Vector2 Max)
     // ── 切り出し (レイアウト用) ────────────────────────────────
     // 「左から 80px 切り出して、残りにさらに配置する」といった書き方を支える。
 
+    // 以下の切り出しメソッドは、呼び出し側が
+    //     area = area.CutRight(w, out area);
+    // のようにレシーバと out 引数へ同じ変数を渡せるようにしてある。
+    // readonly struct の this は参照で渡されるため、remainder を先に代入してしまうと
+    // その後に読む this の中身まで書き換わってしまう。
+    // そのため、どのメソッドも「戻り値を先に組み立ててから remainder へ代入する」。
+
     /// <summary>左から指定幅を切り出し、残りを <paramref name="remainder"/> で返す。</summary>
     public Rect CutLeft(float width, out Rect remainder)
     {
         width = Math.Clamp(width, 0f, this.Width);
-        var split = this.Min.X + width;
-        remainder = new Rect(new Vector2(split, this.Min.Y), this.Max);
-        return new Rect(this.Min, new Vector2(split, this.Max.Y));
+
+        var min = this.Min;
+        var max = this.Max;
+        var split = min.X + width;
+
+        var result = new Rect(min, new Vector2(split, max.Y));
+        remainder = new Rect(new Vector2(split, min.Y), max);
+        return result;
     }
 
     /// <summary>右から指定幅を切り出し、残りを <paramref name="remainder"/> で返す。</summary>
     public Rect CutRight(float width, out Rect remainder)
     {
         width = Math.Clamp(width, 0f, this.Width);
-        var split = this.Max.X - width;
-        remainder = new Rect(this.Min, new Vector2(split, this.Max.Y));
-        return new Rect(new Vector2(split, this.Min.Y), this.Max);
+
+        var min = this.Min;
+        var max = this.Max;
+        var split = max.X - width;
+
+        var result = new Rect(new Vector2(split, min.Y), max);
+        remainder = new Rect(min, new Vector2(split, max.Y));
+        return result;
     }
 
     /// <summary>上から指定高さを切り出し、残りを <paramref name="remainder"/> で返す。</summary>
     public Rect CutTop(float height, out Rect remainder)
     {
         height = Math.Clamp(height, 0f, this.Height);
-        var split = this.Min.Y + height;
-        remainder = new Rect(new Vector2(this.Min.X, split), this.Max);
-        return new Rect(this.Min, new Vector2(this.Max.X, split));
+
+        var min = this.Min;
+        var max = this.Max;
+        var split = min.Y + height;
+
+        var result = new Rect(min, new Vector2(max.X, split));
+        remainder = new Rect(new Vector2(min.X, split), max);
+        return result;
     }
 
     /// <summary>下から指定高さを切り出し、残りを <paramref name="remainder"/> で返す。</summary>
     public Rect CutBottom(float height, out Rect remainder)
     {
         height = Math.Clamp(height, 0f, this.Height);
-        var split = this.Max.Y - height;
-        remainder = new Rect(this.Min, new Vector2(this.Max.X, split));
-        return new Rect(new Vector2(this.Min.X, split), this.Max);
+
+        var min = this.Min;
+        var max = this.Max;
+        var split = max.Y - height;
+
+        var result = new Rect(new Vector2(min.X, split), max);
+        remainder = new Rect(min, new Vector2(max.X, split));
+        return result;
     }
 
     /// <summary>

@@ -94,6 +94,15 @@ this.window = EUi.Window("Masked Dalamud 設定")
 dotnet build EstellUtils.sln -c Release
 ```
 
+## 自己検証
+
+矩形の切り出し・ID の生成・色の変換・列幅の解決といった、ゲームを起動せずに
+確かめられる部分には自己検証を用意しています。外部パッケージには依存しません。
+
+```
+dotnet run --project tests/EstellUtils.SelfCheck
+```
+
 ## 開発状況
 
 API は開発初期のため、予告なく変更されます。
