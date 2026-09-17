@@ -4,6 +4,8 @@ using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
 
+using EstellUtils.UI.Layout;
+
 namespace EstellUtils.UI.Core;
 
 /// <summary>
@@ -34,6 +36,7 @@ public sealed class UiContext
     {
         this.Input = new InputState();
         this.Store = new WidgetStore();
+        this.Layout = new LayoutEngine();
     }
 
     /// <summary>プロセス内で共有される唯一の文脈。</summary>
@@ -44,6 +47,9 @@ public sealed class UiContext
 
     /// <summary>ウィジェットの永続状態。</summary>
     public WidgetStore Store { get; }
+
+    /// <summary>レイアウトスコープの管理。</summary>
+    public LayoutEngine Layout { get; }
 
     /// <summary>ライブラリが数えたフレーム番号。</summary>
     public uint FrameCount { get; private set; }
@@ -101,8 +107,9 @@ public sealed class UiContext
         if (this.idStack.Count > 1)
             this.idStack.RemoveRange(1, this.idStack.Count - 1);
 
-        // テーマスコープも同様に、閉じ忘れをフレーム境界で回収する
+        // テーマ・レイアウトのスコープも同様に、閉じ忘れをフレーム境界で回収する
         Theming.ThemeManager.ResetStack();
+        this.Layout.Reset();
 
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する
         if (!this.activeIdIsAlive && !this.ActiveId.IsNone)
@@ -185,29 +192,47 @@ public sealed class UiContext
     // ── 領域の確保 ────────────────────────────────────────────
 
     /// <summary>
-    /// 現在のカーソル位置に指定サイズの領域を確保し、その矩形を返す。
+    /// 指定サイズの領域を確保し、その矩形を返す。
     /// </summary>
     /// <remarks>
-    /// <c>ImGui.Dummy</c> で ImGui 側のカーソルも進めるため、同じフレーム内で
+    /// レイアウトスコープが開いていればそこへ配置する。開いていなければ
+    /// <c>ImGui.Dummy</c> で ImGui 側のカーソルを進めるため、同じフレーム内で
     /// 生の <c>ImGui.*</c> 呼び出しと混在させても配置が崩れない。
-    /// レイアウトコンテナ (フェーズ 4) はこの処理を差し替える形で拡張される。
     /// </remarks>
     public Rect Allocate(Vector2 size)
     {
+        var scope = this.Layout.Current;
+        if (scope is not null)
+            return scope.Allocate(size);
+
         var origin = ImGui.GetCursorScreenPos();
         ImGui.Dummy(size);
         return Rect.FromSize(origin, size);
+    }
+
+    /// <summary>幅の指定方法と高さを与えて領域を確保する。</summary>
+    public Rect Allocate(SizeSpec width, float height)
+    {
+        var scope = this.Layout.Current;
+        if (scope is not null)
+            return scope.Allocate(width, height);
+
+        var available = ImGui.GetContentRegionAvail().X;
+        return this.Allocate(new Vector2(width.Resolve(available), height));
     }
 
     /// <summary>横幅いっぱいに指定高さの領域を確保する。</summary>
     public Rect AllocateFullWidth(float height)
         => this.Allocate(new Vector2(this.AvailableWidth, height));
 
-    /// <summary>現在のカーソル位置から右端までの利用可能幅。</summary>
-    public float AvailableWidth => ImGui.GetContentRegionAvail().X;
+    /// <summary>次の要素を配置できる領域。</summary>
+    public Rect AvailableRect => this.Layout.AvailableRect;
 
-    /// <summary>現在のカーソル位置から下端までの利用可能高さ。</summary>
-    public float AvailableHeight => ImGui.GetContentRegionAvail().Y;
+    /// <summary>次の要素に使える幅。</summary>
+    public float AvailableWidth => this.Layout.AvailableRect.Width;
+
+    /// <summary>次の要素に使える高さ。</summary>
+    public float AvailableHeight => this.Layout.AvailableRect.Height;
 
     /// <summary>現在のカーソル位置 (画面座標)。</summary>
     public Vector2 CursorScreenPos
