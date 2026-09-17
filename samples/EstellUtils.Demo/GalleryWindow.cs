@@ -347,13 +347,6 @@ public sealed class GalleryWindow : EuWindow
         if (EUi.SliderFloat("拡大率", ref this.scale, 0.75f, 2f, 220f, default, false, 2))
             this.ApplyScale();
 
-        var dim = this.DimBackground;
-        var dimTip = "ImGui は背後のピクセルを読めないため、本物のぼかしは描けません。\n" +
-                     "代わりに背景を落として UI を浮かせます。";
-
-        if (EUi.Toggle("背後を暗く覆う", ref dim).Tip(dimTip))
-            this.DimBackground = dim;
-
         var opacity = this.Opacity;
         if (EUi.SliderFloat("ウィンドウの不透明度", ref opacity, 0.25f, 1f, 220f, default, false, 2))
             this.Opacity = opacity;

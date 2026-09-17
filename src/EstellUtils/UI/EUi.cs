@@ -137,33 +137,4 @@ public static partial class EUi
     /// フレームを進める。通常は各 API が自動で呼ぶため、明示的に呼ぶ必要はない。
     /// </summary>
     public static void NewFrame() => UiContext.Current.EnsureFrame();
-
-    /// <summary>
-    /// 画面全体を暗く覆う。すべてのウィンドウより奥に描かれる。
-    /// </summary>
-    /// <param name="alpha">覆いの濃さ。省略するとテーマの既定値。</param>
-    /// <remarks>
-    /// <para>
-    /// 背後をぼかす代わりの手段です。ImGui はゲーム画面の上へ重ねて描くだけで
-    /// 背後のピクセルを読めないため、本物のぼかしは描画の仕組み上できません。
-    /// 背景を落として UI を浮かせるほうが、目的 (画面を見やすくする) には合っています。
-    /// </para>
-    /// <para>
-    /// ウィンドウ側で使う場合は <c>EuWindow.DimBackground</c> を立てるだけで済みます。
-    /// </para>
-    /// </remarks>
-    public static void Scrim(float? alpha = null)
-    {
-        var ctx = UiContext.Current;
-        ctx.EnsureFrame();
-
-        var viewport = Dalamud.Bindings.ImGui.ImGui.GetMainViewport();
-        var color = alpha.HasValue
-            ? Render.EuColor.WithAlpha(Colors.Overlay, alpha.Value)
-            : Colors.Overlay;
-
-        // 最背面のレイヤーへ描くと、どのウィンドウよりも奥になる
-        Dalamud.Bindings.ImGui.ImGui.GetBackgroundDrawList()
-            .AddRectFilled(viewport.Pos, viewport.Pos + viewport.Size, color);
-    }
 }

@@ -145,18 +145,6 @@ public abstract class EuWindow
     public bool SnapToScreenEdges { get; set; } = true;
 
     /// <summary>
-    /// 開いている間、背後を暗く覆うか。設定画面を前面に集中させたいときに使う。
-    /// </summary>
-    /// <remarks>
-    /// 背後をぼかす代わりの手段。ImGui は背後のピクセルを読めないため本物のぼかしは
-    /// 描けないが、暗く落とすだけでも UI の見やすさは十分に上がる。
-    /// </remarks>
-    public bool DimBackground { get; set; }
-
-    /// <summary>背後を覆う濃さ。<see cref="DimBackground"/> が true のときに使う。</summary>
-    public float DimAmount { get; set; } = 0.45f;
-
-    /// <summary>
     /// このウィンドウにフォーカスがある状態で Esc を押したら閉じるか。
     /// 文字入力中は反応しない。
     /// </summary>
@@ -364,9 +352,6 @@ public abstract class EuWindow
 
         // 画面内へ収める判定は、実際に表示される大きさが決まってから行う
         this.ClampToViewport();
-
-        if (this.DimBackground)
-            EUi.Scrim(this.DimAmount);
 
         // ピクセルの境目に乗っていないと、枠や文字が半端な位置で滲んで
         // 「ごわついた」見え方になる。整数へ丸めて揃える

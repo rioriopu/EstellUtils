@@ -82,7 +82,6 @@ var highlight = EUi.Theme.Color("myPlugin.highlight", EUi.Colors.Accent);
 `FrostedGlassTheme` は背後を実際にぼかしているわけではありません
 （ImGui は背後のピクセルを読めないため、描画の仕組み上できません）。
 透過・光沢・細枠の組み合わせで、厚みのある曇りガラスの板に見せています。
-背景の情報量を落としたい場合は `EUi.Scrim()` や `EuWindow.DimBackground` を併用してください。
 詳しくは [windows.md](windows.md) を参照。
 
 ## 2. Painter を差し替える
