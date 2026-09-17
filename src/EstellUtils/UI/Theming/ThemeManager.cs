@@ -39,7 +39,7 @@ public static class ThemeManager
         ArgumentNullException.ThrowIfNull(theme);
 
         Stack.Add(theme);
-        return new ThemeScope();
+        return new ThemeScope(true);
     }
 
     /// <summary>テーマスコープを 1 段戻す。</summary>
@@ -57,8 +57,20 @@ public static class ThemeManager
 }
 
 /// <summary><c>using</c> でテーマを元に戻すスコープ。</summary>
+/// <remarks>
+/// 既定値 (<c>default</c>) のスコープは何もしない。条件によってテーマを積むかどうかが
+/// 変わる場面で <c>cond ? Push(t) : default</c> と書けるようにするため。
+/// </remarks>
 public readonly struct ThemeScope : IDisposable
 {
+    private readonly bool active;
+
+    internal ThemeScope(bool active) => this.active = active;
+
     /// <inheritdoc/>
-    public void Dispose() => ThemeManager.Pop();
+    public void Dispose()
+    {
+        if (this.active)
+            ThemeManager.Pop();
+    }
 }

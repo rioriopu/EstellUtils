@@ -1,9 +1,12 @@
 using System;
 
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 
+using EstellUtils.Diagnostics;
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Theming;
+using EstellUtils.UI.Windowing;
 
 namespace EstellUtils.UI;
 
@@ -23,9 +26,16 @@ namespace EstellUtils.UI;
 public static partial class EUi
 {
     private static FontManager? fontManager;
+    private static EuWindowManager? windowManager;
+    private static Action? drawHandler;
 
     /// <summary>初期化済みか。</summary>
     public static bool IsInitialized => fontManager is not null;
+
+    /// <summary>ウィンドウ管理。<see cref="Initialize"/> 後に使える。</summary>
+    public static EuWindowManager Windows
+        => windowManager ?? throw new InvalidOperationException(
+            "EstellUtils が初期化されていません。プラグイン起動時に EUi.Initialize(pluginInterface) を呼んでください。");
 
     /// <summary>Dalamud のプラグインインターフェース。</summary>
     public static IDalamudPluginInterface? PluginInterface { get; private set; }
@@ -61,23 +71,50 @@ public static partial class EUi
     /// </summary>
     /// <param name="pluginInterface">Dalamud のプラグインインターフェース。</param>
     /// <param name="theme">既定テーマ。省略すると FFXIV ネイティブ風テーマを使う。</param>
-    public static void Initialize(IDalamudPluginInterface pluginInterface, Theme? theme = null)
+    /// <param name="log">ライブラリ内部のログ出力先。省略するとログは捨てられる。</param>
+    /// <param name="hookDraw">
+    /// <c>UiBuilder.Draw</c> へウィンドウ描画を自動接続するか。
+    /// false にした場合は、プラグイン側で毎フレーム <c>EUi.Windows.Draw()</c> を呼ぶこと。
+    /// </param>
+    public static void Initialize(
+        IDalamudPluginInterface pluginInterface, Theme? theme = null,
+        IPluginLog? log = null, bool hookDraw = true)
     {
         ArgumentNullException.ThrowIfNull(pluginInterface);
 
+        Shutdown();
+
         PluginInterface = pluginInterface;
-        fontManager?.Dispose();
+        UiLog.Sink = log;
+
         fontManager = new FontManager(pluginInterface);
+        windowManager = new EuWindowManager();
 
         if (theme is not null)
             ThemeManager.SetDefault(theme);
+
+        if (hookDraw)
+        {
+            drawHandler = windowManager.Draw;
+            pluginInterface.UiBuilder.Draw += drawHandler;
+        }
     }
 
     /// <summary>ライブラリが確保した資源を解放する。プラグインの Dispose から呼ぶこと。</summary>
     public static void Shutdown()
     {
+        if (drawHandler is not null && PluginInterface is not null)
+            PluginInterface.UiBuilder.Draw -= drawHandler;
+
+        drawHandler = null;
+
+        windowManager?.Dispose();
+        windowManager = null;
+
         fontManager?.Dispose();
         fontManager = null;
+
+        UiLog.Sink = null;
         PluginInterface = null;
     }
 

@@ -440,4 +440,58 @@ public class DefaultWidgetPainter : IWidgetPainter
         Painter.RectOutline(window.Shrink(1f), Colors.WindowBorderInner, 1f, MathF.Max(0f, rounding - 1f));
         Painter.RectOutline(window, Colors.WindowBorder, Metrics.WindowBorderWidth, rounding);
     }
+
+    /// <inheritdoc/>
+    public virtual void DrawWindowButton(in WidgetVisual visual, WindowButtonKind kind)
+    {
+        var rect = visual.Rect;
+
+        if (visual.Hover > 0.01f)
+        {
+            var bg = kind == WindowButtonKind.Close
+                ? EuColor.WithAlpha(Colors.Danger, visual.Hover * 0.85f)
+                : EuColor.WithAlpha(Colors.SurfaceHover, visual.Hover * 0.85f);
+
+            Painter.Rect(rect, bg, Metrics.WidgetRounding);
+        }
+
+        var color = EuColor.Lerp(Colors.TextMuted, Colors.Text, visual.Hover);
+        var center = rect.Center;
+        var size = MathF.Min(rect.Width, rect.Height) * 0.22f;
+
+        switch (kind)
+        {
+            case WindowButtonKind.Close:
+                Painter.Line(center - new Vector2(size, size), center + new Vector2(size, size), color, 1.6f);
+                Painter.Line(center + new Vector2(size, -size), center + new Vector2(-size, size), color, 1.6f);
+                break;
+
+            case WindowButtonKind.Collapse:
+                Painter.Chevron(rect, visual.On ? Direction.Up : Direction.Down, color, 1.6f);
+                break;
+
+            default:
+                Painter.CircleOutline(center, size, color, 1.6f);
+                Painter.Circle(center, size * 0.35f, color);
+                break;
+        }
+    }
+
+    /// <inheritdoc/>
+    public virtual void DrawResizeGrip(in WidgetVisual visual)
+    {
+        var rect = visual.Rect;
+        var color = EuColor.Lerp(Colors.WindowBorderInner, Colors.Accent, visual.Hover);
+
+        // 右下に斜めの線を 3 本引く
+        for (var i = 1; i <= 3; i++)
+        {
+            var offset = i * (rect.Width / 4f);
+            Painter.Line(
+                new Vector2(rect.Max.X - offset, rect.Max.Y - 2f),
+                new Vector2(rect.Max.X - 2f, rect.Max.Y - offset),
+                color,
+                1.2f);
+        }
+    }
 }

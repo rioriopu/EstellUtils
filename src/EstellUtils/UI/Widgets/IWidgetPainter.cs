@@ -4,6 +4,19 @@ using EstellUtils.UI.Core;
 
 namespace EstellUtils.UI.Widgets;
 
+/// <summary>ウィンドウのタイトルバーに並ぶボタンの種類。</summary>
+public enum WindowButtonKind
+{
+    /// <summary>閉じる。</summary>
+    Close,
+
+    /// <summary>折りたたむ / 展開する。</summary>
+    Collapse,
+
+    /// <summary>設定を開く。</summary>
+    Settings,
+}
+
 /// <summary>ボタンの見た目の種類。</summary>
 public enum ButtonStyle
 {
@@ -120,4 +133,10 @@ public interface IWidgetPainter
 
     /// <summary>ウィンドウの枠・タイトルバーを描く。</summary>
     void DrawWindowChrome(Rect window, Rect titleBar, ReadOnlySpan<char> title, bool focused);
+
+    /// <summary>タイトルバーのボタンを描く。</summary>
+    void DrawWindowButton(in WidgetVisual visual, WindowButtonKind kind);
+
+    /// <summary>ウィンドウ右下のリサイズグリップを描く。</summary>
+    void DrawResizeGrip(in WidgetVisual visual);
 }

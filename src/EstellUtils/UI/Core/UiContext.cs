@@ -278,13 +278,14 @@ public sealed class UiContext
 
 /// <summary>
 /// <c>using</c> で ID スタックを自動的に戻すためのスコープ。
+/// 既定値 (<c>default</c>) のスコープは何もしない。
 /// </summary>
 public readonly struct IdScope : IDisposable
 {
-    private readonly UiContext context;
+    private readonly UiContext? context;
 
     internal IdScope(UiContext context) => this.context = context;
 
     /// <inheritdoc/>
-    public void Dispose() => this.context.PopId();
+    public void Dispose() => this.context?.PopId();
 }
