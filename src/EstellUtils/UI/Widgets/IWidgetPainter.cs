@@ -13,6 +13,9 @@ public enum WindowButtonKind
     /// <summary>折りたたむ / 展開する。</summary>
     Collapse,
 
+    /// <summary>小窓にする / 元へ戻す。</summary>
+    Compact,
+
     /// <summary>設定を開く。</summary>
     Settings,
 }

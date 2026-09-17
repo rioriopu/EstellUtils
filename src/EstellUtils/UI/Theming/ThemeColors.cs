@@ -24,6 +24,12 @@ public sealed class ThemeColors
     /// <summary>ウィンドウ外枠の内側に引く細い線。立体感を出す。</summary>
     public uint WindowBorderInner { get; set; }
 
+    /// <summary>
+    /// ウィンドウ上部に薄く乗せる光沢。すりガラス風の質感を出すのに使う。
+    /// 透明にすると描かれない。
+    /// </summary>
+    public uint WindowGloss { get; set; }
+
     /// <summary>タイトルバーの上端色。</summary>
     public uint TitleTop { get; set; }
 

@@ -325,38 +325,51 @@ public static class Painter
     /// </summary>
     public static void Chevron(Rect area, Direction direction, uint color, float thickness = 2f)
     {
-        var c = area.Center;
+        var angle = direction switch
+        {
+            Direction.Down => MathF.PI * 0.5f,
+            Direction.Left => MathF.PI,
+            Direction.Up => MathF.PI * 1.5f,
+            _ => 0f,
+        };
+
+        Chevron(area, angle, color, thickness);
+    }
+
+    /// <summary>
+    /// 角度を指定してシェブロンを描く。0 で右向き、時計回り。
+    /// </summary>
+    /// <remarks>
+    /// 折りたたみの開閉に合わせて滑らかに回すために、向きではなく角度で受け取れるようにしている。
+    /// </remarks>
+    public static void Chevron(Rect area, float angleRadians, uint color, float thickness = 2f)
+    {
+        if ((color >> 24) == 0 || !IsVisible(area))
+            return;
+
+        var center = area.Center;
         var s = MathF.Min(area.Width, area.Height) * 0.28f;
+
+        // 右向きを基準にした 3 点を、指定角度だけ回す
+        var cos = MathF.Cos(angleRadians);
+        var sin = MathF.Sin(angleRadians);
+
+        Span<Vector2> points =
+        [
+            new(-s * 0.5f, -s),
+            new(s * 0.5f, 0f),
+            new(-s * 0.5f, s),
+        ];
+
         var dl = DrawList;
 
-        Vector2 p0, p1, p2;
-        switch (direction)
+        foreach (var p in points)
         {
-            case Direction.Down:
-                p0 = new Vector2(c.X - s, c.Y - (s * 0.5f));
-                p1 = new Vector2(c.X, c.Y + (s * 0.5f));
-                p2 = new Vector2(c.X + s, c.Y - (s * 0.5f));
-                break;
-            case Direction.Up:
-                p0 = new Vector2(c.X - s, c.Y + (s * 0.5f));
-                p1 = new Vector2(c.X, c.Y - (s * 0.5f));
-                p2 = new Vector2(c.X + s, c.Y + (s * 0.5f));
-                break;
-            case Direction.Left:
-                p0 = new Vector2(c.X + (s * 0.5f), c.Y - s);
-                p1 = new Vector2(c.X - (s * 0.5f), c.Y);
-                p2 = new Vector2(c.X + (s * 0.5f), c.Y + s);
-                break;
-            default:
-                p0 = new Vector2(c.X - (s * 0.5f), c.Y - s);
-                p1 = new Vector2(c.X + (s * 0.5f), c.Y);
-                p2 = new Vector2(c.X - (s * 0.5f), c.Y + s);
-                break;
+            dl.PathLineTo(new Vector2(
+                center.X + ((p.X * cos) - (p.Y * sin)),
+                center.Y + ((p.X * sin) + (p.Y * cos))));
         }
 
-        dl.PathLineTo(p0);
-        dl.PathLineTo(p1);
-        dl.PathLineTo(p2);
         dl.PathStroke(color, ImDrawFlags.None, thickness);
     }
 

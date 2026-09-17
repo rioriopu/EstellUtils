@@ -323,15 +323,12 @@ public class DefaultWidgetPainter : IWidgetPainter
 
         if (collapsible)
         {
-            // 左端にシェブロン。開閉に合わせて 90 度回す代わりに向きを切り替える
+            // 左端のシェブロンは、開閉の進み具合に合わせて右向きから下向きへ回す
             var arrowRect = rect.CutLeft(rect.Height, out textRect);
             var arrowColor = EuColor.Lerp(Colors.TextMuted, Colors.Accent, visual.Hover);
+            var angle = visual.OnAmount * MathF.PI * 0.5f;
 
-            Painter.Chevron(
-                arrowRect,
-                visual.OnAmount > 0.5f ? Direction.Down : Direction.Right,
-                arrowColor,
-                1.8f);
+            Painter.Chevron(arrowRect, angle, arrowColor, 1.8f);
         }
 
         var color = EuColor.Lerp(Colors.TextHeading, Colors.Accent, visual.Hover * 0.5f);
@@ -418,9 +415,23 @@ public class DefaultWidgetPainter : IWidgetPainter
     {
         var rounding = Metrics.WindowRounding;
 
-        // 影 → 地 → タイトルバー → 枠 の順に重ねる
+        // 影 → 地 → 光沢 → タイトルバー → 枠 の順に重ねる
         Painter.Shadow(window, Colors.Shadow, Metrics.WindowShadowSize, rounding, new Vector2(0f, 3f));
         Painter.RectGradientV(window, Colors.WindowTop, Colors.WindowBottom, rounding);
+
+        // 上端の光沢。厚みのある板に光が当たっているように見せる
+        if ((Colors.WindowGloss >> 24) != 0)
+        {
+            var glossHeight = MathF.Min(window.Height * 0.45f, 90f);
+            var glossRect = window.WithHeight(glossHeight);
+
+            Painter.RectGradientV(
+                glossRect,
+                Colors.WindowGloss,
+                EuColor.WithAlpha(Colors.WindowGloss, 0f),
+                rounding,
+                Corners.Top);
+        }
 
         if (!titleBar.IsEmpty)
         {
@@ -467,8 +478,22 @@ public class DefaultWidgetPainter : IWidgetPainter
                 break;
 
             case WindowButtonKind.Collapse:
+                // 開いているときは上向き (畳む)、畳まれているときは下向き (開く)
                 Painter.Chevron(rect, visual.On ? Direction.Up : Direction.Down, color, 1.6f);
                 break;
+
+            case WindowButtonKind.Compact:
+            {
+                // 小窓を表す小さな枠。小窓中は塗りつぶして状態が分かるようにする
+                var box = Rect.FromCenter(center, new Vector2(size * 2f, size * 1.6f));
+
+                if (visual.On)
+                    Painter.Rect(box, color, 1f);
+                else
+                    Painter.RectOutline(box, color, 1.4f, 1f);
+
+                break;
+            }
 
             default:
                 Painter.CircleOutline(center, size, color, 1.6f);

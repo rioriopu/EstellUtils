@@ -201,8 +201,21 @@ public sealed class ThemeMotion
     /// <summary>押下遷移の速度。</summary>
     public float PressSpeed { get; set; } = 30f;
 
-    /// <summary>開閉 (折りたたみ) の速度。</summary>
+    /// <summary>チェックやトグルなど、ON/OFF が切り替わる速度。</summary>
     public float OpenSpeed { get; set; } = 14f;
+
+    /// <summary>
+    /// 折りたたみの開閉にかける時間 (秒)。
+    /// </summary>
+    /// <remarks>
+    /// 開閉は「目標値へ指数的に近づく」方式だと最後がいつまでも終わらず、
+    /// 畳まれ切る瞬間がはっきりしない。一定時間で進めてイージングを掛けるほうが
+    /// 開いた・閉じたが伝わりやすい。
+    /// </remarks>
+    public float CollapseDuration { get; set; } = 0.17f;
+
+    /// <summary>ウィンドウの最小化・小窓化にかける時間 (秒)。</summary>
+    public float WindowResizeDuration { get; set; } = 0.15f;
 
     /// <summary>スクロールの追従速度。</summary>
     public float ScrollSpeed { get; set; } = 20f;

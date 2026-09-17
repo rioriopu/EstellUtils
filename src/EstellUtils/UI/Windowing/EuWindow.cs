@@ -42,6 +42,9 @@ public abstract class EuWindow
 
     private bool wasOpen;
     private bool placed;
+    private bool resizing;
+    private Vector2 animatedSize;
+    private bool sizeInitialized;
 
     /// <summary>ウィンドウを作る。</summary>
     /// <param name="name">タイトルバーに表示する名前。ID にも使われる。</param>
@@ -84,6 +87,59 @@ public abstract class EuWindow
     /// <summary>内容がはみ出したときに自動でスクロールさせるか。</summary>
     public bool AutoScroll { get; set; } = true;
 
+    /// <summary>
+    /// タイトルバーだけに畳めるか。ボタンか、タイトルバーのダブルクリックで切り替わる。
+    /// </summary>
+    public bool Collapsible { get; set; } = true;
+
+    /// <summary>畳まれているか。</summary>
+    public bool IsCollapsed { get; set; }
+
+    /// <summary>
+    /// 小窓モードを持つか。true にすると、タイトルバーに小窓ボタンが出る。
+    /// </summary>
+    /// <remarks>
+    /// 小窓モードは「設定画面をしまいつつ、よく使う操作だけ手元に残す」ための表示。
+    /// <see cref="DrawCompact"/> をオーバーライドして中身を書く。
+    /// </remarks>
+    public bool HasCompactMode { get; set; }
+
+    /// <summary>小窓モードになっているか。</summary>
+    public bool IsCompact { get; set; }
+
+    /// <summary>小窓モードのときの大きさ。</summary>
+    public Vector2 CompactSize { get; set; } = new(260f, 140f);
+
+    /// <summary>
+    /// ウィジェットの無い余白をドラッグしても移動できるか。
+    /// </summary>
+    /// <remarks>
+    /// タイトルバー以外を掴んでも動かせると、設定画面を寄せるのが楽になる。
+    /// 掴めるのは、その位置に反応するウィジェットが無いときだけ。
+    /// </remarks>
+    public bool MoveFromAnywhere { get; set; } = true;
+
+    /// <summary>画面の端に近づけたとき、そこへ吸い付かせるか。</summary>
+    public bool SnapToScreenEdges { get; set; } = true;
+
+    /// <summary>
+    /// 開いている間、背後を暗く覆うか。設定画面を前面に集中させたいときに使う。
+    /// </summary>
+    /// <remarks>
+    /// 背後をぼかす代わりの手段。ImGui は背後のピクセルを読めないため本物のぼかしは
+    /// 描けないが、暗く落とすだけでも UI の見やすさは十分に上がる。
+    /// </remarks>
+    public bool DimBackground { get; set; }
+
+    /// <summary>背後を覆う濃さ。<see cref="DimBackground"/> が true のときに使う。</summary>
+    public float DimAmount { get; set; } = 0.45f;
+
+    /// <summary>
+    /// このウィンドウにフォーカスがある状態で Esc を押したら閉じるか。
+    /// 文字入力中は反応しない。
+    /// </summary>
+    public bool CloseOnEscape { get; set; }
+
     /// <summary>内側の余白。省略するとテーマの既定値。</summary>
     public EdgeInsets? Padding { get; set; }
 
@@ -95,6 +151,14 @@ public abstract class EuWindow
 
     /// <summary>ウィンドウの中身を描く。</summary>
     public abstract void Draw();
+
+    /// <summary>
+    /// 小窓モードのときの中身を描く。既定では通常の中身をそのまま描く。
+    /// </summary>
+    /// <remarks>
+    /// よく使う操作だけを並べた、短い内容にするとよい。
+    /// </remarks>
+    public virtual void DrawCompact() => this.Draw();
 
     /// <summary>描画するかどうかの判定。戦闘中だけ出す、といった制御に使う。</summary>
     public virtual bool DrawConditions() => true;
@@ -154,7 +218,6 @@ public abstract class EuWindow
             this.CenterOnScreen();
 
         this.Size = Vector2.Clamp(this.Size, this.MinSize, this.MaxSize);
-        this.ClampToViewport();
 
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -163,8 +226,33 @@ public abstract class EuWindow
             ? ThemeManager.Push(this.Theme)
             : default;
 
+        // 最小化・小窓への切り替えは大きさを滑らかに変える。
+        // リサイズグリップを掴んでいる間は、追従が遅れないようアニメーションを止める
+        var targetSize = this.ResolveTargetSize();
+
+        if (!this.sizeInitialized)
+        {
+            this.animatedSize = targetSize;
+            this.sizeInitialized = true;
+        }
+        else
+        {
+            var motion = ThemeManager.Current.Motion;
+            var duration = motion.Enabled && !this.resizing ? motion.WindowResizeDuration : 0f;
+
+            this.animatedSize = duration > 0f
+                ? Anim.Approach(this.animatedSize, targetSize, 1f / duration, ctx.DeltaTime)
+                : targetSize;
+        }
+
+        // 画面内へ収める判定は、実際に表示される大きさが決まってから行う
+        this.ClampToViewport();
+
+        if (this.DimBackground)
+            EUi.Scrim(this.DimAmount);
+
         ImGui.SetNextWindowPos(this.Position);
-        ImGui.SetNextWindowSize(this.Size);
+        ImGui.SetNextWindowSize(this.animatedSize);
 
         if (!ImGui.Begin(this.imguiId, BaseFlags | this.ExtraFlags))
         {
@@ -187,6 +275,22 @@ public abstract class EuWindow
         }
     }
 
+    /// <summary>表示状態 (通常 / 小窓 / 最小化) に応じた目標の大きさを求める。</summary>
+    private Vector2 ResolveTargetSize()
+    {
+        if (this.IsCollapsed && this.HasTitleBar)
+            return new Vector2(this.IsCompact ? this.CompactSize.X : this.Size.X, this.TitleBarHeight());
+
+        if (this.IsCompact)
+            return this.CompactSize;
+
+        return this.Size;
+    }
+
+    /// <summary>現在のテーマでのタイトルバーの高さ。</summary>
+    private float TitleBarHeight()
+        => this.HasTitleBar ? ThemeManager.Current.Metrics.TitleBarHeight : 0f;
+
     /// <summary>
     /// ウィンドウが画面外へ行きすぎないよう位置を丸める。
     /// タイトルバーが必ず画面内に残るので、掴み直せなくなることがない。
@@ -206,7 +310,9 @@ public abstract class EuWindow
 
         var position = this.Position;
 
-        position.X = Math.Clamp(position.X, min.X - this.Size.X + KeepVisible, max.X - KeepVisible);
+        var width = this.sizeInitialized ? this.animatedSize.X : this.Size.X;
+
+        position.X = Math.Clamp(position.X, min.X - width + KeepVisible, max.X - KeepVisible);
         position.Y = Math.Clamp(position.Y, min.Y, MathF.Max(min.Y, max.Y - titleHeight));
 
         this.Position = position;
@@ -219,7 +325,8 @@ public abstract class EuWindow
         var metrics = theme.Metrics;
         var painter = theme.Painter;
 
-        var windowRect = Rect.FromSize(this.Position, this.Size);
+        // 見た目上の大きさはアニメーション中の値を使う
+        var windowRect = Rect.FromSize(this.Position, this.animatedSize);
         var focused = ImGui.IsWindowFocused(ImGuiFocusedFlags.ChildWindows);
 
         var titleHeight = this.HasTitleBar ? metrics.TitleBarHeight : 0f;
@@ -234,49 +341,141 @@ public abstract class EuWindow
         if (this.HasTitleBar)
             this.HandleTitleBar(ctx, titleRect, painter);
 
-        if (this.Resizable)
+        // 文字入力の最中は Esc が入力の取り消しに使われるので、そこでは反応させない
+        if (this.CloseOnEscape && focused && !ImGui.GetIO().WantTextInput &&
+            ImGui.IsKeyPressed(ImGuiKey.Escape))
+        {
+            this.IsOpen = false;
+        }
+
+        // 畳まれている途中は中身を描かない (タイトルバーからはみ出して見えてしまうため)
+        var contentHeight = windowRect.Height - titleHeight;
+        var showContent = contentHeight > 4f;
+
+        if (this.Resizable && !this.IsCollapsed && !this.IsCompact)
             this.HandleResizeGrip(ctx, windowRect, painter, metrics.ResizeGripSize);
 
-        // 中身の領域
-        var padding = this.Padding ?? metrics.WindowPadding;
-        var contentRect = new Rect(
-            new Vector2(windowRect.Min.X, windowRect.Min.Y + titleHeight),
-            windowRect.Max);
+        if (showContent)
+        {
+            var padding = this.Padding ?? metrics.WindowPadding;
+            var contentRect = new Rect(
+                new Vector2(windowRect.Min.X, windowRect.Min.Y + titleHeight),
+                windowRect.Max);
 
-        if (this.AutoScroll)
-        {
-            using (EUi.Region(contentRect, padding))
-            using (ScrollArea.Begin("##euWindowScroll", contentRect.Height - padding.TotalVertical))
+            // 大きさが変わっている最中は、中身がはみ出さないよう切り取る
+            using var clip = Painter.Clip(contentRect);
+
+            if (this.AutoScroll)
             {
-                this.Draw();
+                using (EUi.Region(contentRect, padding))
+                using (ScrollArea.Begin("##euWindowScroll", contentRect.Height - padding.TotalVertical))
+                {
+                    this.DrawContent();
+                }
+            }
+            else
+            {
+                using (EUi.Region(contentRect, padding))
+                {
+                    this.DrawContent();
+                }
             }
         }
-        else
-        {
-            using (EUi.Region(contentRect, padding))
-            {
-                this.Draw();
-            }
-        }
+
+        // 中身を描いた後に、余白のドラッグで移動できるか判定する。
+        // ここで判定するのは、どのウィジェットがホバーされたかが確定してからでないと
+        // ウィジェットの上でもウィンドウが動いてしまうため
+        if (this.Movable && this.MoveFromAnywhere && !this.IsCollapsed)
+            this.HandleBackgroundDrag(ctx, windowRect, titleRect);
     }
 
-    /// <summary>タイトルバーのドラッグ移動と閉じるボタンを処理する。</summary>
+    /// <summary>表示状態に応じて中身を描き分ける。</summary>
+    private void DrawContent()
+    {
+        if (this.IsCompact)
+            this.DrawCompact();
+        else
+            this.Draw();
+    }
+
+    /// <summary>
+    /// ウィジェットの無い余白をドラッグしてウィンドウを動かす。
+    /// </summary>
+    private void HandleBackgroundDrag(UiContext ctx, Rect windowRect, Rect titleRect)
+    {
+        var dragId = ctx.GetId("##euWindowBackgroundDrag");
+        var isDragging = ctx.ActiveId == dragId;
+
+        // 何かのウィジェットが反応している場所では掴ませない
+        if (!isDragging && !ctx.HotId.IsNone)
+            return;
+
+        // タイトルバーは専用の処理があるので除く
+        var area = this.HasTitleBar
+            ? new Rect(new Vector2(windowRect.Min.X, titleRect.Max.Y), windowRect.Max)
+            : windowRect;
+
+        if (area.IsEmpty)
+            return;
+
+        var drag = Interaction.Behavior(area, dragId, InteractionFlags.AllowDragOutside);
+
+        if (drag.Pressed)
+            ImGui.SetWindowFocus(this.imguiId);
+
+        if (drag.Held)
+            this.MoveBy(ctx.Input.MouseDelta, ctx.Input.MousePos);
+    }
+
+    /// <summary>タイトルバーのボタンとドラッグ移動を処理する。</summary>
     private void HandleTitleBar(UiContext ctx, Rect titleRect, IWidgetPainter painter)
     {
         var buttonArea = titleRect;
+        var buttonSize = titleRect.Height;
 
+        // 右から順に「閉じる」「最小化」「小窓」
         if (this.Closable)
         {
-            var buttonSize = titleRect.Height;
-            var closeRect = titleRect.CutRight(buttonSize, out buttonArea).Shrink(3f);
-
-            var closeId = ctx.GetId("##euWindowClose");
-            var interaction = Interaction.Behavior(closeRect, closeId);
+            var closeRect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(3f);
+            var interaction = Interaction.Behavior(closeRect, ctx.GetId("##euWindowClose"));
 
             painter.DrawWindowButton(WidgetVisual.From(interaction), WindowButtonKind.Close);
 
             if (interaction.Clicked)
                 this.IsOpen = false;
+        }
+
+        if (this.Collapsible)
+        {
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(3f);
+            var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowCollapse"));
+
+            painter.DrawWindowButton(
+                WidgetVisual.From(interaction, !this.IsCollapsed), WindowButtonKind.Collapse);
+
+            if (interaction.Clicked)
+                this.IsCollapsed = !this.IsCollapsed;
+
+            if (interaction.Hovered)
+                Tooltip.Show(this.IsCollapsed ? "元の大きさに戻す" : "タイトルバーだけに畳む", interaction.HoveredDuration);
+        }
+
+        if (this.HasCompactMode)
+        {
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(3f);
+            var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowCompact"));
+
+            painter.DrawWindowButton(
+                WidgetVisual.From(interaction, this.IsCompact), WindowButtonKind.Compact);
+
+            if (interaction.Clicked)
+            {
+                this.IsCompact = !this.IsCompact;
+                this.IsCollapsed = false;
+            }
+
+            if (interaction.Hovered)
+                Tooltip.Show(this.IsCompact ? "通常の大きさに戻す" : "小窓にする", interaction.HoveredDuration);
         }
 
         if (!this.Movable)
@@ -285,12 +484,55 @@ public abstract class EuWindow
         var dragId = ctx.GetId("##euWindowDrag");
         var drag = Interaction.Behavior(buttonArea, dragId, InteractionFlags.AllowDragOutside);
 
-        if (drag.Held)
-            this.Position += ctx.Input.MouseDelta;
+        // タイトルバーのダブルクリックで畳む (ウィンドウ操作としてよくある挙動)
+        if (drag.DoubleClicked && this.Collapsible)
+            this.IsCollapsed = !this.IsCollapsed;
+        else if (drag.Held)
+            this.MoveBy(ctx.Input.MouseDelta, ctx.Input.MousePos);
 
         // タイトルバーをクリックしたらウィンドウを手前へ持ってくる
         if (drag.Pressed)
             ImGui.SetWindowFocus(this.imguiId);
+    }
+
+    /// <summary>ウィンドウを動かす。画面端への吸着もここで行う。</summary>
+    private void MoveBy(Vector2 delta, Vector2 mousePos)
+    {
+        this.Position += delta;
+
+        if (this.SnapToScreenEdges)
+            this.ApplyEdgeSnap();
+    }
+
+    /// <summary>
+    /// 画面の端に近づいたら、そこへ吸い付かせる。
+    /// </summary>
+    /// <remarks>
+    /// 吸着は見た目の位置だけを合わせるもので、マウスの移動量は常に反映している。
+    /// そのまま動かし続ければ吸着から外れる。
+    /// </remarks>
+    private void ApplyEdgeSnap()
+    {
+        const float SnapDistance = 12f;
+
+        var viewport = ImGui.GetMainViewport();
+        var min = viewport.WorkPos;
+        var max = viewport.WorkPos + viewport.WorkSize;
+        var size = this.animatedSize;
+
+        var position = this.Position;
+
+        if (MathF.Abs(position.X - min.X) < SnapDistance)
+            position.X = min.X;
+        else if (MathF.Abs(position.X + size.X - max.X) < SnapDistance)
+            position.X = max.X - size.X;
+
+        if (MathF.Abs(position.Y - min.Y) < SnapDistance)
+            position.Y = min.Y;
+        else if (MathF.Abs(position.Y + size.Y - max.Y) < SnapDistance)
+            position.Y = max.Y - size.Y;
+
+        this.Position = position;
     }
 
     /// <summary>右下のリサイズグリップを処理する。</summary>
@@ -304,6 +546,8 @@ public abstract class EuWindow
         var interaction = Interaction.Behavior(gripRect, gripId, InteractionFlags.AllowDragOutside);
 
         painter.DrawResizeGrip(WidgetVisual.From(interaction));
+
+        this.resizing = interaction.Held;
 
         if (interaction.Held)
             this.Size = Vector2.Clamp(this.Size + ctx.Input.MouseDelta, this.MinSize, this.MaxSize);

@@ -23,6 +23,8 @@ binder.DrawAll();
 - **差し替え可能なテーマ** — 色・寸法・モーションをトークン化。既定は FFXIV ネイティブ UI 風
 - **描画そのものも差し替え可能** — `IWidgetPainter` を実装すれば、ボタン 1 種類だけ別物にできる
 - **設定バインディング** — 属性を付けるだけで、グループ分けされた設定画面が生成される
+- **ウィンドウの表示状態** — 通常 / 小窓 / 最小化を切り替えられる。余白を掴んでの移動、
+  画面端への吸着、背景を暗く落とす表示にも対応
 - **アロケーションに配慮** — レイアウトスコープはプール、値の書式化は `stackalloc`、
   列宣言は `params ReadOnlySpan<T>`
 
@@ -77,6 +79,7 @@ this.window = EUi.Window("Masked Dalamud 設定")
 | [docs/architecture.md](docs/architecture.md) | 設計思想と層構成。なぜ ImGui のウィジェットを使わないのか |
 | [docs/getting-started.md](docs/getting-started.md) | 導入手順と最小のサンプル |
 | [docs/widgets.md](docs/widgets.md) | ウィジェットとレイアウトの一覧 |
+| [docs/windows.md](docs/windows.md) | ウィンドウの機能（小窓・最小化・移動・背景の扱い） |
 | [docs/theming.md](docs/theming.md) | テーマの調整と、描画そのものの差し替え |
 | [docs/binding.md](docs/binding.md) | 属性による設定画面の自動生成 |
 | [docs/migration.md](docs/migration.md) | 既存の ImGui 設定画面からの移行手順 |
@@ -112,6 +115,7 @@ API は開発初期のため、予告なく変更されます。
 ### 今後の予定
 
 - ゲーム本体の uld テクスチャを使った 9 スライス描画（より忠実な FFXIV 風テーマ）
+- ウィンドウのドッキング（端に寄せたときの整列）
 - テーマの JSON 保存・読み込み
 - 一覧の仮想化（数千行でも軽い表示）
 - スプリッター（ドラッグで分割位置を変えるレイアウト）

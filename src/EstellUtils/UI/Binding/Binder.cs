@@ -72,6 +72,11 @@ public sealed class Binder<T>
     /// <summary>まとめて無効表示にするか。前提条件が満たされていないときに使う。</summary>
     public bool Disabled { get; set; }
 
+    /// <summary>
+    /// 絞り込みの文字列。空でなければ、ラベル・説明・グループ名に含む項目だけが描かれる。
+    /// </summary>
+    public string SearchText { get; set; } = string.Empty;
+
     /// <summary>解析された項目。</summary>
     public IReadOnlyList<FieldBinding<T>> Bindings => ConfigModel<T>.Bindings;
 
@@ -93,13 +98,34 @@ public sealed class Binder<T>
         return this.DrawBinding(binding, disabled);
     }
 
+    /// <summary>
+    /// 絞り込み用の入力欄を描く。入力は <see cref="SearchText"/> へ反映され、
+    /// 以降の <see cref="DrawAll"/> が自動的に絞り込まれる。
+    /// </summary>
+    /// <param name="hint">空のときに表示する案内文。</param>
+    public bool DrawSearchBox(string hint = "設定を検索")
+    {
+        var text = this.SearchText;
+        var result = EUi.TextInput("##euBinderSearch", ref text, hint, 64);
+
+        if (!result.Changed)
+            return false;
+
+        this.SearchText = text;
+        return true;
+    }
+
     /// <summary>すべての項目を描く。</summary>
     /// <param name="grouped">
     /// <see cref="EuGroupAttribute"/> ごとにセクションへまとめるか。
+    /// 絞り込み中は、探している項目がすぐ見えるようグループ分けを外して並べる。
     /// </param>
     public bool DrawAll(bool grouped = true)
     {
         var changed = false;
+
+        if (this.IsSearching)
+            return this.DrawFiltered();
 
         if (!grouped)
         {
@@ -133,6 +159,42 @@ public sealed class Binder<T>
 
         this.MaybeFlush();
         return changed;
+    }
+
+    /// <summary>絞り込み中か。</summary>
+    private bool IsSearching => !string.IsNullOrWhiteSpace(this.SearchText);
+
+    /// <summary>絞り込み結果を、グループ分けせずに並べる。</summary>
+    private bool DrawFiltered()
+    {
+        var changed = false;
+        var hits = 0;
+
+        foreach (var binding in ConfigModel<T>.Bindings)
+        {
+            if (!this.Matches(binding))
+                continue;
+
+            hits++;
+            changed |= this.DrawBinding(binding, false);
+        }
+
+        if (hits == 0)
+            EUi.Muted("一致する設定はありません。");
+
+        this.MaybeFlush();
+        return changed;
+    }
+
+    /// <summary>絞り込みの文字列に一致するか。</summary>
+    private bool Matches(FieldBinding<T> binding)
+    {
+        var query = this.SearchText;
+
+        return binding.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || binding.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (binding.Tip?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (binding.Group?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     /// <summary>指定したグループの項目だけを描く (セクションの見出しは付けない)。</summary>

@@ -21,7 +21,7 @@ namespace EstellUtils.Demo;
 /// </summary>
 public sealed class GalleryWindow : EuWindow
 {
-    private static readonly string[] ThemeNames = ["FFXIV ネイティブ風", "モダンダーク"];
+    private static readonly string[] ThemeNames = ["FFXIV ネイティブ風", "モダンダーク", "すりガラス"];
 
     private static readonly string[] ComboItems =
     [
@@ -66,6 +66,7 @@ public sealed class GalleryWindow : EuWindow
     private readonly Binder<DemoConfig> binder;
     private readonly Theme xivTheme = XivNativeTheme.Create();
     private readonly Theme modernTheme = ModernDarkTheme.Create();
+    private readonly Theme glassTheme = FrostedGlassTheme.Create();
 
     private bool checkboxValue = true;
     private bool toggleValue;
@@ -90,12 +91,36 @@ public sealed class GalleryWindow : EuWindow
         this.Size = new Vector2(640f, 520f);
         this.MinSize = new Vector2(420f, 320f);
 
+        // 小窓モードを有効にすると、タイトルバーに切り替えボタンが出る
+        this.HasCompactMode = true;
+        this.CompactSize = new Vector2(280f, 150f);
+
         this.config = new DemoConfig();
         this.binder = new Binder<DemoConfig>(this.config, () => this.config.SaveCount++);
     }
 
     /// <inheritdoc/>
     public override void OnClose() => this.binder.Flush();
+
+    /// <summary>
+    /// 小窓モードの中身。よく使う操作だけを残す。
+    /// </summary>
+    public override void DrawCompact()
+    {
+        EUi.Muted("小窓モード");
+
+        using (EUi.Row(SizeSpec.Fill, SizeSpec.Fill))
+        {
+            if (EUi.Combo("##compactTheme", ref this.themeIndex, ThemeNames))
+                this.ApplyTheme();
+
+            if (EUi.Button("通知##compact", ButtonStyle.Primary, SizeSpec.Fill))
+                EUi.Toast("小窓から実行しました。", NoteKind.Success);
+        }
+
+        EUi.Toggle("デバッグ表示##compact", ref this.toggleValue);
+        EUi.ProgressBar(this.progress);
+    }
 
     /// <inheritdoc/>
     public override void Draw()
@@ -295,6 +320,15 @@ public sealed class GalleryWindow : EuWindow
         if (EUi.SliderFloat("拡大率", ref this.scale, 0.75f, 2f, 220f, default, false, 2))
             this.ApplyScale();
 
+        var dim = this.DimBackground;
+        var dimTip = "ImGui は背後のピクセルを読めないため、本物のぼかしは描けません。\n" +
+                     "代わりに背景を落として UI を浮かせます。";
+
+        if (EUi.Toggle("背後を暗く覆う", ref dim).Tip(dimTip))
+            this.DimBackground = dim;
+
+        EUi.Muted("「すりガラス」テーマは、透過・上端の光沢・明るい細枠で厚みのある板に見せています。");
+
         EUi.Separator("色トークン");
 
         var colors = EUi.Colors;
@@ -320,6 +354,7 @@ public sealed class GalleryWindow : EuWindow
             "この画面は DemoConfig クラスの属性だけから生成されています。" +
             "画面側のコードは binder.DrawAll() の 1 行だけです。");
 
+        this.binder.DrawSearchBox();
         EUi.Spacing();
 
         this.binder.DrawAll();
@@ -482,7 +517,13 @@ public sealed class GalleryWindow : EuWindow
     /// <summary>選択中のテーマを反映する。</summary>
     private void ApplyTheme()
     {
-        var theme = this.themeIndex == 0 ? this.xivTheme : this.modernTheme;
+        var theme = this.themeIndex switch
+        {
+            0 => this.xivTheme,
+            1 => this.modernTheme,
+            _ => this.glassTheme,
+        };
+
         theme.Scale = this.scale;
 
         ThemeManager.SetDefault(theme);
@@ -494,5 +535,6 @@ public sealed class GalleryWindow : EuWindow
     {
         this.xivTheme.Scale = this.scale;
         this.modernTheme.Scale = this.scale;
+        this.glassTheme.Scale = this.scale;
     }
 }

@@ -98,38 +98,50 @@ public static partial class EUi
         if (collapsible && interaction.Clicked)
             state.Open = !state.Open;
 
-        var target = state.Open ? 1f : 0f;
-        state.OpenAmount = Motion.Enabled
-            ? Anim.Approach(state.OpenAmount, target, Motion.OpenSpeed, ctx.DeltaTime)
-            : target;
+        // 開閉は一定時間で進める。指数的に近づける方式だと畳まれ切る瞬間がぼやけてしまう
+        var duration = Motion.Enabled ? Motion.CollapseDuration : 0f;
 
-        var visual = WidgetVisual.From(interaction, state.Open, state.OpenAmount) with { Rect = headerRect };
+        if (duration > 0f)
+        {
+            var step = ctx.DeltaTime / duration;
+            state.OpenAmount = state.Open
+                ? MathF.Min(1f, state.OpenAmount + step)
+                : MathF.Max(0f, state.OpenAmount - step);
+        }
+        else
+        {
+            state.OpenAmount = state.Open ? 1f : 0f;
+        }
+
+        var eased = Easing.Apply(EaseKind.OutCubic, state.OpenAmount);
+
+        var visual = WidgetVisual.From(interaction, state.Open, eased) with { Rect = headerRect };
         WidgetPainter.DrawSectionHeader(visual, display, collapsible);
 
-        // 閉じきるまでは中身を描き続ける。高さを削りながらクリップすることで、
-        // ぱっと消えるのではなく畳まれていくように見える
-        var amount = state.OpenAmount;
-        var isOpen = state.Open || amount > 0.005f;
+        var isOpen = state.Open || state.OpenAmount > 0.001f;
 
         if (!isOpen)
             return new SectionHandle(id, false, false, default, 0f);
 
         var clip = default(ClipScope);
+        var bounds = ctx.Layout.AvailableRect;
+        var contentHeight = state.MeasuredHeight;
 
-        if (amount < 0.999f && state.MeasuredHeight > 0f)
+        if (eased < 0.999f && contentHeight > 0f)
         {
-            var available = ctx.Layout.AvailableRect;
-            var visibleHeight = state.MeasuredHeight * amount;
+            // 見えている高さを削りつつ、中身をわずかに上へ寄せる。
+            // 下端が切り取られるだけの動きより、畳まれて吸い込まれるように見える
+            var visibleHeight = contentHeight * eased;
+            clip = Painter.Clip(Rect.FromSize(bounds.Min, new Vector2(bounds.Width, visibleHeight)));
 
-            clip = Painter.Clip(
-                Rect.FromSize(available.Min, new Vector2(available.Width, visibleHeight)));
+            bounds = bounds.Offset(0f, -(1f - eased) * contentHeight * 0.3f);
         }
 
         ctx.Layout.Push(
-            LayoutKind.Vertical, ctx.Layout.AvailableRect, new Vector2(0f, Metrics.ItemSpacing.Y),
+            LayoutKind.Vertical, bounds, new Vector2(0f, Metrics.ItemSpacing.Y),
             default, false, new EdgeInsets(Metrics.SpacingMd, Metrics.SpacingSm, 0f, Metrics.SpacingMd));
 
-        return new SectionHandle(id, state.Open, true, clip, amount);
+        return new SectionHandle(id, state.Open, true, clip, eased);
     }
 
     /// <summary>

@@ -71,6 +71,20 @@ theme.CustomColors["myPlugin.highlight"] = EuColor.Rgb(0xFF8800);
 var highlight = EUi.Theme.Color("myPlugin.highlight", EUi.Colors.Accent);
 ```
 
+### 用意されているプリセット
+
+| プリセット | 特徴 |
+|---|---|
+| `XivNativeTheme` | 既定。黒に近い紺の半透明地、金ベージュの細枠、金属質の縦グラデーション |
+| `ModernDarkTheme` | 装飾を抑えた平面的なデザイン。情報量の多い画面向け |
+| `FrostedGlassTheme` | すりガラス風。透過を強めた地に上端の光沢と明るい細枠 |
+
+`FrostedGlassTheme` は背後を実際にぼかしているわけではありません
+（ImGui は背後のピクセルを読めないため、描画の仕組み上できません）。
+透過・光沢・細枠の組み合わせで、厚みのある曇りガラスの板に見せています。
+背景の情報量を落としたい場合は `EUi.Scrim()` や `EuWindow.DimBackground` を併用してください。
+詳しくは [windows.md](windows.md) を参照。
+
 ## 2. Painter を差し替える
 
 `DefaultWidgetPainter` を継承し、必要なメソッドだけ差し替えます。
