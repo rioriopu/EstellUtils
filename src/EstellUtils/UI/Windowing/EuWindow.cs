@@ -555,7 +555,7 @@ public abstract class EuWindow
         // 右から順に「閉じる」「最小化」「小窓」
         if (this.Closable)
         {
-            var closeRect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var closeRect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(closeRect, ctx.GetId("##euWindowClose"));
 
             painter.DrawWindowButton(WidgetVisual.From(interaction), WindowButtonKind.Close);
@@ -566,7 +566,7 @@ public abstract class EuWindow
 
         if (this.Collapsible)
         {
-            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowCollapse"));
 
             painter.DrawWindowButton(
@@ -581,7 +581,7 @@ public abstract class EuWindow
 
         if (this.HasCompanion)
         {
-            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowCompanion"));
 
             painter.DrawWindowButton(
@@ -596,7 +596,7 @@ public abstract class EuWindow
 
         if (this.ShowRestoreButton)
         {
-            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowRestore"));
 
             painter.DrawWindowButton(WidgetVisual.From(interaction), WindowButtonKind.Restore);
@@ -610,7 +610,7 @@ public abstract class EuWindow
 
         if (this.ShowLockButton)
         {
-            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(rect, ctx.GetId("##euWindowLock"));
 
             painter.DrawWindowButton(WidgetVisual.From(interaction, this.Locked), WindowButtonKind.Lock);
@@ -670,7 +670,7 @@ public abstract class EuWindow
             if (!button.ShouldShow)
                 continue;
 
-            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(2f);
+            var rect = buttonArea.CutRight(buttonSize, out buttonArea).Shrink(1.5f);
             var interaction = Interaction.Behavior(rect, ctx.GetId(button.Id));
             var visual = WidgetVisual.From(interaction, button.Active);
 

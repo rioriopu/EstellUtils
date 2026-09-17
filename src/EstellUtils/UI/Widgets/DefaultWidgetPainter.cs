@@ -519,10 +519,14 @@ public class DefaultWidgetPainter : IWidgetPainter
         var color = EuColor.Lerp(Colors.TextMuted, Colors.TitleText, MathF.Max(visual.Hover, 0.45f));
         var center = rect.Center;
 
-        // アイコンはボタンの 3 分の 2 ほどの大きさにする。
-        // small すぎると何のボタンか分からず、押す気にもならない
-        var extent = MathF.Min(rect.Width, rect.Height) * 0.34f;
-        var thickness = MathF.Max(1.8f, extent * 0.26f);
+        // アイコンはボタンの 6 割強の大きさにする。小さすぎると何のボタンか分からない。
+        // ただし線の太さと角丸の分は必ず内側へ収める。
+        // 収めないと、角丸のカーブに線が乗って端が欠けて見える
+        var half = MathF.Min(rect.Width, rect.Height) * 0.5f;
+        var thickness = MathF.Max(1.8f, half * 0.16f);
+        // 角丸が効くのは「中心から half-rounding より外」なので、そこまでに収める
+        var safeExtent = half - rounding - (thickness * 0.5f);
+        var extent = MathF.Min(half * 0.62f, MathF.Max(2f, safeExtent));
 
         switch (kind)
         {
