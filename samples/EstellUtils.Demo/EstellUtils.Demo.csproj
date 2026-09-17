@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Authors>Estell</Authors>
+    <Version>0.1.0.0</Version>
+    <Description>EstellUtils のウィジェットギャラリー</Description>
+    <AssemblyName>EstellUtils.Demo</AssemblyName>
+    <RootNamespace>EstellUtils.Demo</RootNamespace>
+    <OutputPath>bin\</OutputPath>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- 実機確認用。ビルド後にここへコピーして Dalamud の devPlugins から読み込む -->
+    <DalamudDevPlugins>C:\DevPlugins\EstellUtilsDemo\</DalamudDevPlugins>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ライブラリ本体。出力へコピーされ、プラグインと一緒に配布される -->
+    <ProjectReference Include="..\..\src\EstellUtils\EstellUtils.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="EstellUtils.Demo.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="CopyDevPlugin" AfterTargets="Build">
+    <ItemGroup>
+      <DevPluginFiles Include="$(OutputPath)*.dll;$(OutputPath)*.pdb;$(OutputPath)*.json" />
+    </ItemGroup>
+    <MakeDir Directories="$(DalamudDevPlugins)" />
+    <Copy SourceFiles="@(DevPluginFiles)" DestinationFolder="$(DalamudDevPlugins)"
+          SkipUnchangedFiles="false" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
+  </Target>
+
+</Project>

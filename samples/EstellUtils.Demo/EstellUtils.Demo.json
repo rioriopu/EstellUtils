@@ -1,0 +1,12 @@
+{
+  "Author": "Estell",
+  "Name": "EstellUtils Demo",
+  "InternalName": "EstellUtils.Demo",
+  "Punchline": "EstellUtils のウィジェットギャラリー",
+  "Description": "EstellUtils の全ウィジェットとテーマを実機で確認するためのデモプラグインです。/eudemo で開きます。",
+  "AssemblyVersion": "0.1.0.0",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "LoadPriority": 0,
+  "Tags": [ "dev", "ui" ]
+}
