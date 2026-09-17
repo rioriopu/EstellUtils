@@ -184,6 +184,28 @@ public static partial class EUi
     /// <summary>横並びのとき、次の行へ移る。</summary>
     public static void NewLine() => UiContext.Current.Layout.Current?.NewLine();
 
+    /// <summary>
+    /// 生の <c>ImGui.*</c> が進めたカーソル位置を、レイアウトへ取り込む。
+    /// </summary>
+    /// <remarks>
+    /// EstellUtils のウィジェットは ImGui 側のカーソルも一緒に動かすので、
+    /// 「EstellUtils → 生 ImGui」の順に呼ぶ分には何もしなくても位置が揃う。
+    /// 逆に「生 ImGui → EstellUtils」と続けるときは、間でこれを呼ぶ。
+    /// <code>
+    /// EUi.Label("ここまで EstellUtils");
+    /// ImGui.TextColored(color, "生の ImGui");
+    /// EUi.SyncFromImGui();               // ImGui が進めた分を取り込む
+    /// EUi.Label("続きも正しい位置に出る");
+    /// </code>
+    /// </remarks>
+    public static void SyncFromImGui()
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        ctx.Layout.Current?.SetCursor(Dalamud.Bindings.ImGui.ImGui.GetCursorScreenPos());
+    }
+
     /// <summary>領域だけを確保して矩形を得る。独自描画を差し込みたいときに使う。</summary>
     public static Rect Reserve(Vector2 size)
     {

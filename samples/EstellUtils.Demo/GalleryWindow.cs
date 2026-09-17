@@ -414,6 +414,9 @@ public sealed class GalleryWindow : EuWindow
         ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), "これは ImGui.TextColored です");
         ImGui.SmallButton("これは ImGui.SmallButton です");
 
+        // 生 ImGui が進めたカーソルを取り込んでから EstellUtils へ戻る
+        EUi.SyncFromImGui();
+
         EUi.Label("ここから再び EstellUtils の描画に戻ります。");
     }
 

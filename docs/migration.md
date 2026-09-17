@@ -178,9 +178,21 @@ using (EUi.HStack())
 
 ## 混在時の注意
 
-- レイアウトスコープ（`VStack` / `Row` など）の**中**で生の `ImGui.*` を呼ぶと、
-  ImGui 側のカーソルとレイアウトの位置がずれることがあります。
-  混ぜる場合は、レイアウトスコープの外で呼ぶか、`EUi.Reserve` で矩形を取って
-  `ImGui.SetCursorScreenPos` で位置を合わせてください
+EstellUtils のウィジェットは、領域を確保するときに ImGui 側のカーソルも一緒に動かします。
+そのため **「EstellUtils → 生 ImGui」の順に書く分には、何もしなくても位置が揃います**。
+
+逆に「生 ImGui → EstellUtils」と続けるときは、間に `EUi.SyncFromImGui()` を挟みます。
+ImGui が進めたカーソルをレイアウト側へ取り込むためです。
+
+```csharp
+EUi.Label("ここまで EstellUtils");
+
+ImGui.TextColored(color, "生の ImGui");
+ImGui.SmallButton("ボタン");
+
+EUi.SyncFromImGui();               // ImGui が進めた分を取り込む
+EUi.Label("続きも正しい位置に出る");
+```
+
 - `ImGui.SameLine()` は EstellUtils のウィジェットには効きません。`EUi.HStack()` を使ってください
 - ラベルの `##` / `###` の扱いは ImGui と同じです。既存のラベルをそのまま使えます

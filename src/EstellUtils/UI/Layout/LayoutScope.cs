@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 
+using Dalamud.Bindings.ImGui;
+
 using EstellUtils.UI.Core;
 
 namespace EstellUtils.UI.Layout;
@@ -231,6 +233,7 @@ public sealed class LayoutScope
         this.Cursor = new Vector2(this.Bounds.Min.X, rect.Max.Y);
 
         this.Track(rect);
+        this.SyncImGuiCursor();
         return rect;
     }
 
@@ -252,8 +255,20 @@ public sealed class LayoutScope
         this.ColumnIndex++;
 
         this.Track(rect);
+        this.SyncImGuiCursor();
         return rect;
     }
+
+    /// <summary>
+    /// ImGui 側のカーソルをレイアウトの現在位置へ合わせる。
+    /// </summary>
+    /// <remarks>
+    /// これが無いと、レイアウトスコープの中で生の <c>ImGui.*</c> を呼んだときに
+    /// ウィンドウの左上へ描かれてしまう。同じフレーム内で混在できるようにするための同期。
+    /// 逆方向 (生 ImGui が進めたカーソルへ合わせる) は
+    /// <see cref="EUi.SyncFromImGui"/> を呼ぶ。
+    /// </remarks>
+    private void SyncImGuiCursor() => ImGui.SetCursorScreenPos(this.Cursor);
 
     /// <summary>横並びのとき、次の行へ移る。</summary>
     public void NewLine()
