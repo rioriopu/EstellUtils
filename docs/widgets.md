@@ -66,8 +66,10 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 |---|---|
 | `EUi.Label(text, color, align)` | 1 行。幅に収まらない場合は末尾を省略記号にする |
 | `EUi.Muted(text)` | 控えめな色のラベル |
+| `EUi.TextColored(text, color)` | 色を指定した 1 行。`ImGui.TextColored` の置き換え |
 | `EUi.Paragraph(text, color)` | 幅に合わせて折り返す |
-| `EUi.Note(text, kind)` | 状態色付きの折り返しテキスト（Info / Success / Warning / Danger） |
+| `EUi.WrapColored(text, color)` | 色を指定して折り返す。`Paragraph` と同じもの |
+| `EUi.Note(text, kind)` | **囲み付き**の注記ボックス（Info / Success / Warning / Danger） |
 | `EUi.Heading(text)` | 大きめのフォントの見出し |
 | `EUi.Bullet(text)` | 行頭に点を打つ箇条書き |
 | `EUi.LabelClipped(text, maxWidth, color, align)` | 幅を決めて 1 行表示。溢れたら省略し、全文をツールチップで見せる |
@@ -77,6 +79,29 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
 | `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |
+
+### 色付きテキストと注記ボックスの違い
+
+名前が似ていますが、出るものが違います。
+
+| | 見た目 | 使いどころ |
+|---|---|---|
+| `TextColored` / `WrapColored` | 文字の色が変わるだけ | 本文の一部を目立たせる。`ImGui.TextColored` の置き換え |
+| `Note` | 枠・地・アイコン付きの囲み | 独立した注意書き。文章の流れから切り離したいとき |
+
+色を直接渡すほか、`NoteKind` を渡してテーマに任せることもできます。
+
+```csharp
+EUi.TextColored("⚠ 試験機能です。", new Vector4(1f, 0.4f, 0.4f, 1f));
+EUi.TextColored("⚠ 試験機能です。", NoteKind.Warning);   // 色はテーマ任せ
+
+EUi.Note("この機能は試験中です。動作の保証はありません。", NoteKind.Warning);
+EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同じ
+```
+
+`Note` の本文は通常の文字色で描きます。囲みの側が種類を伝えるので、
+文字まで状態色にすると読みづらくなるためです。
+`EUi.NoteColor(kind)` で同じ色を取り出せるので、独自のウィジェットでも揃えられます。
 
 ## 操作
 

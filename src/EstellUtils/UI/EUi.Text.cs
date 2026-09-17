@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 
+using Dalamud.Interface;
+
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 using EstellUtils.UI.Render;
@@ -14,6 +16,9 @@ namespace EstellUtils.UI;
 /// </summary>
 public static partial class EUi
 {
+    /// <summary>注記ボックスの左端に引く色帯の幅。</summary>
+    private const float NoteAccentBarWidth = 3f;
+
     /// <summary>ウィジェットの描画担当。テーマごとに差し替えられる。</summary>
     public static IWidgetPainter WidgetPainter => ThemeManager.Current.Painter;
 
@@ -84,6 +89,61 @@ public static partial class EUi
     public static WidgetResult Label(ReadOnlySpan<char> text, Vector4 color, Align align = Align.Start)
         => Label(text, EuColor.FromVector(color), align);
 
+    // ── 色付きテキスト ────────────────────────────────────────
+    //
+    // ImGui からの移行で真っ先に探すことになる名前なので、
+    // Label / Paragraph への別名として用意しておく。
+
+    /// <summary>
+    /// 色を指定した 1 行テキスト。<c>ImGui.TextColored</c> の置き換え。
+    /// </summary>
+    /// <remarks>
+    /// 枠や地は付かない。囲みたい場合は <see cref="Note"/> を使う。
+    /// </remarks>
+    public static WidgetResult TextColored(
+        ReadOnlySpan<char> text, Vector4 color, Align align = Align.Start)
+        => Label(text, EuColor.FromVector(color), align);
+
+    /// <summary>色を 0xAABBGGRR で指定する版。</summary>
+    public static WidgetResult TextColored(
+        ReadOnlySpan<char> text, uint color, Align align = Align.Start)
+        => Label(text, color, align);
+
+    /// <summary>テーマの状態色で表示する版。</summary>
+    public static WidgetResult TextColored(
+        ReadOnlySpan<char> text, NoteKind kind, Align align = Align.Start)
+        => Label(text, NoteColor(kind), align);
+
+    /// <summary>
+    /// 色を指定した折り返しテキスト。
+    /// <c>PushStyleColor</c> + <c>TextWrapped</c> + <c>PopStyleColor</c> の置き換え。
+    /// </summary>
+    /// <remarks>
+    /// 枠や地は付かない。囲みたい場合は <see cref="Note"/> を使う。
+    /// </remarks>
+    public static WidgetResult WrapColored(ReadOnlySpan<char> text, Vector4 color)
+        => Paragraph(text, EuColor.FromVector(color));
+
+    /// <summary>色を 0xAABBGGRR で指定する版。</summary>
+    public static WidgetResult WrapColored(ReadOnlySpan<char> text, uint color)
+        => Paragraph(text, color);
+
+    /// <summary>テーマの状態色で表示する版。</summary>
+    public static WidgetResult WrapColored(ReadOnlySpan<char> text, NoteKind kind)
+        => Paragraph(text, NoteColor(kind));
+
+    /// <summary>注意書きの種類に対応するテーマの色。</summary>
+    /// <remarks>
+    /// 独自のウィジェットで同じ色を使いたいときのために公開している。
+    /// </remarks>
+    public static uint NoteColor(NoteKind kind) => kind switch
+    {
+        NoteKind.Success => Colors.Success,
+        NoteKind.Warning => Colors.Warning,
+        NoteKind.Danger => Colors.Danger,
+        _ => Colors.Info,
+    };
+
     /// <summary>
     /// 幅を決めて 1 行を表示する。収まらない場合は末尾を省略記号にする。
     /// </summary>
@@ -142,19 +202,77 @@ public static partial class EUi
     public static WidgetResult Paragraph(ReadOnlySpan<char> text, Vector4 color)
         => Paragraph(text, EuColor.FromVector(color));
 
-    /// <summary>状態色付きの折り返しテキスト。注意書きなどに使う。</summary>
-    public static WidgetResult Note(ReadOnlySpan<char> text, NoteKind kind = NoteKind.Info)
+    /// <summary>
+    /// 注記ボックス。アイコンと色帯の付いた囲みの中へ、折り返した本文を置く。
+    /// </summary>
+    /// <param name="text">本文。</param>
+    /// <param name="kind">種類。色とアイコンが変わる。</param>
+    /// <param name="boxed">
+    /// 囲みを描くか。false にすると状態色を付けただけの折り返しテキストになる。
+    /// </param>
+    /// <remarks>
+    /// 本文そのものを色付きにしたいだけなら <see cref="WrapColored(ReadOnlySpan{char}, NoteKind)"/>
+    /// を使う。こちらは囲みが主役で、本文は通常の文字色で描く。
+    /// </remarks>
+    public static WidgetResult Note(
+        ReadOnlySpan<char> text, NoteKind kind = NoteKind.Info, bool boxed = true)
     {
-        var color = kind switch
-        {
-            NoteKind.Success => Colors.Success,
-            NoteKind.Warning => Colors.Warning,
-            NoteKind.Danger => Colors.Danger,
-            _ => Colors.Info,
-        };
+        var accent = NoteColor(kind);
 
-        return Paragraph(text, color);
+        if (!boxed)
+            return Paragraph(text, accent);
+
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var pad = Metrics.SpacingMd;
+        var lineHeight = TextPainter.LineHeight;
+        var iconWidth = lineHeight + Metrics.SpacingSm;
+
+        var width = AvailableWidth;
+        var textWidth = MathF.Max(1f, width - NoteAccentBarWidth - (pad * 2f) - iconWidth);
+        var textHeight = MathF.Max(TextPainter.Measure(text, textWidth).Y, lineHeight);
+
+        var rect = ctx.Allocate(new Vector2(width, textHeight + (pad * 2f)));
+
+        if (!Painter.IsVisible(rect))
+            return MakeTextResult(ctx, rect);
+
+        var rounding = Metrics.CardRounding;
+
+        // 地は状態色を薄く敷く。枠まで同じ色にすると主張が強すぎるので薄める
+        Painter.Rect(rect, EuColor.WithAlpha(accent, 0.12f), rounding);
+        Painter.Rect(rect.WithWidth(NoteAccentBarWidth), accent, rounding, Corners.Left);
+        Painter.RectOutline(rect, EuColor.WithAlpha(accent, 0.4f), 1f, rounding);
+
+        var inner = rect.Shrink(new EdgeInsets(NoteAccentBarWidth + pad, pad, pad, pad));
+        var iconArea = inner.CutLeft(iconWidth, out var textArea);
+
+        using (PushFont(FontRole.Icon))
+        {
+            TextPainter.TextIn(
+                iconArea.WithHeight(lineHeight),
+                accent,
+                NoteIcon(kind),
+                Align.Start,
+                Align.Center,
+                ellipsize: false);
+        }
+
+        // 囲みが種類を伝えるので、本文は読みやすい通常色のままにする
+        TextPainter.TextWrapped(textArea.Min, Colors.Text, text, textArea.Width);
+
+        return MakeTextResult(ctx, rect);
     }
+
+    /// <summary>注意書きの種類に対応するアイコン。</summary>
+    private static string NoteIcon(NoteKind kind) => kind switch
+    {
+        NoteKind.Success => FontAwesomeIcon.CheckCircle.ToIconString(),
+        NoteKind.Warning => FontAwesomeIcon.ExclamationTriangle.ToIconString(),
+        NoteKind.Danger => FontAwesomeIcon.TimesCircle.ToIconString(),
+        _ => FontAwesomeIcon.InfoCircle.ToIconString(),
+    };
 
     /// <summary>
     /// 見出し。テーマの見出し色と大きめのフォントで表示する。

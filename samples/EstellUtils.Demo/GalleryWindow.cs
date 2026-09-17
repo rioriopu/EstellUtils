@@ -290,11 +290,22 @@ public sealed class GalleryWindow : EuWindow
         using (EUi.PushFont(FontRole.Mono))
             EUi.Label("等幅フォント:  0x1A2B3C4D   ( 1234, 5678 )");
 
-        EUi.Separator("注意書き");
+        EUi.Separator("色付きテキスト — 文字の色だけが変わる");
+
+        EUi.TextColored("⚠ 試験機能です。動作の保証はありません。", NoteKind.Warning);
+        EUi.TextColored("色を直接渡すこともできます。", new Vector4(0.6f, 0.85f, 1f, 1f));
+        EUi.WrapColored(
+            "WrapColored は折り返します。ImGui の PushStyleColor + TextWrapped + PopStyleColor を " +
+            "1 行に置き換えるためのものです。",
+            NoteKind.Danger);
+
+        EUi.Separator("注記ボックス — 枠と地とアイコンが付く");
 
         EUi.Note("情報: 通常の補足説明です。", NoteKind.Info);
         EUi.Note("注意: 設定によっては動作が重くなります。", NoteKind.Warning);
         EUi.Note("危険: この操作は元に戻せません。", NoteKind.Danger);
+        EUi.Note("boxed: false にすると WrapColored と同じになります。", NoteKind.Info, boxed: false);
+
         EUi.Bullet("箇条書きの項目。長い文章でも領域の幅に合わせて折り返されます。");
     }
 

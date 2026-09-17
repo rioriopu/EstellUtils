@@ -91,7 +91,18 @@ if (EUi.SliderInt("オーバーレイ更新間隔##scrubIv", ref cfg.methodAUpda
 
 `ref` で直接フィールドを渡せるため、一時変数と `Clamp` が不要になります。
 
-### 色付きの折り返しテキスト
+### 色付きテキスト
+
+**見た目を変えたくない場合は、`EUi.Note` ではなく `TextColored` / `WrapColored` を使ってください。**
+`Note` は枠と地とアイコンの付いた囲みで、色付きテキストとは別物です。
+
+```csharp
+// 移行前
+ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), "⚠ 試験機能です。");
+
+// 移行後 — 1 行。見た目はそのまま
+EUi.TextColored("⚠ 試験機能です。", new Vector4(1f, 0.4f, 0.4f, 1f));
+```
 
 ```csharp
 // 移行前
@@ -99,10 +110,31 @@ ImGui.PushStyleColor(ImGuiCol.Text, color);
 ImGui.TextWrapped(text);
 ImGui.PopStyleColor();
 
-// 移行後
-EUi.Paragraph(text, color);
-EUi.Note(text, NoteKind.Warning);   // 状態色を使う場合
+// 移行後 — 折り返し。見た目はそのまま
+EUi.WrapColored(text, color);
 ```
+
+色をテーマに任せる場合は `Vector4` の代わりに `NoteKind` を渡せます。
+テーマを切り替えても、注意書きは注意書きの色のままになります。
+
+```csharp
+EUi.TextColored("⚠ 試験機能です。", NoteKind.Warning);
+EUi.WrapColored(longText, NoteKind.Danger);
+```
+
+囲みが欲しいときだけ `Note` を使います。
+
+```csharp
+EUi.Note("この機能は試験中です。動作の保証はありません。", NoteKind.Warning);
+EUi.Note(text, NoteKind.Warning, boxed: false);   // 囲みなし = WrapColored と同じ
+```
+
+| 移行前 | 移行後 |
+|---|---|
+| `ImGui.TextColored(color, text)` | `EUi.TextColored(text, color)` |
+| `PushStyleColor` + `TextWrapped` + `PopStyleColor` | `EUi.WrapColored(text, color)` |
+| `ImGui.TextDisabled(text)` | `EUi.Muted(text)` |
+| （囲みは ImGui に無い） | `EUi.Note(text, kind)` |
 
 ### 見出しと区切り
 
@@ -115,6 +147,9 @@ ImGui.Spacing();
 // 移行後
 EUi.Separator("共通設定");
 ```
+
+見出しとして色付きテキストを使っていた箇所は `Separator(label)` か `Heading` に寄せられますが、
+**本文としての色付きテキストは `TextColored` のままにしてください。**
 
 ### タブ
 
