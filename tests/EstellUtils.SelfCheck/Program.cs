@@ -33,6 +33,7 @@ internal static class Program
         CheckColors();
         CheckSizeSpecs();
         CheckEasingAndAnim();
+        CheckLabelRoom();
 
         if (Failures.Count == 0)
         {
@@ -213,6 +214,37 @@ internal static class Program
 
         Expect(Anim.InverseLerp(0f, 0f, 5f) == 0f, "ゼロ幅の正規化でゼロ除算している");
         Expect(Anim.PingPong(0.5f, 1f) is > 0.99f and <= 1f, "往復の頂点がずれている");
+    }
+
+    /// <summary>
+    /// 「確保した幅」と「実際に配置する位置」が食い違っていないかの確認。
+    /// </summary>
+    /// <remarks>
+    /// スライダーは バー / 値 / ラベル を横に並べる。行全体の幅を求めるときと、
+    /// ラベルを置く位置を決めるときとで別の余白を使ってしまい、
+    /// ラベルの末尾が省略される不具合を起こした。
+    /// 数値としての取り違えなので、ここで押さえておく。
+    /// </remarks>
+    private static void CheckLabelRoom()
+    {
+        const float BarWidth = 220f;
+        const float ValueWidth = 58f;
+        const float GapToValue = 8f;    // SpacingMd
+        const float GapToLabel = 12f;   // SpacingLg
+        const float LabelWidth = 140f;
+
+        // 行の確保に使う幅
+        var valueSpace = ValueWidth + GapToValue;
+        var labelSpace = LabelWidth + GapToLabel;
+        var rowWidth = BarWidth + valueSpace + labelSpace;
+
+        // 実際にラベルを置く位置
+        var valueRight = BarWidth + GapToValue + ValueWidth;
+        var labelLeft = valueRight + GapToLabel;
+        var roomForLabel = rowWidth - labelLeft;
+
+        Expect(roomForLabel >= LabelWidth,
+            $"ラベルの幅が足りない (確保 {roomForLabel} / 必要 {LabelWidth})");
     }
 
     private static void Expect(bool condition, string message)

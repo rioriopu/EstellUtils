@@ -37,7 +37,7 @@ public static partial class EUi
 
         var autoWidth = MathF.Max(
             Metrics.WidgetMinWidth,
-            textSize.X + Metrics.WidgetPadding.TotalHorizontal);
+            MathF.Ceiling(textSize.X) + Metrics.WidgetPadding.TotalHorizontal);
 
         var height = MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical);
         var rect = ctx.Allocate(width ?? SizeSpec.Px(autoWidth), height);
@@ -93,7 +93,7 @@ public static partial class EUi
         var textSize = TextPainter.Measure(display);
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(boxSize, textSize.Y));
-        var width = boxSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
+        var width = boxSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + MathF.Ceiling(textSize.X));
         var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
@@ -132,7 +132,7 @@ public static partial class EUi
         var textSize = TextPainter.Measure(display);
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(switchSize.Y, textSize.Y));
-        var width = switchSize.X + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
+        var width = switchSize.X + (display.IsEmpty ? 0f : Metrics.LabelSpacing + MathF.Ceiling(textSize.X));
         var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
@@ -174,7 +174,7 @@ public static partial class EUi
         var textSize = TextPainter.Measure(display);
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(circleSize, textSize.Y));
-        var width = circleSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + textSize.X);
+        var width = circleSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + MathF.Ceiling(textSize.X));
         var rect = ctx.Allocate(SizeSpec.Px(width), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
@@ -255,9 +255,12 @@ public static partial class EUi
             ? Colors.TextDisabled
             : EuColor.Lerp(Colors.Text, Colors.TextHeading, interaction.HoverAmount * 0.5f);
 
-        var textRect = new Rect(
-            new Vector2(startX + Metrics.LabelSpacing, rowRect.Min.Y),
-            rowRect.Max);
+        // 確保した幅が丸めの差でわずかに足りなくても、ラベルが削られないようにする
+        var left = startX + Metrics.LabelSpacing;
+        var width = MathF.Max(rowRect.Max.X - left, TextPainter.Measure(label).X + 1f);
+
+        var textRect = Rect.FromSize(
+            new Vector2(left, rowRect.Min.Y), new Vector2(width, rowRect.Height));
 
         TextPainter.TextIn(textRect, color, label, Align.Start, Align.Center);
     }

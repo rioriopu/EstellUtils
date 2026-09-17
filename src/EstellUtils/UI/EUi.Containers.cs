@@ -211,13 +211,13 @@ public static partial class EUi
 
             // 今フレームの最長ラベルを記録して、次フレームの列幅に使う
             ref var state = ref ctx.Store.GetRef(column.Id);
-            var measured = MathF.Min(textSize.X + Metrics.LabelSpacing, column.MaxWidth);
+            var measured = MathF.Min(MathF.Ceiling(textSize.X) + Metrics.LabelSpacing, column.MaxWidth);
             if (measured > state.MeasuredWidth)
                 state.MeasuredWidth = measured;
         }
         else
         {
-            width = textSize.X + Metrics.LabelSpacing;
+            width = MathF.Ceiling(textSize.X) + Metrics.LabelSpacing;
         }
 
         var handle = Row(SizeSpec.Px(width), SizeSpec.Fill);

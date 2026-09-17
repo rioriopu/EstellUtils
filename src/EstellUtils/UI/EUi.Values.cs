@@ -105,8 +105,11 @@ public static partial class EUi
 
         // 「バー」「値」「ラベル」の 3 つを横に並べる。
         // 値をバーへ重ねて描くと、つまみが数字にかぶって読めなくなるため欄を分ける
+        // 領域の確保と実際の配置で、同じ余白を使うこと。
+        // ここがずれるとラベルの幅が足りず、末尾が省略されてしまう。
+        // 計測値は端数を切り上げて、丸めの差で 1px 不足することも防ぐ
         var labelSize = display.IsEmpty ? Vector2.Zero : TextPainter.Measure(display);
-        var labelSpace = display.IsEmpty ? 0f : labelSize.X + Metrics.LabelSpacing;
+        var labelSpace = display.IsEmpty ? 0f : MathF.Ceiling(labelSize.X) + Metrics.SpacingLg;
         var valueSpace = Metrics.SliderValueWidth + Metrics.SpacingMd;
 
         var available = AvailableWidth;
@@ -164,8 +167,14 @@ public static partial class EUi
 
         if (!display.IsEmpty)
         {
-            var labelRect = new Rect(
-                new Vector2(valueRect.Max.X + Metrics.SpacingLg, rowRect.Min.Y), rowRect.Max);
+            // ラベルは必ず全部見せたいので、計測した幅は最低限確保する。
+            // 行の確保が 1px でも足りないと、省略記号の分まで削られて
+            // 数文字まとめて消えてしまう
+            var labelLeft = valueRect.Max.X + Metrics.SpacingLg;
+            var labelWidth = MathF.Max(rowRect.Max.X - labelLeft, labelSize.X + 1f);
+
+            var labelRect = Rect.FromSize(
+                new Vector2(labelLeft, rowRect.Min.Y), new Vector2(labelWidth, height));
 
             TextPainter.TextIn(
                 labelRect,
