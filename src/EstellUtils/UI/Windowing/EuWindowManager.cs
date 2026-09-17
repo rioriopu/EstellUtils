@@ -61,10 +61,16 @@ public sealed class EuWindowManager : IDisposable
     /// </summary>
     public void Draw()
     {
-        if (this.disposed || this.windows.Count == 0)
+        if (this.disposed)
             return;
 
         UiContext.Current.EnsureFrame();
+
+        // 通知はウィンドウが 1 つも開いていなくても表示する
+        Widgets.ToastManager.Draw();
+
+        if (this.windows.Count == 0)
+            return;
 
         // 描画中にウィンドウが追加・削除されても壊れないよう、控えを取ってから回す
         this.drawBuffer.Clear();

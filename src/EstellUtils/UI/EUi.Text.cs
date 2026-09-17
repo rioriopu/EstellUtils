@@ -121,6 +121,15 @@ public static partial class EUi
         return MakeTextResult(ctx, rect);
     }
 
+    /// <summary>
+    /// 画面隅に通知を出す。ウィンドウが閉じていても表示される。
+    /// </summary>
+    /// <param name="message">本文。</param>
+    /// <param name="kind">種類。色が変わる。</param>
+    /// <param name="duration">表示し続ける秒数。</param>
+    public static void Toast(string message, NoteKind kind = NoteKind.Info, float duration = 3.5f)
+        => ToastManager.Show(message, kind, duration);
+
     /// <summary>ID を持たないテキスト系ウィジェットの戻り値を組み立てる。</summary>
     private static WidgetResult MakeTextResult(UiContext ctx, Rect rect)
     {

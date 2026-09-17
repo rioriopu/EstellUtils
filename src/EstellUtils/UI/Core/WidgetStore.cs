@@ -53,6 +53,12 @@ public struct WidgetState
 
     /// <summary>アクティブになった時刻 (<see cref="InputState.Time"/> 基準)。</summary>
     public float ActivatedAt;
+
+    /// <summary>選択中の項目。タブや一覧で使う。</summary>
+    public int SelectedIndex;
+
+    /// <summary>初期化済みか。既定値の投入を 1 度だけ行うために使う。</summary>
+    public bool Initialized;
 }
 
 /// <summary>
