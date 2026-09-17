@@ -83,13 +83,15 @@ public static class XivNativeTheme
             TooltipBorder = EuColor.Rgb(0x9A8B63, 0.85f),
         };
 
-        // 寸法はゲーム UI に合わせてやや詰める。角丸は控えめ (FFXIV の枠はほぼ直角)
+        // 寸法はゲーム UI に合わせてやや詰める。
+        // 角丸は 1〜2px だと「丸めたつもりが角が立つ」中途半端な見え方になるため、
+        // 丸みが分かる程度まで取る
         var metrics = new ThemeMetrics
         {
-            WindowRounding = 3f,
-            WidgetRounding = 2f,
-            CardRounding = 3f,
-            TooltipRounding = 3f,
+            WindowRounding = 5f,
+            WidgetRounding = 4f,
+            CardRounding = 5f,
+            TooltipRounding = 4f,
         };
 
         var motion = new ThemeMotion();

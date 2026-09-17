@@ -360,6 +360,20 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Muted("「すりガラス」テーマは、透過・上端の光沢・明るい細枠で厚みのある板に見せています。");
 
+        EUi.Separator("角の丸み");
+
+        var metrics = EUi.Metrics;
+
+        var widgetRounding = metrics.WidgetRounding;
+        if (EUi.SliderFloat("ウィジェット", ref widgetRounding, 0f, 12f, 220f, "px", false, 1))
+            metrics.WidgetRounding = widgetRounding;
+
+        var windowRounding = metrics.WindowRounding;
+        if (EUi.SliderFloat("ウィンドウ", ref windowRounding, 0f, 16f, 220f, "px", false, 1))
+            metrics.WindowRounding = windowRounding;
+
+        EUi.Muted("拡大率を変えると、テーマの既定値へ戻ります。");
+
         EUi.Separator("動きの速さ");
 
         var motion = EUi.Motion;

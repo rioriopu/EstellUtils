@@ -368,8 +368,13 @@ public abstract class EuWindow
         if (this.DimBackground)
             EUi.Scrim(this.DimAmount);
 
-        ImGui.SetNextWindowPos(this.Position);
-        ImGui.SetNextWindowSize(this.animatedSize);
+        // ピクセルの境目に乗っていないと、枠や文字が半端な位置で滲んで
+        // 「ごわついた」見え方になる。整数へ丸めて揃える
+        ImGui.SetNextWindowPos(new Vector2(
+            MathF.Round(this.Position.X), MathF.Round(this.Position.Y)));
+
+        ImGui.SetNextWindowSize(new Vector2(
+            MathF.Round(this.animatedSize.X), MathF.Round(this.animatedSize.Y)));
 
         // ImGui のウィンドウには最小サイズの制約 (既定 32x32) がある。
         // タイトルバーだけに畳むとこれを下回るため、制約を外しておかないと

@@ -182,6 +182,13 @@ public static class Painter
     /// 角丸矩形を塗ってから、生成された頂点の色をグラデーションで塗り替える。
     /// ImGui 本体の <c>ShadeVertsLinearColorGradientKeepAlpha</c> と同じ考え方。
     /// </summary>
+    /// <remarks>
+    /// ImGui は塗りの外周に「アルファ 0 の頂点」を足して縁をなめらかにしている
+    /// (アンチエイリアス)。頂点の色をアルファごと書き換えると、この縁のぼかしが
+    /// 消えて角がギザギザになってしまう。
+    /// そこで、元の頂点が持つアルファを「縁のフェード具合」として取り出し、
+    /// 補間した色のアルファへ掛け直している。これで角丸もグラデーションも滑らかになる。
+    /// </remarks>
     private static unsafe void ShadeRounded(
         Rect rect, uint from, uint to, float rounding, Corners corners, bool vertical)
     {
@@ -200,12 +207,22 @@ public static class Painter
         var extent = p1 - p0;
         var invLengthSq = 1f / extent.LengthSquared();
 
+        // 塗りに渡した色のアルファが、縁のフェードを測る基準になる
+        var baseAlpha = (from >> 24) & 0xFFu;
+        var invBaseAlpha = baseAlpha == 0u ? 0f : 1f / baseAlpha;
+
         var verts = native->VtxBuffer.Data;
         for (var i = vtxStart; i < vtxEnd; i++)
         {
             var v = verts + i;
             var d = Vector2.Dot(v->Pos - p0, extent) * invLengthSq;
-            v->Col = EuColor.Lerp(from, to, d);
+            var shaded = EuColor.Lerp(from, to, d);
+
+            // 元のアルファ / 基準のアルファ = 縁のフェード具合 (内側なら 1、縁なら 0)
+            var fade = ((v->Col >> 24) & 0xFFu) * invBaseAlpha;
+            var alpha = (uint)((((shaded >> 24) & 0xFFu) * fade) + 0.5f);
+
+            v->Col = (alpha << 24) | (shaded & 0x00FFFFFFu);
         }
     }
 
