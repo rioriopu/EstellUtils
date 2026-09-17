@@ -531,11 +531,17 @@ public class DefaultWidgetPainter : IWidgetPainter
         switch (kind)
         {
             case WindowButtonKind.Close:
+            {
+                // × は対角線なので、同じ広がりでも外接する四角が他のアイコンより大きくなる。
+                // 並べたときに一つだけ大ぶりに見えないよう、少し詰める
+                var arm = extent * 0.82f;
+
                 Painter.Line(
-                    center - new Vector2(extent, extent), center + new Vector2(extent, extent), color, thickness);
+                    center - new Vector2(arm, arm), center + new Vector2(arm, arm), color, thickness);
                 Painter.Line(
-                    center + new Vector2(extent, -extent), center + new Vector2(-extent, extent), color, thickness);
+                    center + new Vector2(arm, -arm), center + new Vector2(-arm, arm), color, thickness);
                 break;
+            }
 
             case WindowButtonKind.Collapse:
                 // 展開中は上向き (畳む)、畳まれているときは下向き (開く)
