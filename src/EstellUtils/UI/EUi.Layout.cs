@@ -49,13 +49,31 @@ public static partial class EUi
     /// </summary>
     /// <param name="spacing">要素間の空き。省略するとテーマの既定値。</param>
     /// <param name="wrap">右端に達したら折り返すか。</param>
-    public static LayoutHandle HStack(float? spacing = null, bool wrap = false)
+    /// <param name="align">
+    /// 高さの違う要素を縦方向のどこへ置くか。既定は中央。
+    /// <see cref="Align.Stretch"/> にすると、行の高さいっぱいに引き伸ばす。
+    /// </param>
+    /// <param name="rowHeight">
+    /// 行の基準となる高さ。省略するとテーマの標準ウィジェット高さ。
+    /// 0 を渡すと揃えを行わず、要素の高さをそのまま使う。
+    /// </param>
+    /// <remarks>
+    /// ボタン (24px) と文字 (16px) のように高さの違う要素を並べると、
+    /// 上端で揃えた場合に文字だけ浮いて見える。既定で縦中央に揃える。
+    /// </remarks>
+    public static LayoutHandle HStack(
+        float? spacing = null, bool wrap = false,
+        Align align = Align.Center, float? rowHeight = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, Metrics.ItemSpacing.Y);
-        ctx.Layout.Push(LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, default, wrap);
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, default, wrap,
+            default, align, rowHeight ?? Metrics.WidgetHeight);
+
         return new LayoutHandle(ctx.Layout);
     }
 
@@ -72,12 +90,24 @@ public static partial class EUi
     /// </summary>
     /// <param name="columns">左から順の列幅指定。</param>
     public static LayoutHandle Row(params ReadOnlySpan<SizeSpec> columns)
+        => Row(Align.Center, columns);
+
+    /// <summary>
+    /// 縦方向の揃え方を指定して、列幅を宣言した横並びを開く。
+    /// </summary>
+    /// <param name="align">高さの違う要素を縦方向のどこへ置くか。</param>
+    /// <param name="columns">左から順の列幅指定。</param>
+    public static LayoutHandle Row(Align align, params ReadOnlySpan<SizeSpec> columns)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var gap = new Vector2(Metrics.ItemSpacing.X, Metrics.ItemSpacing.Y);
-        ctx.Layout.Push(LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns);
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns, false,
+            default, align, Metrics.WidgetHeight);
+
         return new LayoutHandle(ctx.Layout);
     }
 
@@ -96,7 +126,11 @@ public static partial class EUi
         columns.Fill(SizeSpec.Fill);
 
         var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, spacing ?? Metrics.ItemSpacing.Y);
-        ctx.Layout.Push(LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns, wrap: true);
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns, wrap: true,
+            default, Align.Center, Metrics.WidgetHeight);
+
         return new LayoutHandle(ctx.Layout);
     }
 

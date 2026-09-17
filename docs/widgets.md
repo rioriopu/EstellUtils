@@ -228,7 +228,7 @@ var vector = EuColor.ToVector(packed);
 | API | 説明 |
 |---|---|
 | `EUi.VStack(spacing)` | 縦に積む |
-| `EUi.HStack(spacing, wrap)` | 横に並べる。`wrap` で折り返す |
+| `EUi.HStack(spacing, wrap, align, rowHeight)` | 横に並べる。`wrap` で折り返す |
 | `EUi.Row(columns...)` | 列幅を先に宣言した横並び |
 | `EUi.Grid(columnCount, spacing)` | 均等幅で折り返す |
 | `EUi.Inset(padding, spacing)` | 内側に余白を取った縦積み |
@@ -237,6 +237,22 @@ var vector = EuColor.ToVector(packed);
 | `EUi.Scroll(id, height, spacing)` | はみ出すとスクロールする領域 |
 | `EUi.Spacing(amount)` / `EUi.NewLine()` | 空きを入れる / 次の行へ |
 | `EUi.Reserve(size)` | 領域だけ確保して矩形を得る（独自描画用） |
+
+### 縦方向の揃え
+
+ボタン (24px) と文字 (16px) のように高さの違う要素を並べると、上端で揃えた場合に
+文字だけ浮いて見えます。横並びは**既定で縦中央に揃えます**。
+
+```csharp
+using (EUi.HStack())                      // 既定: 縦中央
+using (EUi.HStack(align: Align.Start))    // 上端で揃える
+using (EUi.HStack(align: Align.Stretch))  // 行の高さいっぱいに引き伸ばす
+using (EUi.Row(Align.End, 120f, SizeSpec.Fill))   // 列宣言つきの行でも指定できる
+```
+
+行の基準の高さは既定でテーマの標準ウィジェット高さです。`rowHeight` で変えられ、
+`0` を渡すと揃えを行わず要素の高さをそのまま使います。
+基準より背の高い要素が来た場合は、その要素に合わせて行が広がります。
 
 ### 列幅の指定
 

@@ -35,6 +35,7 @@ internal static class Program
         CheckEasingAndAnim();
         CheckLabelRoom();
         CheckEdgeSnap();
+        CheckCrossAlign();
 
         if (Failures.Count == 0)
         {
@@ -289,6 +290,41 @@ internal static class Program
 
         static float Snap(float x)
             => MathF.Abs(x - ScreenLeft) < SnapDistance ? ScreenLeft : x;
+    }
+
+    /// <summary>
+    /// 横並びでの縦方向の揃えの確認。
+    /// </summary>
+    /// <remarks>
+    /// 高さの違う要素を上端で揃えると、背の低い文字だけが浮いて見える。
+    /// 行の基準高さに対して、中央・下端へ寄せられること。
+    /// </remarks>
+    private static void CheckCrossAlign()
+    {
+        const float RowHeight = 24f;   // ボタンの高さ
+        const float TextHeight = 16f;  // 文字の高さ
+
+        Expect(Offset(Align.Start) == 0f, "上端揃えがずれている");
+        Expect(Offset(Align.Center) == 4f, $"中央揃えがずれている: {Offset(Align.Center)}");
+        Expect(Offset(Align.End) == 8f, $"下端揃えがずれている: {Offset(Align.End)}");
+
+        // 行より背の高い要素が来たら、行のほうが広がる
+        const float TallItem = 40f;
+        var baseline = MathF.Max(RowHeight, TallItem);
+
+        Expect(baseline == TallItem, "背の高い要素で行が広がっていない");
+
+        static float Offset(Align align)
+        {
+            var baseline = MathF.Max(RowHeight, TextHeight);
+
+            return align switch
+            {
+                Align.Center => (baseline - TextHeight) * 0.5f,
+                Align.End => baseline - TextHeight,
+                _ => 0f,
+            };
+        }
     }
 
     private static void Expect(bool condition, string message)

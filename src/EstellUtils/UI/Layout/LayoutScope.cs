@@ -55,6 +55,16 @@ public sealed class LayoutScope
     /// <summary>横並びのときの現在行の高さ。</summary>
     public float LineHeight { get; private set; }
 
+    /// <summary>
+    /// 横並びのとき、高さの違う要素を縦方向のどこへ置くか。
+    /// </summary>
+    public Align CrossAlign { get; private set; }
+
+    /// <summary>
+    /// 行の基準となる高さ。0 なら要素の高さをそのまま使う (揃えは効かない)。
+    /// </summary>
+    public float RowHeight { get; private set; }
+
     /// <summary>列定義があるときの現在の列番号。</summary>
     public int ColumnIndex { get; private set; }
 
@@ -112,8 +122,11 @@ public sealed class LayoutScope
     /// <summary>スコープを初期化する (プールから再利用するため公開している)。</summary>
     public void Reset(
         LayoutKind kind, Rect bounds, Vector2 spacing, ReadOnlySpan<SizeSpec> columns, bool wrap,
-        EdgeInsets padding = default)
+        EdgeInsets padding = default, Align crossAlign = Align.Start, float rowHeight = 0f)
     {
+        this.CrossAlign = crossAlign;
+        this.RowHeight = rowHeight;
+
         this.Padding = padding;
         bounds = bounds.Shrink(padding);
 
@@ -249,9 +262,25 @@ public sealed class LayoutScope
                 this.Cursor = new Vector2(this.Cursor.X + this.Spacing.X, this.Cursor.Y);
         }
 
-        var rect = Rect.FromSize(this.Cursor, size);
+        // 行の基準の高さ。ボタン (24px) と文字 (16px) のように高さが違う要素を
+        // 並べたとき、上端で揃えると文字だけ浮いて見える
+        var baseline = this.RowHeight > 0f ? MathF.Max(this.RowHeight, size.Y) : size.Y;
+
+        if (this.CrossAlign == Align.Stretch)
+            size = new Vector2(size.X, baseline);
+
+        var offset = this.CrossAlign switch
+        {
+            Align.Center => (baseline - size.Y) * 0.5f,
+            Align.End => baseline - size.Y,
+            _ => 0f,
+        };
+
+        var rect = Rect.FromSize(new Vector2(this.Cursor.X, this.Cursor.Y + offset), size);
+
+        // カーソルの縦位置は行の上端のままにしておく (次の要素も同じ行へ並ぶ)
         this.Cursor = new Vector2(rect.Max.X, this.Cursor.Y);
-        this.LineHeight = MathF.Max(this.LineHeight, size.Y);
+        this.LineHeight = MathF.Max(this.LineHeight, baseline);
         this.ColumnIndex++;
 
         this.Track(rect);

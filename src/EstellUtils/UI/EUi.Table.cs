@@ -63,7 +63,8 @@ public static partial class EUi
             widths[i] = columns[i].Width;
 
         ctx.Layout.Push(
-            LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f), widths);
+            LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f), widths,
+            false, default, Align.Center, rowHeight);
 
         for (var i = 0; i < columns.Length; i++)
         {
@@ -107,7 +108,7 @@ public static partial class EUi
 
         ctx.Layout.Push(
             LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f),
-            widths[..columns.Length]);
+            widths[..columns.Length], false, default, Align.Center, rowHeight);
 
         return new TableRowHandle(rowRect);
     }

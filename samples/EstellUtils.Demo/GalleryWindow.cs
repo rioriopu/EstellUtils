@@ -318,6 +318,24 @@ public sealed class GalleryWindow : EuWindow
             EUi.Button("重み 1##w1", ButtonStyle.Normal, SizeSpec.Fill);
         }
 
+        EUi.Separator("縦方向の揃え");
+
+        EUi.Muted("高さの違う要素を並べたとき、既定では縦中央に揃います。");
+
+        using (EUi.HStack(align: Align.Start))
+        {
+            EUi.Label("上端揃え:");
+            EUi.Button("ボタン##alignStart");
+            EUi.Checkbox("チェック##alignStart", ref this.checkboxValue);
+        }
+
+        using (EUi.HStack())
+        {
+            EUi.Label("中央揃え:");
+            EUi.Button("ボタン##alignCenter");
+            EUi.Checkbox("チェック##alignCenter", ref this.checkboxValue);
+        }
+
         EUi.Separator("Grid — 均等割りで折り返す");
 
         using (EUi.Grid(4))
