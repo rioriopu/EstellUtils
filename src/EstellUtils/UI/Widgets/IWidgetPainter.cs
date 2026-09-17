@@ -16,6 +16,12 @@ public enum WindowButtonKind
     /// <summary>小窓にする / 元へ戻す。</summary>
     Compact,
 
+    /// <summary>元のウィンドウへ戻す。</summary>
+    Restore,
+
+    /// <summary>位置と大きさを固定する / 解除する。</summary>
+    Lock,
+
     /// <summary>設定を開く。</summary>
     Settings,
 }
@@ -146,6 +152,12 @@ public interface IWidgetPainter
 
     /// <summary>タイトルバーのボタンを描く。</summary>
     void DrawWindowButton(in WidgetVisual visual, WindowButtonKind kind);
+
+    /// <summary>
+    /// タイトルバーへ追加されたアイコンボタンを描く。
+    /// アイコンフォントが適用された状態で呼ばれる。
+    /// </summary>
+    void DrawTitleBarIconButton(in WidgetVisual visual, ReadOnlySpan<char> icon);
 
     /// <summary>ウィンドウ右下のリサイズグリップを描く。</summary>
     void DrawResizeGrip(in WidgetVisual visual);

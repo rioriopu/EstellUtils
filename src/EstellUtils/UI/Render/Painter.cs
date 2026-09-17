@@ -85,6 +85,36 @@ public static class Painter
     /// <summary>描画先スタックを空にする。フレーム境界での保険。</summary>
     internal static void ResetDrawListStack() => DrawListStack.Clear();
 
+    private static float alphaScale = 1f;
+
+    /// <summary>
+    /// 今かかっている不透明度の倍率。<see cref="UseAlpha"/> で変えられる。
+    /// </summary>
+    public static float AlphaScale => alphaScale;
+
+    /// <summary>
+    /// これ以降の描画すべてに不透明度の倍率を掛ける。<c>using</c> で元へ戻る。
+    /// </summary>
+    /// <remarks>
+    /// ウィンドウ全体を薄くしたいときに使う。個々の色を書き換えて回る必要がない。
+    /// </remarks>
+    public static AlphaScope UseAlpha(float scale)
+    {
+        var previous = alphaScale;
+        alphaScale = Math.Clamp(scale, 0f, 1f);
+        return new AlphaScope(previous);
+    }
+
+    /// <summary>不透明度の倍率を元へ戻す。</summary>
+    internal static void RestoreAlpha(float previous) => alphaScale = previous;
+
+    /// <summary>不透明度スケールを初期化する。フレーム境界での保険。</summary>
+    internal static void ResetAlpha() => alphaScale = 1f;
+
+    /// <summary>不透明度の倍率を色へ反映する。</summary>
+    public static uint Tint(uint color)
+        => alphaScale >= 0.999f ? color : EuColor.ScaleAlpha(color, alphaScale);
+
     // ── 矩形 ──────────────────────────────────────────────────
 
     /// <summary>塗りつぶし矩形。</summary>
@@ -93,6 +123,7 @@ public static class Painter
         if (rect.IsEmpty || (color >> 24) == 0 || !IsVisible(rect))
             return;
 
+        color = Tint(color);
         DrawList.AddRectFilled(rect.Min, rect.Max, color, rounding, ToDrawFlags(rounding, corners));
     }
 
@@ -103,6 +134,7 @@ public static class Painter
         if (rect.IsEmpty || (color >> 24) == 0 || thickness <= 0f || !IsVisible(rect))
             return;
 
+        color = Tint(color);
         DrawList.AddRect(rect.Min, rect.Max, color, rounding, ToDrawFlags(rounding, corners), thickness);
     }
 
@@ -114,6 +146,9 @@ public static class Painter
     {
         if (rect.IsEmpty || !IsVisible(rect))
             return;
+
+        top = Tint(top);
+        bottom = Tint(bottom);
 
         if (rounding <= 0f)
         {
@@ -130,6 +165,9 @@ public static class Painter
     {
         if (rect.IsEmpty || !IsVisible(rect))
             return;
+
+        left = Tint(left);
+        right = Tint(right);
 
         if (rounding <= 0f)
         {
@@ -243,7 +281,7 @@ public static class Painter
         if (!IsVisible(bounds))
             return;
 
-        DrawList.AddLine(a, b, color, thickness);
+        DrawList.AddLine(a, b, Tint(color), thickness);
     }
 
     /// <summary>水平線。1px 線がぼやけないよう座標を半ピクセルに合わせる。</summary>
@@ -269,7 +307,7 @@ public static class Painter
         if (!IsVisible(Core.Rect.FromCenter(center, new Vector2(radius * 2f, radius * 2f))))
             return;
 
-        DrawList.AddCircleFilled(center, radius, color, segments);
+        DrawList.AddCircleFilled(center, radius, Tint(color), segments);
     }
 
     /// <summary>円の輪郭。</summary>
@@ -282,7 +320,7 @@ public static class Painter
         if (!IsVisible(Core.Rect.FromCenter(center, new Vector2((radius + thickness) * 2f, (radius + thickness) * 2f))))
             return;
 
-        DrawList.AddCircle(center, radius, color, segments, thickness);
+        DrawList.AddCircle(center, radius, Tint(color), segments, thickness);
     }
 
     /// <summary>円弧。角度はラジアン、時計回り (画面座標系のため)。</summary>
@@ -294,7 +332,7 @@ public static class Painter
 
         var dl = DrawList;
         dl.PathArcTo(center, radius, fromRad, toRad);
-        dl.PathStroke(color, ImDrawFlags.None, thickness);
+        dl.PathStroke(Tint(color), ImDrawFlags.None, thickness);
     }
 
     /// <summary>ドーナツ状のリング。進捗表示などに使う。</summary>
@@ -308,7 +346,7 @@ public static class Painter
         var dl = DrawList;
         dl.PathArcTo(center, outerRadius, fromRad, toRad);
         dl.PathArcTo(center, innerRadius, toRad, fromRad);
-        dl.PathFillConvex(color);
+        dl.PathFillConvex(Tint(color));
     }
 
     /// <summary>塗りつぶし三角形。</summary>
@@ -317,7 +355,7 @@ public static class Painter
         if ((color >> 24) == 0)
             return;
 
-        DrawList.AddTriangleFilled(a, b, c, color);
+        DrawList.AddTriangleFilled(a, b, c, Tint(color));
     }
 
     /// <summary>
@@ -370,7 +408,7 @@ public static class Painter
                 center.Y + ((p.X * sin) + (p.Y * cos))));
         }
 
-        dl.PathStroke(color, ImDrawFlags.None, thickness);
+        dl.PathStroke(Tint(color), ImDrawFlags.None, thickness);
     }
 
     /// <summary>
@@ -410,7 +448,7 @@ public static class Painter
             dl.PathLineTo(b + ((d - b) * ((drawn - len1) / len2)));
         }
 
-        dl.PathStroke(color, ImDrawFlags.None, thickness);
+        dl.PathStroke(Tint(color), ImDrawFlags.None, thickness);
     }
 
     // ── 画像 ──────────────────────────────────────────────────
@@ -425,7 +463,7 @@ public static class Painter
         if (uv1 == default)
             uv1 = Vector2.One;
 
-        DrawList.AddImage(texture, rect.Min, rect.Max, uv0, uv1, tint);
+        DrawList.AddImage(texture, rect.Min, rect.Max, uv0, uv1, Tint(tint));
     }
 
     /// <summary>
@@ -442,6 +480,8 @@ public static class Painter
     {
         if (rect.IsEmpty || textureSize.X <= 0f || textureSize.Y <= 0f || !IsVisible(rect))
             return;
+
+        tint = Tint(tint);
 
         // 描画先が小さすぎて枠が重なる場合は縮める
         var scaleX = MathF.Min(1f, rect.Width / MathF.Max(1f, border.TotalHorizontal));
@@ -596,6 +636,26 @@ public readonly struct ClipScope : IDisposable
 
         this.drawList.PopClipRect();
         Painter.PopClip();
+    }
+}
+
+/// <summary><c>using</c> で不透明度の倍率を元へ戻すスコープ。</summary>
+public readonly struct AlphaScope : IDisposable
+{
+    private readonly float previous;
+    private readonly bool active;
+
+    internal AlphaScope(float previous)
+    {
+        this.previous = previous;
+        this.active = true;
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (this.active)
+            Painter.RestoreAlpha(this.previous);
     }
 }
 

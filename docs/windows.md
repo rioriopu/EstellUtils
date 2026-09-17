@@ -10,23 +10,27 @@
 | 状態 | 説明 | 有効にする |
 |---|---|---|
 | 通常 | `Size` の大きさで `Draw()` を描く | 既定 |
-| 小窓 | `CompactSize` の大きさで `DrawCompact()` を描く | `HasCompactMode = true` |
-| 最小化 | タイトルバーだけに畳む | `Collapsible = true`（既定） |
+| 最小化 | タイトルバーだけの帯に畳む（幅はそのまま） | `Collapsible = true`（既定） |
+| 小窓 | **別ウィンドウ**として `DrawCompact()` を描く | `HasCompanion = true` |
 
 切り替えは大きさを滑らかに変えながら行われます。
 最小化はタイトルバーのダブルクリックでも切り替わります。
 
-### 小窓モード
+### 小窓
 
-設定画面をしまいつつ、よく使う操作だけ手元に残したいときに使います。
+小窓は**本体とは別の独立したウィンドウ**です。位置も大きさも別に持つので、
+設定画面を閉じたまま、よく使う操作だけを画面の隅へ置いておけます。
 
 ```csharp
 public sealed class ConfigWindow : EuWindow
 {
     public ConfigWindow() : base("プラグイン設定")
     {
-        this.HasCompactMode = true;
-        this.CompactSize = new Vector2(280f, 150f);
+        this.HasCompanion = true;
+        this.CompanionSize = new Vector2(280f, 150f);
+
+        // 本体と小窓を同時に出したい場合
+        // this.CompanionReplacesMain = false;
     }
 
     public override void Draw()
@@ -45,7 +49,16 @@ public sealed class ConfigWindow : EuWindow
 }
 ```
 
-`DrawCompact()` を書かなければ、小窓でも通常の中身がそのまま縮んで表示されます。
+`DrawCompact()` を書かなければ、小窓にも通常の中身がそのまま出ます。
+小窓のタイトルバーには「元へ戻す」ボタンが付き、本体へ戻れます。
+
+| プロパティ | 説明 |
+|---|---|
+| `HasCompanion` | 小窓を持つ。タイトルバーに切り替えボタンが出る |
+| `CompanionSize` | 小窓の大きさ |
+| `CompanionReplacesMain` | 小窓を開くとき本体を閉じるか（既定 true） |
+| `Companion` | 小窓のウィンドウ本体。位置の保存などに使う |
+| `IsCompanionOpen` | 小窓が開いているか |
 
 ## 移動とリサイズ
 
@@ -85,6 +98,48 @@ D3D のレンダーターゲットを取得してシェーダを通す必要が�
 2. **すりガラス風テーマ** — `FrostedGlassTheme`。透過を強めた地に上端の光沢と明るい細枠を
    合わせて、厚みのある曇りガラスの板に見せます。ゲーム画面が透けるので、
    動きのある背景の上ではガラス越しのように見えます
+
+## タイトルバーへボタンを足す
+
+標準のボタン（閉じる・畳む・小窓・鍵）の左側に、好きなボタンを並べられます。
+
+```csharp
+this.TitleBarButtons.Add(new TitleBarButton
+{
+    Id = "settings",
+    Icon = FontAwesomeIcon.Cog.ToIconString(),
+    Tooltip = "設定を開く",
+    IsActive = () => this.plugin.ConfigOpen,   // ON 状態を強調したい場合
+    IsVisible = () => this.plugin.Ready,       // 条件付きで出したい場合
+    OnClick = () => this.plugin.OpenConfig(),
+});
+```
+
+## 固定と透過
+
+| プロパティ | 説明 |
+|---|---|
+| `Locked` | 位置と大きさを固定する。移動もリサイズもできなくなる |
+| `ShowLockButton` | タイトルバーに鍵ボタンを出す |
+| `ClickThrough` | マウス操作を透過させ、背後のゲーム画面を直接操作できるようにする |
+| `Opacity` | ウィンドウ全体の不透明度（0〜1） |
+
+`ClickThrough` 中はウィンドウ自身のボタンも押せません。コマンドなど別の解除手段を
+用意しておいてください。
+
+`Opacity` は描画全体に倍率を掛けます。独自ウィジェットを書いている場合も
+`Painter` / `TextPainter` を使っていれば自動的に従います
+（自分で一部だけ薄くしたいときは `Painter.UseAlpha(0.5f)`）。
+
+## 動的なタイトル
+
+状態をタイトルへ出したい場合は `GetTitle()` をオーバーライドします。
+ウィンドウの識別子は生成時に固定されるので、毎フレーム変えても位置や状態は失われません。
+
+```csharp
+public override string GetTitle()
+    => $"AutoRetainer {this.version} | 残り {this.remaining}";
+```
 
 ## その他
 

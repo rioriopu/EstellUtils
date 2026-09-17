@@ -105,7 +105,7 @@ public static class TextPainter
         if (position.Y > clip.Max.Y || position.Y + LineHeight < clip.Min.Y)
             return;
 
-        Painter.DrawList.AddText(position, color, text);
+        Painter.DrawList.AddText(position, Painter.Tint(color), text);
     }
 
     /// <summary>フォントとサイズを指定してテキストを描く。</summary>
@@ -114,7 +114,7 @@ public static class TextPainter
         if (text.IsEmpty || (color >> 24) == 0)
             return;
 
-        Painter.DrawList.AddText(font, fontSize, position, color, text);
+        Painter.DrawList.AddText(font, fontSize, position, Painter.Tint(color), text);
     }
 
     /// <summary>幅で折り返してテキストを描く。</summary>
@@ -123,7 +123,8 @@ public static class TextPainter
         if (text.IsEmpty || (color >> 24) == 0)
             return;
 
-        Painter.DrawList.AddText(ImGui.GetFont(), ImGui.GetFontSize(), position, color, text, wrapWidth);
+        Painter.DrawList.AddText(
+            ImGui.GetFont(), ImGui.GetFontSize(), position, Painter.Tint(color), text, wrapWidth);
     }
 
     /// <summary>

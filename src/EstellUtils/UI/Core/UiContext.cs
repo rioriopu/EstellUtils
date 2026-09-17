@@ -120,6 +120,7 @@ public sealed class UiContext
         this.Layout.Reset();
         Render.Painter.ResetDrawListStack();
         Render.Painter.ResetClipStack();
+        Render.Painter.ResetAlpha();
         EUi.ResetLabelColumns();
 
         // 操作中のウィジェットが前フレームに描かれなかった (タブ切替などで消えた) 場合は解放する

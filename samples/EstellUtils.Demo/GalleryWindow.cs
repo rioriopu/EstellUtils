@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 
 using EstellUtils.UI;
 using EstellUtils.UI.Binding;
@@ -91,9 +92,35 @@ public sealed class GalleryWindow : EuWindow
         this.Size = new Vector2(640f, 520f);
         this.MinSize = new Vector2(420f, 320f);
 
-        // 小窓モードを有効にすると、タイトルバーに切り替えボタンが出る
-        this.HasCompactMode = true;
-        this.CompactSize = new Vector2(280f, 150f);
+        // 小窓を有効にすると、タイトルバーに切り替えボタンが出る。
+        // 小窓は本体とは別のウィンドウとして開く
+        this.HasCompanion = true;
+        this.CompanionSize = new Vector2(300f, 170f);
+
+        this.CloseOnEscape = true;
+        this.ShowLockButton = true;
+
+        // タイトルバーへ好きなボタンを足せる。アイコンは FontAwesome の文字を渡す
+        this.TitleBarButtons.Add(new TitleBarButton
+        {
+            Id = "demoGithub",
+            Icon = FontAwesomeIcon.Bell.ToIconString(),
+            Tooltip = "通知を出す",
+            OnClick = () => EUi.Toast("タイトルバーのボタンから実行しました。", NoteKind.Info),
+        });
+
+        this.TitleBarButtons.Add(new TitleBarButton
+        {
+            Id = "demoTheme",
+            Icon = FontAwesomeIcon.Palette.ToIconString(),
+            Tooltip = "テーマを切り替える",
+            IsActive = () => this.themeIndex != 0,
+            OnClick = () =>
+            {
+                this.themeIndex = (this.themeIndex + 1) % ThemeNames.Length;
+                this.ApplyTheme();
+            },
+        });
 
         this.config = new DemoConfig();
         this.binder = new Binder<DemoConfig>(this.config, () => this.config.SaveCount++);
@@ -103,11 +130,11 @@ public sealed class GalleryWindow : EuWindow
     public override void OnClose() => this.binder.Flush();
 
     /// <summary>
-    /// 小窓モードの中身。よく使う操作だけを残す。
+    /// 小窓の中身。よく使う操作だけを残す。
     /// </summary>
     public override void DrawCompact()
     {
-        EUi.Muted("小窓モード");
+        EUi.Muted("小窓（本体とは別のウィンドウ）");
 
         using (EUi.Row(SizeSpec.Fill, SizeSpec.Fill))
         {
@@ -327,6 +354,10 @@ public sealed class GalleryWindow : EuWindow
         if (EUi.Toggle("背後を暗く覆う", ref dim).Tip(dimTip))
             this.DimBackground = dim;
 
+        var opacity = this.Opacity;
+        if (EUi.SliderFloat("ウィンドウの不透明度", ref opacity, 0.25f, 1f, 220f, default, false, 2))
+            this.Opacity = opacity;
+
         EUi.Muted("「すりガラス」テーマは、透過・上端の光沢・明るい細枠で厚みのある板に見せています。");
 
         EUi.Separator("色トークン");
@@ -394,6 +425,8 @@ public sealed class GalleryWindow : EuWindow
             DrawStat("ホバー中の ID", ctx.HotId.IsNone ? "なし" : ctx.HotId.ToString());
             DrawStat("操作中の ID", ctx.ActiveId.IsNone ? "なし" : ctx.ActiveId.ToString());
             DrawStat("レイアウトの深さ", ctx.Layout.Depth.ToString(CultureInfo.InvariantCulture));
+            DrawStat("タイトルバー高さ", $"{EUi.Metrics.TitleBarHeight:F0} px");
+            DrawStat("ウィンドウ実寸", $"{io.DisplaySize.X:F0} x {io.DisplaySize.Y:F0} の画面 / 本体 {this.Size.X:F0} x {this.Size.Y:F0}");
         }
 
         EUi.Separator("通知");

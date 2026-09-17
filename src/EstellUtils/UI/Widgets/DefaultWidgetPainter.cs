@@ -457,50 +457,109 @@ public class DefaultWidgetPainter : IWidgetPainter
     public virtual void DrawWindowButton(in WidgetVisual visual, WindowButtonKind kind)
     {
         var rect = visual.Rect;
+        var rounding = MathF.Min(Metrics.WidgetRounding, 3f);
 
-        if (visual.Hover > 0.01f)
-        {
-            var bg = kind == WindowButtonKind.Close
-                ? EuColor.WithAlpha(Colors.Danger, visual.Hover * 0.85f)
-                : EuColor.WithAlpha(Colors.SurfaceHover, visual.Hover * 0.85f);
+        // 暗い地の上では、暗い色を薄く重ねても見えない。
+        // ホバー時は明るい色ではっきり反応させ、押せる場所が分かるようにする
+        var hoverBg = kind == WindowButtonKind.Close
+            ? EuColor.WithAlpha(Colors.Danger, visual.Hover * 0.9f)
+            : EuColor.WithAlpha(Colors.WidgetHoverTop, visual.Hover * 0.9f);
 
-            Painter.Rect(rect, bg, Metrics.WidgetRounding);
-        }
+        Painter.Rect(rect, hoverBg, rounding);
 
-        var color = EuColor.Lerp(Colors.TextMuted, Colors.Text, visual.Hover);
+        if (visual.Press > 0.01f)
+            Painter.Rect(rect, EuColor.WithAlpha(EuColor.Black, visual.Press * 0.3f), rounding);
+
+        var color = EuColor.Lerp(Colors.TextMuted, Colors.TitleText, MathF.Max(visual.Hover, 0.45f));
         var center = rect.Center;
-        var size = MathF.Min(rect.Width, rect.Height) * 0.22f;
+
+        // アイコンはボタンの 3 分の 2 ほどの大きさにする。
+        // small すぎると何のボタンか分からず、押す気にもならない
+        var extent = MathF.Min(rect.Width, rect.Height) * 0.34f;
+        var thickness = MathF.Max(1.8f, extent * 0.26f);
 
         switch (kind)
         {
             case WindowButtonKind.Close:
-                Painter.Line(center - new Vector2(size, size), center + new Vector2(size, size), color, 1.6f);
-                Painter.Line(center + new Vector2(size, -size), center + new Vector2(-size, size), color, 1.6f);
+                Painter.Line(
+                    center - new Vector2(extent, extent), center + new Vector2(extent, extent), color, thickness);
+                Painter.Line(
+                    center + new Vector2(extent, -extent), center + new Vector2(-extent, extent), color, thickness);
                 break;
 
             case WindowButtonKind.Collapse:
-                // 開いているときは上向き (畳む)、畳まれているときは下向き (開く)
-                Painter.Chevron(rect, visual.On ? Direction.Up : Direction.Down, color, 1.6f);
+                // 展開中は上向き (畳む)、畳まれているときは下向き (開く)
+                Painter.Chevron(rect, visual.On ? Direction.Up : Direction.Down, color, thickness);
                 break;
 
             case WindowButtonKind.Compact:
             {
-                // 小窓を表す小さな枠。小窓中は塗りつぶして状態が分かるようにする
-                var box = Rect.FromCenter(center, new Vector2(size * 2f, size * 1.6f));
+                // 小窓を表す枠。タイトルバー付きのウィンドウに見えるよう上辺を厚くする
+                var box = Rect.FromCenter(center, new Vector2(extent * 1.9f, extent * 1.6f));
+
+                Painter.RectOutline(box, color, thickness, 1f);
+                Painter.Rect(box.WithHeight(thickness * 1.6f), color, 1f, Corners.Top);
 
                 if (visual.On)
-                    Painter.Rect(box, color, 1f);
-                else
-                    Painter.RectOutline(box, color, 1.4f, 1f);
+                    Painter.Rect(box.Shrink(thickness * 1.8f), EuColor.ScaleAlpha(color, 0.7f));
 
                 break;
             }
 
+            case WindowButtonKind.Restore:
+            {
+                // 元の大きさへ戻す。小さい枠から大きい枠へ広がる形で表す
+                var big = Rect.FromCenter(center, new Vector2(extent * 2f, extent * 2f));
+                var small = Rect.FromSize(
+                    new Vector2(big.Min.X, big.Min.Y + (extent * 0.6f)),
+                    new Vector2(extent * 1.4f, extent * 1.4f));
+
+                Painter.RectOutline(big, EuColor.ScaleAlpha(color, 0.5f), thickness * 0.8f, 1f);
+                Painter.RectOutline(small, color, thickness, 1f);
+                break;
+            }
+
+            case WindowButtonKind.Lock:
+            {
+                // 錠前。掛かっているときは弦を閉じ、外れているときは片側を開く
+                var body = Rect.FromCenter(
+                    center + new Vector2(0f, extent * 0.45f),
+                    new Vector2(extent * 1.7f, extent * 1.3f));
+
+                Painter.Rect(body, color, 1f);
+
+                var arcCenter = new Vector2(center.X + (visual.On ? 0f : extent * 0.35f), body.Min.Y);
+                Painter.Arc(arcCenter, extent * 0.6f, MathF.PI, MathF.PI * 2f, color, thickness);
+                break;
+            }
+
             default:
-                Painter.CircleOutline(center, size, color, 1.6f);
-                Painter.Circle(center, size * 0.35f, color);
+                Painter.CircleOutline(center, extent, color, thickness);
+                Painter.Circle(center, extent * 0.35f, color);
                 break;
         }
+    }
+
+    /// <inheritdoc/>
+    public virtual void DrawTitleBarIconButton(in WidgetVisual visual, ReadOnlySpan<char> icon)
+    {
+        var rect = visual.Rect;
+        var rounding = MathF.Min(Metrics.WidgetRounding, 3f);
+
+        var bg = visual.On
+            ? EuColor.WithAlpha(Colors.Accent, 0.30f + (visual.Hover * 0.35f))
+            : EuColor.WithAlpha(Colors.SurfaceHover, 0.10f + (visual.Hover * 0.75f));
+
+        Painter.Rect(rect, bg, rounding);
+
+        if (visual.Press > 0.01f)
+            Painter.Rect(rect, EuColor.WithAlpha(EuColor.Black, visual.Press * 0.25f), rounding);
+
+        var color = visual.On
+            ? Colors.TextHeading
+            : EuColor.Lerp(Colors.TextMuted, Colors.Text, MathF.Max(visual.Hover, 0.35f));
+
+        TextPainter.TextIn(rect, color, icon, Align.Center, Align.Center, ellipsize: false);
     }
 
     /// <inheritdoc/>
