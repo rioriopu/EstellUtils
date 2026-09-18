@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# コミットメッセージから、ツールが自動で付ける署名行を取り除く。
+#
+# このリポジトリの author は rioriopu で統一し、
+# Co-Authored-By などの行は残さない方針のため (CLAUDE.md の「git 運用」を参照)。
+#
+# 有効にするには、clone 後に一度だけ次を実行する:
+#   git config core.hooksPath .githooks
+#
+set -e
+
+msg_file="$1"
+tmp_file="$msg_file.stripped"
+
+# 取り除く行:
+#   Co-Authored-By: ... Claude / Anthropic ...
+#   Claude-Session: ...
+#   Generated with [Claude Code](...)
+#   https://claude.ai/code/...
+grep -v -i -E \
+  '^[[:space:]]*(Co-Authored-By:.*(claude|anthropic)|Claude-Session:|(🤖[[:space:]]*)?Generated with (\[)?Claude Code|https://claude\.ai/code/)' \
+  "$msg_file" > "$tmp_file" || true
+
+# 署名行を消した跡に残る末尾の空行を詰める
+awk '
+    { lines[NR] = $0 }
+    END {
+        last = 0
+        for (i = NR; i > 0; i--) {
+            if (lines[i] ~ /[^[:space:]]/) { last = i; break }
+        }
+        for (i = 1; i <= last; i++) print lines[i]
+    }
+' "$tmp_file" > "$msg_file"
+
+rm -f "$tmp_file"

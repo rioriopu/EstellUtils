@@ -46,5 +46,19 @@ Dalamud の参照パスは `Directory.Build.props` の `DalamudLibPath` で解�
 
 - author は `rioriopu <rioriopuu@gmail.com>`
 - コミットメッセージは**日本語**
-- `Co-Authored-By: Claude` / `Generated with Claude Code` などの署名行は**付けない**
+- `Co-Authored-By: Claude` / `Claude-Session:` / `Generated with Claude Code` などの
+  ツール由来の署名行は**付けない**。コントリビューターは rioriopu のみとする
 - フェーズ単位でコミットする。各コミットは必ずビルドが通る状態にすること
+
+### 署名行の自動除去
+
+指示だけでは取りこぼすため、`commit-msg` フックで機械的に剥がしている。
+**clone 後に一度だけ**次を実行すること。
+
+```
+git config core.hooksPath .githooks
+```
+
+`.githooks/commit-msg` が、コミットメッセージから上記の署名行と、
+その跡に残る末尾の空行を取り除く。本文には手を触れない。
+コミットを拒否せず黙って書き換えるので、通常の操作を妨げない。
