@@ -73,9 +73,12 @@ public static partial class EUi
         ImGui.SetNextWindowPos(new Vector2(rect.Min.X, rect.Max.Y + 2f));
         ImGui.SetNextWindowSize(new Vector2(ColorPickerWidth, panelHeight));
 
-        if (ImGui.BeginPopup(popupId, PopupWindowFlags))
+        if (BeginPopupBox(popupId))
         {
             var popupRect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+
+            // 親ウィンドウのクリップを持ち込まない。引き継ぐと地や中身が切り取られる
+            using var popupClip = Painter.ClipFullScreen();
             DrawPopupSurface(popupRect);
 
             using (Region(popupRect, EdgeInsets.All(Metrics.SpacingMd), Metrics.SpacingSm))

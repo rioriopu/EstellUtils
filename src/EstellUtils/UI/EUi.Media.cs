@@ -122,8 +122,10 @@ public static partial class EUi
         var id = ctx.GetId(label, out var display);
         var rect = ctx.Allocate(width ?? SizeSpec.Fill, height ?? Metrics.WidgetHeight);
 
+        // 一覧の行は右クリックの対象になるのが自然なので、最初から拾っておく
         var interaction = Interaction.Behavior(
-            rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
+            rect, id,
+            disabled ? InteractionFlags.Disabled : InteractionFlags.AllowRightClick);
 
         if (selected)
         {

@@ -88,15 +88,19 @@ public static partial class EUi
         ImGui.SetNextWindowPos(position);
         ImGui.SetNextWindowSize(size);
 
-        if (!ImGui.BeginPopup(id, PopupWindowFlags))
+        if (!BeginPopupBox(id))
             return default;
 
         // ImGui が画面内へ収め直すことがあるので、実際の位置を取り直す
         var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+
+        // 親ウィンドウのクリップを持ち込まない。ポップアップは親の外へも出るため、
+        // 引き継ぐと地や中身が切り取られる
+        var clip = Painter.ClipFullScreen();
         DrawPopupSurface(rect);
 
         var region = Region(rect, padding ?? EdgeInsets.All(Metrics.SpacingSm));
-        return new PopupScope(region, rect);
+        return new PopupScope(region, clip, rect);
     }
 
     /// <summary>
@@ -131,10 +135,12 @@ public static partial class EUi
         ImGui.SetNextWindowPos(position);
         ImGui.SetNextWindowSize(size);
 
-        if (!ImGui.BeginPopup(id, PopupWindowFlags))
+        if (!BeginPopupBox(id))
             return -1;
 
         var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+
+        using var clip = Painter.ClipFullScreen();
         DrawPopupSurface(rect);
 
         var chosen = -1;
@@ -182,7 +188,15 @@ public static partial class EUi
     /// </remarks>
     public static int ContextMenu(string id, in WidgetResult target, params ReadOnlySpan<MenuEntry> entries)
     {
-        if (target.RightClicked)
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        // RightClicked は InteractionFlags.AllowRightClick を指定したウィジェットしか立てない。
+        // どのウィジェットにも後付けできるよう、乗っているかどうかから自前でも判定する
+        var opened = target.RightClicked
+            || (target.Hovered && !target.Disabled && ctx.Input.IsPressed(MouseButton.Right));
+
+        if (opened)
             ImGui.OpenPopup(id);
 
         return Menu(id, PopupAnchor.MousePosition, entries);
@@ -245,8 +259,12 @@ public static partial class EUi
         if (!dimBackground)
             ImGui.PushStyleColor(ImGuiCol.ModalWindowDimBg, 0u);
 
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+
         var open = true;
         var began = ImGui.BeginPopupModal(id, ref open, PopupWindowFlags);
+
+        ImGui.PopStyleVar();
 
         if (!dimBackground)
             ImGui.PopStyleColor();
@@ -255,6 +273,8 @@ public static partial class EUi
             return ConfirmResult.None;
 
         var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+
+        using var clip = Painter.ClipFullScreen();
         DrawPopupSurface(rect, strong: true);
 
         var result = ConfirmResult.None;
@@ -304,6 +324,23 @@ public static partial class EUi
 
         ImGui.EndPopup();
         return result;
+    }
+
+    /// <summary>
+    /// ポップアップの箱を開く。開けたら true。
+    /// </summary>
+    /// <remarks>
+    /// ImGui の余白を 0 にしてから開く。余白が残っていると、ImGui はその分だけ
+    /// 内側にクリップ範囲を張るため、ウィンドウの端いっぱいに描いた地と枠が
+    /// 切り取られてしまう。内側の余白は自前のレイアウトで取る。
+    /// </remarks>
+    private static bool BeginPopupBox(string id)
+    {
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        var began = ImGui.BeginPopup(id, PopupWindowFlags);
+        ImGui.PopStyleVar();
+
+        return began;
     }
 
     /// <summary>ポップアップの地と枠を描く。</summary>
@@ -530,11 +567,13 @@ public readonly record struct MenuEntry(string Label)
 public readonly struct PopupScope : IDisposable
 {
     private readonly LayoutHandle region;
+    private readonly ClipScope clip;
     private readonly bool open;
 
-    internal PopupScope(LayoutHandle region, Rect rect)
+    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect)
     {
         this.region = region;
+        this.clip = clip;
         this.Rect = rect;
         this.open = true;
     }
@@ -552,6 +591,7 @@ public readonly struct PopupScope : IDisposable
             return;
 
         this.region.Dispose();
+        this.clip.Dispose();
         ImGui.EndPopup();
     }
 }
