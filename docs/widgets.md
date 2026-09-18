@@ -157,6 +157,105 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 
 `ColorEdit` は `Vector4` と `uint`(0xAABBGGRR) の両方に対応します。
 
+## ポップアップ・メニュー・確認ダイアログ
+
+| API | 説明 |
+|---|---|
+| `EUi.OpenPopup(id)` | ポップアップを開く |
+| `EUi.IsPopupOpen(id)` / `EUi.ClosePopup()` | 開閉の確認と、中からの明示的な閉じ |
+| `EUi.Popup(id, size, anchor, padding)` | 中身を自由に書けるポップアップ |
+| `EUi.Menu(id, anchor, entries)` | メニュー。選ばれた項目の添字を返す |
+| `EUi.ContextMenu(id, target, entries)` | 右クリックで開くメニュー |
+| `EUi.Confirm(id, title, message, ok, cancel, danger)` | 確認ダイアログ |
+
+**開く操作と中身の描画は別々に書きます。** 描画側は毎フレーム呼び、
+開いていなければ何もしません。即時モードなので、これが自然な形になります。
+
+```csharp
+if (EUi.Button("初期化", ButtonStyle.Danger))
+    EUi.OpenPopup("confirmReset");
+
+// 毎フレーム呼ぶ。開いていなければ ConfirmResult.None が返るだけ
+if (EUi.Confirm("confirmReset", "設定の初期化",
+                "すべての設定を既定値へ戻します。この操作は元に戻せません。",
+                "初期化する", danger: true) == ConfirmResult.Ok)
+{
+    ResetAll();
+}
+```
+
+確認ダイアログは外側をクリックしても閉じません。Esc で取り消しになります。
+背後を暗く覆いたい場合は `dimBackground: true` を渡します（既定は覆いません）。
+
+### メニュー
+
+項目は文字列のまま渡せます。細かく指定したいものだけ `MenuEntry` にします。
+
+```csharp
+switch (EUi.Menu("fileMenu",
+                 new MenuEntry("開く") { Shortcut = "Ctrl+O" },
+                 new MenuEntry("保存") { Shortcut = "Ctrl+S" },
+                 MenuEntry.Separator,
+                 new MenuEntry("グリッドを表示") { Checked = this.showGrid },
+                 MenuEntry.Separator,
+                 new MenuEntry("削除") { Kind = NoteKind.Danger }))
+{
+    case 0: Open(); break;
+    case 1: Save(); break;
+    case 3: this.showGrid = !this.showGrid; break;
+    case 5: Delete(); break;
+}
+```
+
+**添字は渡した並びのままです。** 区切り線もひとつ分を数えるので、上の例では
+「削除」が 5 になります。項目の増減で添字がずれる点に注意してください。
+
+`MenuEntry` で指定できるもの: `Disabled` / `Checked` / `Shortcut`（表示のみ）/
+`Kind`（状態色。危険な操作を赤くする）/ `IsSeparator`。
+
+### 右クリックメニュー
+
+`ContextMenu` は、渡したウィジェットの戻り値が右クリックされていれば開きます。
+
+```csharp
+var row = EUi.Selectable(item.Name, item == selected);
+
+switch (EUi.ContextMenu("rowMenu", row, "コピー", "名前を変更",
+                        MenuEntry.Separator, new MenuEntry("削除") { Kind = NoteKind.Danger }))
+{
+    case 0: Copy(item); break;
+    case 1: Rename(item); break;
+    case 3: Delete(item); break;
+}
+```
+
+一覧の各行に付ける場合は、**行ごとに ID を分けてください。**
+`EUi.PushId(index)` の中で呼ぶのが確実です。同じ id を使い回すと、
+どの行で開いたのか区別できなくなります。
+
+### 中身が自由なポップアップ
+
+大きさは呼び出し側が決めます。即時モードでは中身を描き終えるまで高さが分からず、
+前フレームの実測に頼ると開いた瞬間にちらつくためです。
+
+```csharp
+using (var popup = EUi.Popup("detail", new Vector2(280f, 150f)))
+{
+    if (popup.IsOpen)
+    {
+        EUi.Heading("詳細");
+        EUi.SliderInt("値", ref this.value, 1, 10);
+
+        if (EUi.Button("閉じる", ButtonStyle.Primary, SizeSpec.Fill))
+            EUi.ClosePopup();
+    }
+}
+```
+
+`PopupAnchor` で置く位置を選べます。
+`BelowLastItem`（既定）/ `AboveLastItem` / `MousePosition` / `ScreenCenter`。
+どれを選んでも、画面の外へはみ出さないよう収められます。
+
 ## 器
 
 | API | 説明 |
@@ -316,25 +415,103 @@ for (var i = 0; i < items.Count; i++)
 
 ## 独自ウィジェットを書く
 
-ライブラリ内部と同じ API だけで書けます。
+ライブラリ内のウィジェットも、ここで公開しているものと同じ部品だけで作られています。
+内部だけが使える近道はありません。
+
+1 つのウィジェットは「**領域を取る → 入力を判定する → 描く**」の 3 段です。
+最初の 2 段を `EUi.Custom` がまとめて行うので、描画だけが残ります。
 
 ```csharp
-public static bool MyWidget(ReadOnlySpan<char> label)
+public static bool Rating(ReadOnlySpan<char> id, ref int value, int max = 5)
 {
-    var ctx = EUi.Context;
-    ctx.EnsureFrame();
+    var cellSize = EUi.Metrics.WidgetHeight;
+    var widget = EUi.Custom(id, SizeSpec.Px(cellSize * max), cellSize);
 
-    var id = ctx.GetId(label, out var display);
-    var rect = EUi.Reserve(SizeSpec.Fill, EUi.Metrics.WidgetHeight);
+    // マウスがどの星の上にいるか
+    var hoverIndex = -1;
 
-    var interaction = Interaction.Behavior(rect, id);
+    if (widget.Result.Hovered)
+        hoverIndex = Math.Clamp(
+            (int)((EUi.Input.MousePos.X - widget.Rect.Min.X) / cellSize), 0, max - 1);
 
-    // interaction.HoverAmount / PressAmount は遷移量 (0〜1)
-    var color = EuColor.Lerp(EUi.Colors.Surface, EUi.Colors.Accent, interaction.HoverAmount);
+    var changed = false;
 
-    Painter.Rect(rect, color, EUi.Metrics.WidgetRounding);
-    TextPainter.TextIn(rect, EUi.Colors.Text, display, Align.Center, Align.Center);
+    if (widget.Result.Clicked && hoverIndex >= 0 && hoverIndex + 1 != value)
+    {
+        value = hoverIndex + 1;
+        changed = true;
+    }
 
-    return interaction.Clicked;
+    // 乗っている間はそこまでを点灯させて見せる
+    var lit = hoverIndex >= 0 ? hoverIndex + 1 : value;
+
+    using (EUi.PushFont(FontRole.Icon))
+    {
+        for (var i = 0; i < max; i++)
+        {
+            var cell = Rect.FromSize(
+                new Vector2(widget.Rect.Min.X + (cellSize * i), widget.Rect.Min.Y),
+                new Vector2(cellSize, cellSize));
+
+            TextPainter.TextIn(
+                cell,
+                i < lit ? EUi.Colors.Warning : EUi.Colors.TextDisabled,
+                FontAwesomeIcon.Star.ToIconString(),
+                Align.Center, Align.Center, ellipsize: false);
+        }
+    }
+
+    return changed;
 }
+```
+
+これはデモの「ポップアップ」タブで実際に動いています。
+
+| API | 説明 |
+|---|---|
+| `EUi.Custom(id, width, height, flags, disabled)` | 領域の確保と入力判定をまとめて行う |
+| `EUi.Custom(id, size, flags, disabled)` | 大きさを `Vector2` で指定する版 |
+| `EUi.CustomAt(id, rect, flags, disabled)` | 矩形を指定する版。レイアウトは進めない |
+| `EUi.State(id)` | フレームをまたいで値を覚える（`ref` で返る） |
+| `EUi.Input` / `EUi.DeltaTime` | マウス・キーの状態、前フレームからの経過秒数 |
+
+`CustomWidget` が持つもの:
+
+- `Rect` — 確保した矩形
+- `Visual` — ホバー・押下・無効の遷移量。**既存の見た目を借りることもできます**
+  （`EUi.WidgetPainter.DrawButton(w.Visual, "文字", ButtonStyle.Primary)` のように）
+- `Result` — 入力の結果。そのまま `return` して呼び出し側へ返せます
+
+### 状態を覚える
+
+開閉やアニメーションの進み具合など、フレームをまたいで覚えたい値は `EUi.State` に置きます。
+`Custom0` / `Custom1` が自由に使える枠です。しばらく使われなかった状態は自動で捨てられます。
+
+```csharp
+var w = EUi.Custom("spinner", SizeSpec.Px(24f), 24f);
+ref var state = ref EUi.State(w.Id);
+
+state.Custom0 += EUi.DeltaTime;   // 回転角として使う
+```
+
+### もっと低い層から書く
+
+`EUi.Custom` を使わず、`Interaction.Behavior` を直接呼ぶこともできます。
+1 つのウィジェットの中で複数の当たり判定を持たせる場合など、
+細かく制御したいときはこちらです。
+
+```csharp
+var ctx = EUi.Context;
+ctx.EnsureFrame();
+
+var id = ctx.GetId(label, out var display);
+var rect = EUi.Reserve(SizeSpec.Fill, EUi.Metrics.WidgetHeight);
+var interaction = Interaction.Behavior(rect, id);
+
+var color = EuColor.Lerp(EUi.Colors.Surface, EUi.Colors.Accent, interaction.HoverAmount);
+
+Painter.Rect(rect, color, EUi.Metrics.WidgetRounding);
+TextPainter.TextIn(rect, EUi.Colors.Text, display, Align.Center, Align.Center);
+
+return interaction.Clicked;
 ```

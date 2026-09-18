@@ -88,6 +88,13 @@ public sealed class GalleryWindow : EuWindow
     private float factor = 1.25f;
     private bool sectionEnabled = true;
 
+    // ポップアップの確認用
+    private string popupLog = "(まだ何も選ばれていません)";
+    private bool menuShowGrid = true;
+    private bool menuShowLabels;
+    private int popupRowIndex = -1;
+    private int ratingValue = 3;
+
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
         : base("EstellUtils ギャラリー")
@@ -161,7 +168,8 @@ public sealed class GalleryWindow : EuWindow
         this.UpdateProgress();
 
         var tabs = EUi.TabBar(
-            "##galleryTabs", "ウィジェット", "レイアウト", "テーマ", "設定バインディング", "動作確認");
+            "##galleryTabs",
+            "ウィジェット", "レイアウト", "ポップアップ", "テーマ", "設定バインディング", "動作確認");
 
         EUi.Spacing(EUi.Metrics.SpacingSm);
 
@@ -174,9 +182,12 @@ public sealed class GalleryWindow : EuWindow
                 this.DrawLayoutTab();
                 break;
             case 2:
-                this.DrawThemeTab();
+                this.DrawPopupsTab();
                 break;
             case 3:
+                this.DrawThemeTab();
+                break;
+            case 4:
                 this.DrawBindingTab();
                 break;
             default:
@@ -307,6 +318,192 @@ public sealed class GalleryWindow : EuWindow
         EUi.Note("boxed: false にすると WrapColored と同じになります。", NoteKind.Info, boxed: false);
 
         EUi.Bullet("箇条書きの項目。長い文章でも領域の幅に合わせて折り返されます。");
+    }
+
+    /// <summary>ポップアップ・メニュー・確認ダイアログの確認。</summary>
+    private void DrawPopupsTab()
+    {
+        using var id = EUi.PushId("popups");
+
+        EUi.Separator("メニュー");
+
+        using (EUi.HStack())
+        {
+            if (EUi.Button("メニューを開く"))
+                EUi.OpenPopup("demoMenu");
+
+            EUi.Muted("押した位置の下に開きます。");
+        }
+
+        // 開く操作と中身の描画は別々に書く。ここは毎フレーム呼ばれる
+        switch (EUi.Menu(
+            "demoMenu",
+            new MenuEntry("開く") { Shortcut = "Ctrl+O" },
+            new MenuEntry("保存") { Shortcut = "Ctrl+S" },
+            new MenuEntry("名前を付けて保存") { Disabled = true },
+            MenuEntry.Separator,
+            new MenuEntry("グリッドを表示") { Checked = this.menuShowGrid },
+            new MenuEntry("ラベルを表示") { Checked = this.menuShowLabels },
+            MenuEntry.Separator,
+            new MenuEntry("削除") { Kind = NoteKind.Danger, Shortcut = "Del" }))
+        {
+            case 0:
+                this.popupLog = "「開く」が選ばれました。";
+                break;
+            case 1:
+                this.popupLog = "「保存」が選ばれました。";
+                break;
+            case 4:
+                this.menuShowGrid = !this.menuShowGrid;
+                this.popupLog = $"グリッドの表示を {(this.menuShowGrid ? "ON" : "OFF")} にしました。";
+                break;
+            case 5:
+                this.menuShowLabels = !this.menuShowLabels;
+                this.popupLog = $"ラベルの表示を {(this.menuShowLabels ? "ON" : "OFF")} にしました。";
+                break;
+            case 7:
+                EUi.OpenPopup("demoConfirm");
+                break;
+        }
+
+        EUi.Separator("右クリックメニュー");
+
+        EUi.Muted("行を右クリックしてください。");
+
+        for (var i = 0; i < 4; i++)
+        {
+            // 行ごとに ID を分ける。同じ id を使い回すと、どの行で開いたか区別できない
+            using var rowId = EUi.PushId(i);
+
+            var row = EUi.Selectable(ComboItems[i], i == this.popupRowIndex);
+
+            if (row.Clicked)
+                this.popupRowIndex = i;
+
+            switch (EUi.ContextMenu(
+                "rowMenu", row,
+                "コピー",
+                "名前を変更",
+                MenuEntry.Separator,
+                new MenuEntry("削除") { Kind = NoteKind.Danger }))
+            {
+                case 0:
+                    this.popupLog = $"「{ComboItems[i]}」をコピーしました。";
+                    break;
+                case 1:
+                    this.popupLog = $"「{ComboItems[i]}」の名前を変更します。";
+                    break;
+                case 3:
+                    this.popupLog = $"「{ComboItems[i]}」を削除しました。";
+                    break;
+            }
+        }
+
+        EUi.Separator("確認ダイアログ");
+
+        using (EUi.HStack())
+        {
+            if (EUi.Button("初期化", ButtonStyle.Danger))
+                EUi.OpenPopup("demoConfirm");
+
+            if (EUi.Button("中身が自由なポップアップ"))
+                EUi.OpenPopup("demoFreePopup");
+        }
+
+        switch (EUi.Confirm(
+            "demoConfirm",
+            "設定の初期化",
+            "すべての設定を既定値へ戻します。この操作は元に戻せません。",
+            "初期化する",
+            danger: true))
+        {
+            case ConfirmResult.Ok:
+                this.popupLog = "初期化を実行しました。";
+                EUi.Toast("初期化しました", "すべての設定を既定値へ戻しました。", NoteKind.Warning);
+                break;
+            case ConfirmResult.Cancel:
+                this.popupLog = "初期化を取り消しました。";
+                break;
+        }
+
+        using (var popup = EUi.Popup("demoFreePopup", new Vector2(280f, 150f)))
+        {
+            if (popup.IsOpen)
+            {
+                EUi.Heading("好きなものを置けます");
+                EUi.Paragraph("ポップアップの中でも、通常のウィジェットがそのまま使えます。");
+                EUi.SliderInt("値", ref this.sliderInt, 1, 10);
+
+                if (EUi.Button("閉じる", ButtonStyle.Primary, SizeSpec.Fill))
+                    EUi.ClosePopup();
+            }
+        }
+
+        EUi.Separator("結果");
+
+        EUi.Note(this.popupLog);
+
+        EUi.Separator("独自ウィジェット");
+
+        EUi.Muted("下の星は EUi.Custom だけで書いてあります。ライブラリ内のウィジェットと同じ部品です。");
+
+        using (EUi.Field("評価"))
+        {
+            if (Rating("demoRating", ref this.ratingValue))
+                this.popupLog = $"評価を {this.ratingValue} にしました。";
+        }
+    }
+
+    /// <summary>
+    /// <see cref="EUi.Custom"/> だけで書いた独自ウィジェットの例。星で評価を選ぶ。
+    /// </summary>
+    /// <remarks>
+    /// 「領域を取る → 入力を判定する → 描く」の 3 段だけで書けることを示すための見本。
+    /// ライブラリ内のウィジェットも、これと同じ部品しか使っていない。
+    /// </remarks>
+    private static bool Rating(ReadOnlySpan<char> id, ref int value, int max = 5)
+    {
+        var cellSize = EUi.Metrics.WidgetHeight;
+        var widget = EUi.Custom(id, SizeSpec.Px(cellSize * max), cellSize);
+
+        // マウスがどの星の上にいるか。乗っている間はそこまでを点灯させて見せる
+        var hoverIndex = -1;
+
+        if (widget.Result.Hovered)
+        {
+            var offset = (EUi.Input.MousePos.X - widget.Rect.Min.X) / cellSize;
+            hoverIndex = Math.Clamp((int)offset, 0, max - 1);
+        }
+
+        var changed = false;
+
+        if (widget.Result.Clicked && hoverIndex >= 0 && hoverIndex + 1 != value)
+        {
+            value = hoverIndex + 1;
+            changed = true;
+        }
+
+        var lit = hoverIndex >= 0 ? hoverIndex + 1 : value;
+
+        using (EUi.PushFont(FontRole.Icon))
+        {
+            for (var i = 0; i < max; i++)
+            {
+                var cell = Rect.FromSize(
+                    new Vector2(widget.Rect.Min.X + (cellSize * i), widget.Rect.Min.Y),
+                    new Vector2(cellSize, cellSize));
+
+                TextPainter.TextIn(
+                    cell,
+                    i < lit ? EUi.Colors.Warning : EUi.Colors.TextDisabled,
+                    FontAwesomeIcon.Star.ToIconString(),
+                    Align.Center,
+                    Align.Center,
+                    ellipsize: false);
+            }
+        }
+
+        return changed;
     }
 
     /// <summary>レイアウトの確認。</summary>

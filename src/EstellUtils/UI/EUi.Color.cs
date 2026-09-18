@@ -73,17 +73,10 @@ public static partial class EUi
         ImGui.SetNextWindowPos(new Vector2(rect.Min.X, rect.Max.Y + 2f));
         ImGui.SetNextWindowSize(new Vector2(ColorPickerWidth, panelHeight));
 
-        const ImGuiWindowFlags popupFlags =
-            ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoTitleBar |
-            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse |
-            ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings;
-
-        if (ImGui.BeginPopup(popupId, popupFlags))
+        if (ImGui.BeginPopup(popupId, PopupWindowFlags))
         {
             var popupRect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
-
-            Painter.Rect(popupRect, Colors.TooltipBackground, Metrics.WidgetRounding);
-            Painter.RectOutline(popupRect, Colors.TooltipBorder, 1f, Metrics.WidgetRounding);
+            DrawPopupSurface(popupRect);
 
             using (Region(popupRect, EdgeInsets.All(Metrics.SpacingMd), Metrics.SpacingSm))
             {
