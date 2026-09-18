@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface;
 
 using EstellUtils.UI;
@@ -97,7 +98,7 @@ public sealed class GalleryWindow : EuWindow
 
     // 追加ウィジェットの確認用
     private int segmentIndex = 1;
-    private KeyBinding toggleKey = new(ImGuiKey.F9, Ctrl: true, Shift: false, Alt: false);
+    private KeyBinding toggleKey = new(VirtualKey.F9, Ctrl: true, Shift: false, Alt: false);
     private string searchQuery = string.Empty;
     private bool serviceRunning = true;
     private readonly float[] fpsHistory = new float[72];

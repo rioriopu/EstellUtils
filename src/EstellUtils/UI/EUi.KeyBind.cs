@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Runtime.InteropServices;
 
-using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Keys;
 
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
@@ -14,17 +14,29 @@ namespace EstellUtils.UI;
 /// <summary>
 /// キー割り当ての入力。
 /// </summary>
+/// <remarks>
+/// <para>
+/// キーの判定には Dalamud の <c>IKeyState</c> を使い、ゲームのキー状態を直接読む。
+/// ImGui 経由では、FFXIV 本体が先に処理してしまうキーを拾えないため。
+/// </para>
+/// <para>
+/// <see cref="Initialize"/> で <c>keyState</c> を渡していない場合、
+/// 割り当ての欄はその旨を表示して操作を受け付けない。
+/// </para>
+/// </remarks>
 public static partial class EUi
 {
     /// <summary>表示文字列を組み立てるのに十分な長さ。</summary>
     private const int KeyTextCapacity = 64;
 
-    /// <summary>割り当てに使えるキー。修飾キーそのものは除いてある。</summary>
-    private static readonly ImGuiKey[] BindableKeys = BuildBindableKeys();
+    /// <summary>押し下がった瞬間を見るために、キーごとの前回の状態を覚えておく。</summary>
+    private static readonly Dictionary<VirtualKey, KeyWatch> KeyWatches = new(16);
+
+    /// <summary>割り当てに使えるキー。初めて必要になったときに作る。</summary>
+    private static VirtualKey[]? bindableKeys;
 
     /// <summary>キーの表示名。毎フレーム <c>ToString</c> を呼ばないよう先に作っておく。</summary>
-    private static readonly Dictionary<ImGuiKey, string> KeyNames =
-        BindableKeys.ToDictionary(key => key, FormatKeyName);
+    private static Dictionary<VirtualKey, string>? keyNames;
 
     /// <summary>
     /// キー割り当ての欄。押すと待ち受け状態になり、次に押したキーを覚える。
@@ -32,7 +44,7 @@ public static partial class EUi
     /// if (EUi.KeyBind("切り替え", ref this.config.ToggleKey))
     ///     this.config.Save();
     ///
-    /// // 別の場所で
+    /// // 別の場所で、毎フレーム
     /// if (this.config.ToggleKey.IsPressed())
     ///     this.Toggle();
     /// </code>
@@ -53,7 +65,10 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        disabled |= IsDisabled;
+        var keyState = KeyState;
+
+        // キー状態を読む手段がなければ、触れないことを見せる
+        disabled |= IsDisabled || keyState is null;
 
         var id = ctx.GetId(label, out _);
         var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
@@ -79,27 +94,23 @@ public static partial class EUi
                 changed = true;
             }
         }
-
-        if (state.Open && !disabled)
+        else
         {
-            // 待ち受け中は ImGui にキーボードを押さえさせる。
-            // でないと押したキーがゲーム側のホットキーとして処理されてしまう
-            ImGui.SetNextFrameWantCaptureKeyboard(true);
+            state.Open = false;
+        }
 
-            if (ctx.Input.IsKeyPressed(ImGuiKey.Escape))
+        if (state.Open && keyState is not null)
+        {
+            if (WasPressed(VirtualKey.ESCAPE))
             {
                 state.Open = false;
             }
-            else if (TryCaptureKey(ctx.Input, out var captured))
+            else if (TryCaptureKey(keyState, out var captured))
             {
                 binding = captured;
                 state.Open = false;
                 changed = true;
             }
-        }
-        else if (disabled)
-        {
-            state.Open = false;
         }
 
         var visual = WidgetVisual.From(interaction) with
@@ -112,7 +123,12 @@ public static partial class EUi
 
         var inner = rect.Shrink(Metrics.WidgetPadding);
 
-        if (state.Open)
+        if (keyState is null)
+        {
+            TextPainter.TextIn(
+                inner, Colors.TextDisabled, "キー状態を取得できません", Align.Center, Align.Center);
+        }
+        else if (state.Open)
         {
             TextPainter.TextIn(
                 inner, Colors.Accent, "キーを押してください…", Align.Center, Align.Center);
@@ -136,6 +152,12 @@ public static partial class EUi
 
         var result = WidgetResult.From(interaction, changed);
 
+        if (keyState is null)
+        {
+            return result.Tip(
+                "EUi.Initialize へ IKeyState を渡すと、キーを割り当てられるようになります。");
+        }
+
         if (!state.Open && !disabled)
         {
             result = result.Tip(
@@ -147,15 +169,57 @@ public static partial class EUi
         return result;
     }
 
-    /// <summary>このフレームで押されたキーを 1 つ拾う。</summary>
-    private static bool TryCaptureKey(InputState input, out KeyBinding binding)
+    /// <summary>
+    /// キーがこのフレームで押し下がったか。
+    /// </summary>
+    /// <remarks>
+    /// <c>IKeyState</c> は「今押されているか」しか持たないので、
+    /// 前回の状態を覚えて立ち上がりを見る。同じフレーム内で何度呼んでも同じ答えを返す。
+    /// </remarks>
+    internal static bool WasPressed(VirtualKey key)
     {
-        foreach (var key in BindableKeys)
+        var keyState = KeyState;
+
+        if (keyState is null || !keyState.IsVirtualKeyValid(key))
+            return false;
+
+        var frame = UiContext.Current.FrameCount;
+        var down = keyState[key];
+
+        ref var watch = ref CollectionsMarshal.GetValueRefOrAddDefault(KeyWatches, key, out var existed);
+
+        // 同じフレームでの二度目以降は、最初に出した答えをそのまま返す
+        if (existed && watch.Frame == frame)
+            return watch.Result;
+
+        var result = down && !(existed && watch.Down);
+        watch = new KeyWatch(down, frame, result);
+
+        return result;
+    }
+
+    /// <summary>キーが押されているか。</summary>
+    internal static bool IsKeyDown(VirtualKey key)
+    {
+        var keyState = KeyState;
+
+        return keyState is not null && keyState.IsVirtualKeyValid(key) && keyState[key];
+    }
+
+    /// <summary>このフレームで押されたキーを 1 つ拾う。</summary>
+    private static bool TryCaptureKey(Dalamud.Plugin.Services.IKeyState keyState, out KeyBinding binding)
+    {
+        foreach (var key in GetBindableKeys(keyState))
         {
-            if (!input.IsKeyPressed(key))
+            if (!WasPressed(key))
                 continue;
 
-            binding = new KeyBinding(key, input.Ctrl, input.Shift, input.Alt);
+            binding = new KeyBinding(
+                key,
+                IsKeyDown(VirtualKey.CONTROL),
+                IsKeyDown(VirtualKey.SHIFT),
+                IsKeyDown(VirtualKey.MENU));
+
             return true;
         }
 
@@ -164,77 +228,80 @@ public static partial class EUi
     }
 
     /// <summary>キーの表示名を返す。</summary>
-    internal static string NameOf(ImGuiKey key)
-        => KeyNames.TryGetValue(key, out var name) ? name : key.ToString();
-
-    /// <summary>
-    /// 割り当てに使えるキーを集める。
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ImGui が扱える「名前付きキー」は 512 以降に並ぶ。それより小さい互換用の値や、
-    /// 修飾フラグ (4096 以降) を <c>IsKeyPressed</c> へ渡すと弾かれるため、範囲で先に絞る。
-    /// </para>
-    /// <para>
-    /// 列挙名はバインディングの版で変わりうるので、除外は名前の完全一致で行う。
-    /// 部分一致にすると <c>End</c> が <c>NamedKey_END</c> の判定に巻き込まれる。
-    /// </para>
-    /// </remarks>
-    private static ImGuiKey[] BuildBindableKeys()
+    internal static string NameOf(VirtualKey key)
     {
-        const int NamedKeyFirst = 512;
-        const int ModifierFlagFirst = 4096;
+        keyNames ??= new Dictionary<VirtualKey, string>(256);
 
-        return Enum.GetValues<ImGuiKey>()
-            .Where(key => (int)key is >= NamedKeyFirst and < ModifierFlagFirst)
-            .Where(key => !IsExcluded(key.ToString()))
-            .Distinct()
-            .ToArray();
+        if (keyNames.TryGetValue(key, out var name))
+            return name;
 
-        static bool IsExcluded(string name)
-        {
-            // 数字キーは _0 のように始まる。それ以外で下線を含むものは境界値
-            if (name.IndexOf('_', 1) >= 0)
-                return true;
+        name = FormatKeyName(key);
+        keyNames[key] = name;
 
-            if (name.StartsWith("Gamepad", StringComparison.Ordinal) ||
-                name.StartsWith("Mouse", StringComparison.Ordinal) ||
-                name.StartsWith("Reserved", StringComparison.Ordinal) ||
-                name.StartsWith("Mod", StringComparison.Ordinal))
-                return true;
-
-            // 修飾キーそのものは単体では割り当てさせない
-            return name is "None"
-                or "LeftCtrl" or "RightCtrl"
-                or "LeftShift" or "RightShift"
-                or "LeftAlt" or "RightAlt"
-                or "LeftSuper" or "RightSuper";
-        }
+        return name;
     }
 
-    /// <summary>列挙の名前を、人が読む形へ整える。</summary>
-    private static string FormatKeyName(ImGuiKey key)
+    /// <summary>
+    /// 割り当てに使えるキーを返す。修飾キーそのものは除いてある。
+    /// </summary>
+    /// <remarks>
+    /// <c>GetValidVirtualKeys</c> は呼ぶたびに列挙を作るので、一度だけ配列にして持つ。
+    /// </remarks>
+    private static VirtualKey[] GetBindableKeys(Dalamud.Plugin.Services.IKeyState keyState)
+    {
+        if (bindableKeys is not null)
+            return bindableKeys;
+
+        var keys = new List<VirtualKey>(128);
+
+        foreach (var key in keyState.GetValidVirtualKeys())
+        {
+            if (!IsModifier(key) && key != VirtualKey.ESCAPE)
+                keys.Add(key);
+        }
+
+        bindableKeys = keys.ToArray();
+        return bindableKeys;
+    }
+
+    /// <summary>修飾キーそのものか。単体では割り当てさせない。</summary>
+    private static bool IsModifier(VirtualKey key)
+        => key is VirtualKey.CONTROL or VirtualKey.LCONTROL or VirtualKey.RCONTROL
+            or VirtualKey.SHIFT or VirtualKey.LSHIFT or VirtualKey.RSHIFT
+            or VirtualKey.MENU or VirtualKey.LMENU or VirtualKey.RMENU
+            or VirtualKey.LWIN or VirtualKey.RWIN
+            or VirtualKey.NO_KEY;
+
+    /// <summary>キーの名前を、人が読む形へ整える。</summary>
+    private static string FormatKeyName(VirtualKey key)
     {
         var name = key.ToString();
 
-        // 先頭の下線は数字キー (_0 など) のためのもの
-        name = name.TrimStart('_');
+        // 英数字は先頭の接頭辞を落とす (KEY_A → A)
+        if (name.StartsWith("KEY_", StringComparison.Ordinal))
+            name = name[4..];
 
         return name switch
         {
-            "LeftArrow" => "←",
-            "RightArrow" => "→",
-            "UpArrow" => "↑",
-            "DownArrow" => "↓",
-            "Escape" => "Esc",
-            "Delete" => "Del",
-            "Insert" => "Ins",
-            "PageUp" => "PgUp",
-            "PageDown" => "PgDn",
-            "Backspace" => "BS",
+            "LEFT" => "←",
+            "RIGHT" => "→",
+            "UP" => "↑",
+            "DOWN" => "↓",
+            "ESCAPE" => "Esc",
+            "DELETE" => "Del",
+            "INSERT" => "Ins",
+            "PRIOR" => "PgUp",
+            "NEXT" => "PgDn",
+            "BACK" => "BS",
+            "RETURN" => "Enter",
+            "CAPITAL" => "CapsLock",
+            "SPACE" => "Space",
             _ => name,
         };
     }
+
+    /// <summary>キー 1 つ分の監視状態。</summary>
+    private readonly record struct KeyWatch(bool Down, uint Frame, bool Result);
 }
 
 /// <summary>
@@ -247,48 +314,44 @@ public static partial class EUi
 /// <remarks>
 /// 単純なプロパティだけで構成してあるので、設定クラスへそのまま持たせて保存できる。
 /// </remarks>
-public readonly record struct KeyBinding(ImGuiKey Key, bool Ctrl, bool Shift, bool Alt)
+public readonly record struct KeyBinding(VirtualKey Key, bool Ctrl, bool Shift, bool Alt)
 {
     /// <summary>割り当てなし。</summary>
     public static KeyBinding None => default;
 
     /// <summary>割り当てがあるか。</summary>
-    public bool IsSet => this.Key != ImGuiKey.None;
+    public bool IsSet => this.Key != VirtualKey.NO_KEY;
 
     /// <summary>
-    /// この割り当てがこのフレームで押されたか。
+    /// この割り当てがこのフレームで押されたか。毎フレーム呼ぶ。
     /// </summary>
-    /// <param name="repeat">押しっぱなしで繰り返し反応させるか。</param>
     /// <remarks>
+    /// <para>
     /// 修飾キーは指定どおりでなければ成立しない。Ctrl だけを割り当てた場合に
     /// Ctrl+Shift で反応してしまう、ということはない。
+    /// </para>
+    /// <para>
+    /// 立ち上がりは前回の呼び出しとの差で見るため、毎フレーム呼ぶ必要がある。
+    /// 呼ばないフレームがあると、その間の押し下げを取りこぼす。
+    /// </para>
     /// </remarks>
-    public bool IsPressed(bool repeat = false)
+    public bool IsPressed()
     {
-        if (!this.IsSet)
+        if (!this.IsSet || !this.ModifiersMatch())
             return false;
 
-        var io = ImGui.GetIO();
-
-        if (io.KeyCtrl != this.Ctrl || io.KeyShift != this.Shift || io.KeyAlt != this.Alt)
-            return false;
-
-        return ImGui.IsKeyPressed(this.Key, repeat);
+        return EUi.WasPressed(this.Key);
     }
 
     /// <summary>この割り当てのキーが押されているか。</summary>
     public bool IsDown()
-    {
-        if (!this.IsSet)
-            return false;
+        => this.IsSet && this.ModifiersMatch() && EUi.IsKeyDown(this.Key);
 
-        var io = ImGui.GetIO();
-
-        if (io.KeyCtrl != this.Ctrl || io.KeyShift != this.Shift || io.KeyAlt != this.Alt)
-            return false;
-
-        return ImGui.IsKeyDown(this.Key);
-    }
+    /// <summary>修飾キーの状態が、割り当てと一致しているか。</summary>
+    private bool ModifiersMatch()
+        => EUi.IsKeyDown(VirtualKey.CONTROL) == this.Ctrl
+           && EUi.IsKeyDown(VirtualKey.SHIFT) == this.Shift
+           && EUi.IsKeyDown(VirtualKey.MENU) == this.Alt;
 
     /// <summary>
     /// 表示用の文字列を組み立てる。書き込んだ長さを返す。

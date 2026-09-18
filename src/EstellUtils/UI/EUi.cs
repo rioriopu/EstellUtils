@@ -76,9 +76,15 @@ public static partial class EUi
     /// <c>UiBuilder.Draw</c> へウィンドウ描画を自動接続するか。
     /// false にした場合は、プラグイン側で毎フレーム <c>EUi.Windows.Draw()</c> を呼ぶこと。
     /// </param>
+    /// <param name="keyState">
+    /// ゲームのキー状態。<c>EUi.KeyBind</c> を使う場合に渡す。
+    /// ImGui 経由では FFXIV 本体が先に処理してしまうキーを拾えないため、
+    /// キー割り当ての判定にはこちらを使う。
+    /// </param>
     public static void Initialize(
         IDalamudPluginInterface pluginInterface, Theme? theme = null,
-        IPluginLog? log = null, bool hookDraw = true)
+        IPluginLog? log = null, bool hookDraw = true,
+        Dalamud.Plugin.Services.IKeyState? keyState = null)
     {
         ArgumentNullException.ThrowIfNull(pluginInterface);
 
@@ -86,6 +92,7 @@ public static partial class EUi
 
         PluginInterface = pluginInterface;
         UiLog.Sink = log;
+        KeyState = keyState;
 
         fontManager = new FontManager(pluginInterface);
         windowManager = new EuWindowManager();
@@ -99,6 +106,15 @@ public static partial class EUi
             pluginInterface.UiBuilder.Draw += drawHandler;
         }
     }
+
+    /// <summary>
+    /// ゲームのキー状態。<see cref="Initialize"/> で渡されていなければ null。
+    /// </summary>
+    /// <remarks>
+    /// キー割り当ての判定に使う。ImGui 経由でキーを見ると、FFXIV 本体が先に
+    /// 処理してしまうキーを拾えない。ゲームのキー状態を直接読むことでそれを避ける。
+    /// </remarks>
+    public static Dalamud.Plugin.Services.IKeyState? KeyState { get; private set; }
 
     /// <summary>ライブラリが確保した資源を解放する。プラグインの Dispose から呼ぶこと。</summary>
     public static void Shutdown()
@@ -116,6 +132,7 @@ public static partial class EUi
 
         UiLog.Sink = null;
         PluginInterface = null;
+        KeyState = null;
     }
 
     /// <summary>既定テーマを差し替える。</summary>

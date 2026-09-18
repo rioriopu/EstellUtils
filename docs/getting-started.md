@@ -111,6 +111,18 @@ public override void OnClose()
 読み込み側では、位置を設定したあとに自動中央寄せが働かないよう注意してください
 （`EuWindow` を継承している場合は `MarkPlaced()`、ビルダーの場合は `.At(x, y)`）。
 
+## キー割り当てを使う場合
+
+`EUi.KeyBind` を使うなら、`IKeyState` も渡してください。
+ImGui 経由でキーを見ると、FFXIV 本体が先に処理してしまうキーを拾えません。
+
+```csharp
+public Plugin(IDalamudPluginInterface pi, IPluginLog log, IKeyState keyState)
+{
+    EUi.Initialize(pi, log: log, keyState: keyState);
+}
+```
+
 ## 起動直後の描画について
 
 ゲーム起動直後の数フレームは、**ウィンドウが描かれません。**

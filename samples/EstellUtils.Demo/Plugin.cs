@@ -30,13 +30,15 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
-        IPluginLog log)
+        IPluginLog log,
+        IKeyState keyState)
     {
         this.pluginInterface = pluginInterface;
         this.commandManager = commandManager;
 
-        // ライブラリの初期化。UiBuilder.Draw への接続もここで行われる
-        EUi.Initialize(pluginInterface, log: log);
+        // ライブラリの初期化。UiBuilder.Draw への接続もここで行われる。
+        // キー割り当てを使うので IKeyState も渡す
+        EUi.Initialize(pluginInterface, log: log, keyState: keyState);
 
         this.window = new GalleryWindow { IsOpen = true };
         EUi.Windows.Add(this.window);

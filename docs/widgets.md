@@ -162,11 +162,23 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 
 ### キー割り当て
 
+**`IKeyState` を `EUi.Initialize` へ渡してください。** ImGui 経由でキーを見ると、
+FFXIV 本体が先に処理してしまうキーを拾えません。ゲームのキー状態を直接読むことで避けます。
+
+```csharp
+public Plugin(IDalamudPluginInterface pi, IPluginLog log, IKeyState keyState)
+{
+    EUi.Initialize(pi, log: log, keyState: keyState);
+}
+```
+
+渡していない場合、割り当ての欄は「キー状態を取得できません」と表示して操作を受け付けません。
+
 `KeyBinding` は単純なプロパティだけで構成してあるので、設定へそのまま保存できます。
 
 ```csharp
 // 設定クラス
-public KeyBinding ToggleKey { get; set; } = new(ImGuiKey.F9, Ctrl: true, Shift: false, Alt: false);
+public KeyBinding ToggleKey { get; set; } = new(VirtualKey.F9, Ctrl: true, Shift: false, Alt: false);
 
 // 設定画面
 if (EUi.KeyBind("切り替えキー", ref this.config.ToggleKey))
@@ -183,6 +195,9 @@ if (this.config.ToggleKey.IsPressed())
 
 `IsPressed()` は修飾キーが指定どおりでなければ成立しません。
 `Ctrl+F9` を割り当てた場合、`Ctrl+Shift+F9` では反応しません。
+
+**`IsPressed()` は毎フレーム呼んでください。** 押し下がった瞬間は前回の呼び出しとの差で
+見ているため、呼ばないフレームがあるとその間の押し下げを取りこぼします。
 
 ### 絞り込み
 
