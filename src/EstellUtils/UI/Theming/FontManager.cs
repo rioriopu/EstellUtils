@@ -95,10 +95,63 @@ public sealed class FontManager : IDisposable
     /// <summary>
     /// フォントを適用するスコープを開く。<c>using</c> で抜けると元へ戻る。
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ゲームフォントのアトラスは非同期に構築される。まだ構築できていないハンドルを
+    /// <c>Push</c> すると、Dalamud は ASCII しか持たない代替フォントを積むため、
+    /// 日本語がすべて <c>?</c> になる。ゲーム起動直後の数フレームがこれに当たる。
+    /// </para>
+    /// <para>
+    /// 構築が済むまでは Dalamud の既定フォントへ退避する。こちらは日本語字形を持つので、
+    /// 字体が一瞬変わるだけで読めなくなることはない。
+    /// </para>
+    /// </remarks>
     public FontScope Push(FontRole role)
     {
         var handle = this.Get(role);
-        return new FontScope(handle?.Push());
+
+        if (handle is { Available: true })
+            return new FontScope(handle.Push());
+
+        var fallback = this.pluginInterface.UiBuilder.DefaultFontHandle;
+
+        // 既定フォントも間に合っていなければ何も積まない。
+        // Dalamud が描画前に積んでいるフォントがそのまま使われる
+        return fallback is { Available: true }
+            ? new FontScope(fallback.Push())
+            : default;
+    }
+
+    /// <summary>
+    /// 役割に対応するフォントが使える状態か。
+    /// </summary>
+    /// <remarks>
+    /// 起動直後は false になることがある。描画を遅らせたい場合の判定に使う。
+    /// </remarks>
+    public bool IsReady(FontRole role) => this.Get(role) is { Available: true };
+
+    /// <summary>
+    /// 日本語を含む文字を正しく描ける状態か。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// フォントのアトラスが構築できるまでは、ASCII しか持たない代替フォントしか無い。
+    /// その状態で描くと日本語がすべて <c>?</c> になるため、
+    /// ウィンドウの描画はこれが true になるまで待つ。
+    /// </para>
+    /// <para>
+    /// 参照した時点でゲームフォントの構築が始まるので、早めに呼ぶほど待ち時間は短くなる。
+    /// </para>
+    /// </remarks>
+    public bool IsTextReady
+    {
+        get
+        {
+            if (this.pluginInterface.UiBuilder.DefaultFontHandle is not { Available: true })
+                return false;
+
+            return !this.UseGameFont || this.GetGameFont(FontRole.Body) is { Available: true };
+        }
     }
 
     /// <summary>ゲームフォントを必要に応じて生成して返す。</summary>

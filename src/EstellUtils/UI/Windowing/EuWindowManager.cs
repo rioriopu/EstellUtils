@@ -17,9 +17,13 @@ public sealed class EuWindowManager : IDisposable
     private readonly List<EuWindow> windows = new();
     private readonly List<EuWindow> drawBuffer = new();
 
+    /// <summary>フォントの構築を待つ上限 (秒)。これを過ぎたら諦めて描く。</summary>
+    private const float FontWaitLimit = 5f;
+
     private EuWindowLayout? layout;
     private Action? layoutSave;
     private bool disposed;
+    private float fontWait;
 
     /// <summary>管理しているウィンドウの数。</summary>
     public int Count => this.windows.Count;
@@ -110,7 +114,17 @@ public sealed class EuWindowManager : IDisposable
         if (this.disposed)
             return;
 
-        UiContext.Current.EnsureFrame();
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        // フォントのアトラスが構築できるまでは描かない。
+        // ASCII しか持たない代替フォントで描くと、日本語がすべて ? になる。
+        // ゲーム起動直後の数フレームがこれに当たる
+        if (this.fontWait < FontWaitLimit && !EUi.Fonts.IsTextReady)
+        {
+            this.fontWait += ctx.DeltaTime;
+            return;
+        }
 
         // 通知はウィンドウが 1 つも開いていなくても表示する
         Widgets.ToastManager.Draw();
