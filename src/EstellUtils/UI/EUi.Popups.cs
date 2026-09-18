@@ -278,8 +278,10 @@ public static partial class EUi
 
             var cancelWidth = ButtonWidthFor(cancelText);
             var okWidth = ButtonWidthFor(okText);
-            var gap = Metrics.ItemSpacing.X;
-            var spacer = MathF.Max(0f, AvailableWidth - cancelWidth - okWidth - gap);
+
+            // 3 列なので隙間は 2 つ。引き忘れるとボタンが枠からはみ出す
+            var spacer = MathF.Max(
+                0f, AvailableWidth - cancelWidth - okWidth - ColumnSpacing(3));
 
             using (Row(SizeSpec.Px(spacer), SizeSpec.Px(cancelWidth), SizeSpec.Px(okWidth)))
             {

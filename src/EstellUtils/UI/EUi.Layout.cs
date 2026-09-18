@@ -20,6 +20,26 @@ public static partial class EUi
     /// <summary>次の要素に使える幅。</summary>
     public static float AvailableWidth => AvailableRect.Width;
 
+    /// <summary>
+    /// 列を並べたときに、列の間の隙間が占める合計幅。
+    /// </summary>
+    /// <param name="columnCount">列の数。</param>
+    /// <param name="spacing">隙間。省略するとテーマの既定値。</param>
+    /// <remarks>
+    /// 固定幅の列を自分で計算するときは、この分を引いてから配る。
+    /// 引き忘れると、右端の要素が行からはみ出して枠を突き抜ける。
+    /// <code>
+    /// // 入力欄 + ボタン 2 つを、与えられた幅へ収める
+    /// var fieldWidth = totalWidth - (buttonWidth * 2f) - EUi.ColumnSpacing(3);
+    ///
+    /// using (EUi.Row(SizeSpec.Px(fieldWidth), SizeSpec.Px(buttonWidth), SizeSpec.Px(buttonWidth)))
+    /// </code>
+    /// そもそも 1 列を <see cref="SizeSpec.Fill"/> にすれば、残り幅の計算は
+    /// レイアウト側が行うので、この関数は要らなくなる。
+    /// </remarks>
+    public static float ColumnSpacing(int columnCount, float? spacing = null)
+        => (spacing ?? Metrics.ItemSpacing.X) * Math.Max(0, columnCount - 1);
+
     /// <summary>次の要素に使える高さ。</summary>
     public static float AvailableHeight => AvailableRect.Height;
 

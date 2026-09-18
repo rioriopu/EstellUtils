@@ -388,6 +388,32 @@ using (EUi.Row(SizeSpec.Weight(2f), SizeSpec.Weight(1f)))  // 2:1 で分ける
 using (EUi.Row(SizeSpec.Ratio(0.3f), SizeSpec.Fill))       // 3 割 / 残り
 ```
 
+**列幅の指定は「入るならこの幅で」という意味で、はみ出す許可ではありません。**
+固定幅の合計が行に収まらない場合は、はみ出す代わりに比例で縮みます。
+
+### 行からはみ出させない
+
+固定幅を自分で計算するとき、**列の間の隙間を引き忘れる**のがよくある間違いです。
+右端の要素が枠を突き抜ける形で必ず表に出ます。
+
+```csharp
+// 誤り: 3 列なら隙間は 2 つ入る。その分だけ右へはみ出す
+var fieldWidth = totalWidth - (buttonWidth * 2f);
+
+// 正しい
+var fieldWidth = totalWidth - (buttonWidth * 2f) - EUi.ColumnSpacing(3);
+```
+
+**そもそも 1 列を `SizeSpec.Fill` にすれば、残り幅の計算はレイアウト側が行います。**
+自分で引き算をしないのが一番確実です。
+
+```csharp
+using (EUi.Row(SizeSpec.Fill, 24f, 24f))   // 入力欄が残りを取る
+```
+
+配分そのものは `ColumnLayout.Resolve` に切り出してあり、
+「合計が行幅を超えない」ことを自己検証で機械的に確かめています。
+
 ## 表
 
 列定義を呼び出し側で保持し、見出しと各行へ同じものを渡します。

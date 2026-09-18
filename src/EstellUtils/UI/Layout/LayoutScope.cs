@@ -154,57 +154,25 @@ public sealed class LayoutScope
     }
 
     /// <summary>列定義から実際の列幅を計算する。</summary>
+    /// <remarks>
+    /// 配分そのものは <see cref="ColumnLayout"/> が行う。
+    /// 描画にも ImGui にも依らない純粋な計算に切り出してあり、機械的に検証している。
+    /// </remarks>
     private void ResolveColumns()
     {
         var count = this.columnCount;
+
         if (count == 0)
             return;
+
         if (this.columnWidths.Length < count)
             this.columnWidths = new float[count];
 
-        var totalSpacing = this.Spacing.X * (count - 1);
-        var available = MathF.Max(0f, this.Bounds.Width - totalSpacing);
-
-        // 固定幅・比率を先に確定し、残りを Fill の重みで分配する
-        var used = 0f;
-        var totalWeight = 0f;
-
-        for (var i = 0; i < count; i++)
-        {
-            var spec = this.columnBuffer[i];
-            switch (spec.Mode)
-            {
-                case SizeMode.Fixed:
-                    this.columnWidths[i] = spec.Value;
-                    used += spec.Value;
-                    break;
-
-                case SizeMode.Ratio:
-                    this.columnWidths[i] = available * spec.Value;
-                    used += this.columnWidths[i];
-                    break;
-
-                case SizeMode.Auto:
-                    // 内容サイズはこの時点では不明。ラベル列は LabelColumn で別途揃える
-                    this.columnWidths[i] = 0f;
-                    break;
-
-                default:
-                    this.columnWidths[i] = 0f;
-                    totalWeight += spec.Value;
-                    break;
-            }
-        }
-
-        if (totalWeight <= 0f)
-            return;
-
-        var remaining = MathF.Max(0f, available - used);
-        for (var i = 0; i < count; i++)
-        {
-            if (this.columnBuffer[i].Mode == SizeMode.Fill)
-                this.columnWidths[i] = remaining * (this.columnBuffer[i].Value / totalWeight);
-        }
+        ColumnLayout.Resolve(
+            this.columnBuffer.AsSpan(0, count),
+            this.Bounds.Width,
+            this.Spacing.X,
+            this.columnWidths.AsSpan(0, count));
     }
 
     /// <summary>指定サイズの領域を確保する。</summary>

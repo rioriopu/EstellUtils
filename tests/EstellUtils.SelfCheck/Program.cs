@@ -36,6 +36,7 @@ internal static class Program
         CheckLabelRoom();
         CheckEdgeSnap();
         CheckCrossAlign();
+        CheckColumnLayout();
 
         if (Failures.Count == 0)
         {
@@ -325,6 +326,100 @@ internal static class Program
                 _ => 0f,
             };
         }
+    }
+
+    /// <summary>
+    /// 列幅の配分の検証。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 「列の間の隙間を引き忘れる」という同じ間違いを繰り返し起こしている
+    /// (数値入力の増減ボタンと、確認ダイアログのボタン行がどちらもこれだった)。
+    /// はみ出しは必ず右端の要素が枠を突き抜ける形で表に出るので、
+    /// 合計が行幅を超えないことを機械的に確かめる。
+    /// </para>
+    /// </remarks>
+    private static void CheckColumnLayout()
+    {
+        const float Spacing = 8f;
+
+        // 隙間は列数 - 1 個
+        Expect(ColumnLayout.SpacingTotal(1, Spacing) == 0f, "1 列に隙間が入っている");
+        Expect(ColumnLayout.SpacingTotal(3, Spacing) == 16f, "3 列の隙間が 2 つ分になっていない");
+
+        // 数値入力と同じ形。入力欄 + ボタン 2 つが、ちょうど収まること
+        {
+            const float Total = 300f;
+            const float Button = 24f;
+            var field = Total - (Button * 2f) - ColumnLayout.SpacingTotal(3, Spacing);
+
+            Span<float> widths = stackalloc float[3];
+            ColumnLayout.Resolve(
+                [SizeSpec.Px(field), SizeSpec.Px(Button), SizeSpec.Px(Button)],
+                Total, Spacing, widths);
+
+            ExpectFits(widths, Total, Spacing, "数値入力の列が行に収まっていない");
+            Expect(widths[2] == Button, $"増減ボタンが縮んでいる: {widths[2]}");
+        }
+
+        // 幅が足りない場合は、はみ出す代わりに比例で縮む
+        {
+            const float Total = 100f;
+
+            Span<float> widths = stackalloc float[3];
+            ColumnLayout.Resolve(
+                [SizeSpec.Px(200f), SizeSpec.Px(24f), SizeSpec.Px(24f)],
+                Total, Spacing, widths);
+
+            ExpectFits(widths, Total, Spacing, "入りきらない列が縮められていない");
+        }
+
+        // Fill は隙間を除いた残りを受け取る
+        {
+            const float Total = 200f;
+
+            Span<float> widths = stackalloc float[2];
+            ColumnLayout.Resolve([SizeSpec.Px(60f), SizeSpec.Fill], Total, Spacing, widths);
+
+            Expect(widths[1] == Total - 60f - Spacing, $"Fill が隙間を勘定していない: {widths[1]}");
+            ExpectFits(widths, Total, Spacing, "Fill を含む列が行に収まっていない");
+        }
+
+        // Fill どうしは重みで分け合う
+        {
+            const float Total = 208f;
+
+            Span<float> widths = stackalloc float[3];
+            ColumnLayout.Resolve([SizeSpec.Fill, SizeSpec.Fill, SizeSpec.Fill], Total, Spacing, widths);
+
+            Expect(
+                MathF.Abs(widths[0] - 64f) < 0.01f,
+                $"均等割りがずれている: {widths[0]}");
+
+            ExpectFits(widths, Total, Spacing, "均等割りが行に収まっていない");
+        }
+
+        // 比率の合計が 1 を超えても、行の外へは出ない
+        {
+            const float Total = 300f;
+
+            Span<float> widths = stackalloc float[2];
+            ColumnLayout.Resolve([SizeSpec.Ratio(0.8f), SizeSpec.Ratio(0.8f)], Total, Spacing, widths);
+
+            ExpectFits(widths, Total, Spacing, "比率の合計が 1 を超えたときに収まっていない");
+        }
+    }
+
+    /// <summary>列幅の合計が、隙間を含めて行幅に収まっているか。</summary>
+    private static void ExpectFits(ReadOnlySpan<float> widths, float total, float spacing, string message)
+    {
+        var sum = ColumnLayout.SpacingTotal(widths.Length, spacing);
+
+        foreach (var width in widths)
+            sum += width;
+
+        // 丸め差は許す。1px を超えてはみ出したら失敗
+        Expect(sum <= total + 1f, $"{message}: 合計 {sum} > 行幅 {total}");
     }
 
     private static void Expect(bool condition, string message)

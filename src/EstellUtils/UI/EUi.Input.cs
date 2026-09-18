@@ -221,9 +221,15 @@ public static partial class EUi
 
         using var scope = ctx.ScopedId(id);
 
+        var columnCount = withStepper ? 3 : 1;
         var buttonWidth = withStepper ? Metrics.WidgetHeight : 0f;
+
+        // 列の間には隙間が入る。その分を引かずに幅を決めると、
+        // 右端のボタンが行からはみ出して枠を突き抜ける
         var totalWidth = width?.Resolve(AvailableWidth) ?? AvailableWidth;
-        var fieldWidth = MathF.Max(Metrics.WidgetMinWidth, totalWidth - (buttonWidth * 2f));
+        var fieldWidth = MathF.Max(
+            Metrics.WidgetMinWidth,
+            totalWidth - (buttonWidth * 2f) - ColumnSpacing(columnCount));
 
         WidgetResult result;
 
