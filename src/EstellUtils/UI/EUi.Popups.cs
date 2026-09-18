@@ -85,7 +85,9 @@ public static partial class EUi
 
         var position = ResolveAnchor(ctx, anchor, size);
 
-        ImGui.SetNextWindowPos(position);
+        // 位置は開いた時点で決めて固定する。毎フレーム置き直すと、
+        // マウスの位置を基準にしたときにメニューが指へ追従してしまう
+        ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
         if (!BeginPopupBox(id))
@@ -132,7 +134,8 @@ public static partial class EUi
         var size = MeasureMenu(entries, padding, out var itemHeight, out var hasCheckColumn);
         var position = ResolveAnchor(ctx, anchor, size);
 
-        ImGui.SetNextWindowPos(position);
+        // 開いた時点の位置に固定する。毎フレーム置き直すとマウスへ追従してしまう
+        ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
         if (!BeginPopupBox(id))

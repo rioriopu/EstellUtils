@@ -256,6 +256,9 @@ using (var popup = EUi.Popup("detail", new Vector2(280f, 150f)))
 `BelowLastItem`（既定）/ `AboveLastItem` / `MousePosition` / `ScreenCenter`。
 どれを選んでも、画面の外へはみ出さないよう収められます。
 
+**位置は開いた時点で決まり、以降は動きません。**
+`MousePosition` でもマウスには追従しないので、メニューの項目を選びに行けます。
+
 ## 器
 
 | API | 説明 |
