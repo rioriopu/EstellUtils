@@ -207,7 +207,7 @@ foreach (var item in this.items)
 |---|---|
 | `EUi.Badge(text, kind, filled)` | 小さな見出し札。状態や種別を 1 語で |
 | `EUi.StatusDot(on, label, onColor, pulse)` | 点とラベル。動いているかを一目で |
-| `EUi.Sparkline(id, values, height, min, max, color, label)` | 値の推移を折れ線で |
+| `EUi.Sparkline(id, values, height, min, max, color, label, format)` | 値の推移を折れ線で |
 
 ```csharp
 using (EUi.HStack())
@@ -221,7 +221,11 @@ EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{fps:0} fps");
 
 `Sparkline` は古いものから順に並んだ配列を受け取ります。
 上下の範囲は既定で配列の最小・最大に合わせるので、値の細かい動きが見えます。
-`min` / `max` を渡すと固定できます。マウスを乗せると、その位置の値が出ます。
+`min` / `max` を渡すと固定できます。
+
+マウスを乗せると、その位置に印と値が出ます。**値はグラフの中へ直接描きます** —
+ツールチップにすると、呼び出し側が `Tip` で付けた説明と取り合いになるためです。
+値の書式は `format` で変えられます（`"0"` で整数、既定は小数 2 桁まで）。
 
 ## ポップアップ・メニュー・確認ダイアログ
 

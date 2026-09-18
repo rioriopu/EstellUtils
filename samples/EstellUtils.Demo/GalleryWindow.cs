@@ -380,8 +380,9 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Separator("推移");
 
-        EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{ImGui.GetIO().Framerate:0} fps")
-           .Tip("マウスを乗せると、その時点の値が出ます。");
+        EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{ImGui.GetIO().Framerate:0} fps", format: "0");
+
+        EUi.Muted("マウスを乗せると、その時点の値が出ます。");
     }
 
     /// <summary>ポップアップ・メニュー・確認ダイアログの確認。</summary>

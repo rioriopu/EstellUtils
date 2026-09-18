@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 
 using EstellUtils.UI.Core;
@@ -147,13 +148,16 @@ public static partial class EUi
     /// <param name="max">上端にあたる値。省略すると <paramref name="values"/> の最大値。</param>
     /// <param name="color">線の色。省略するとアクセント色。</param>
     /// <param name="label">左上へ重ねて出す文字。</param>
+    /// <param name="format">値の書式。省略すると小数 2 桁まで。</param>
     /// <remarks>
-    /// マウスを乗せると、その位置の値をツールチップで出す。
+    /// マウスを乗せると、その位置に印と値が出る。値はグラフの中へ直接描く。
+    /// ツールチップにすると、呼び出し側が <c>Tip</c> で付けた説明と取り合いになるため。
     /// </remarks>
     public static WidgetResult Sparkline(
         ReadOnlySpan<char> id, ReadOnlySpan<float> values,
         float height = 36f, float? min = null, float? max = null,
-        uint? color = null, ReadOnlySpan<char> label = default)
+        uint? color = null, ReadOnlySpan<char> label = default,
+        ReadOnlySpan<char> format = default)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -226,8 +230,6 @@ public static partial class EUi
                 rect.Shrink(Metrics.SpacingSm), Colors.TextMuted, label, Align.Start, Align.Start);
         }
 
-        var result = WidgetResult.From(interaction);
-
         // 乗せた位置の値を出す。どの時点の値かを読み取れるようにする
         if (interaction.Hovered && step > 0f)
         {
@@ -237,6 +239,7 @@ public static partial class EUi
                 values.Length - 1);
 
             var marker = PointAt(plot, offset, step, values[offset], lower, upper);
+
             Painter.Line(
                 new Vector2(marker.X, plot.Min.Y),
                 new Vector2(marker.X, plot.Max.Y),
@@ -244,13 +247,10 @@ public static partial class EUi
 
             Painter.Circle(marker, 2.5f, lineColor);
 
-            Span<char> buffer = stackalloc char[32];
-
-            if (values[offset].TryFormat(buffer, out var written, "0.##"))
-                result = result.Tip(buffer[..written]);
+            DrawSparklineValue(rect, marker, values[offset], format);
         }
 
-        return result;
+        return WidgetResult.From(interaction);
 
         static Vector2 PointAt(Rect plot, int index, float step, float value, float lower, float upper)
         {
@@ -260,5 +260,48 @@ public static partial class EUi
                 plot.Min.X + (step * index),
                 plot.Max.Y - (plot.Height * t));
         }
+    }
+
+    /// <summary>推移グラフの、印を付けた位置の値を吹き出しで描く。</summary>
+    private static void DrawSparklineValue(
+        Rect bounds, Vector2 marker, float value, ReadOnlySpan<char> format)
+    {
+        Span<char> buffer = stackalloc char[32];
+
+        if (!value.TryFormat(
+                buffer, out var written,
+                format.IsEmpty ? "0.##" : format,
+                CultureInfo.InvariantCulture))
+        {
+            return;
+        }
+
+        var text = buffer[..written];
+        var textSize = TextPainter.Measure(text);
+
+        var box = Rect.FromSize(
+            Vector2.Zero,
+            new Vector2(
+                MathF.Ceiling(textSize.X) + (Metrics.SpacingSm * 2f),
+                MathF.Ceiling(TextPainter.LineHeight) + (Metrics.SpacingXs * 2f)));
+
+        // 印の上へ。上端からはみ出すなら下へ回す
+        var x = Math.Clamp(
+            marker.X - (box.Width * 0.5f),
+            bounds.Min.X,
+            MathF.Max(bounds.Min.X, bounds.Max.X - box.Width));
+
+        var y = marker.Y - box.Height - 4f;
+
+        if (y < bounds.Min.Y)
+            y = MathF.Min(marker.Y + 4f, bounds.Max.Y - box.Height);
+
+        box = Rect.FromSize(new Vector2(MathF.Round(x), MathF.Round(y)), box.Size);
+
+        var rounding = Metrics.WidgetRounding;
+        Painter.Rect(box, Colors.TooltipBackground, rounding);
+        Painter.RectOutline(box, Colors.TooltipBorder, 1f, rounding);
+
+        TextPainter.TextIn(box, Colors.Text, text, Align.Center, Align.Center, ellipsize: false);
     }
 }
