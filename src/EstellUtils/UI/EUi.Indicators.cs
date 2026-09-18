@@ -115,11 +115,12 @@ public static partial class EUi
             rect.Min.X + StatusDotRadius,
             rect.Min.Y + (lineHeight * 0.5f));
 
-        // 点いているときは淡い暈しを添えて、消えている状態と見分けやすくする
-        if (on)
-            Painter.Circle(center, StatusDotRadius * 2f, EuColor.WithAlpha(color, 0.18f));
-
+        // 点いているときは細いリングを添えて、消えている状態と見分けやすくする。
+        // 薄い面を敷く方法も試したが、点の背後に四角い染みがあるように見えた
         Painter.Circle(center, StatusDotRadius, color);
+
+        if (on)
+            Painter.CircleOutline(center, StatusDotRadius + 2f, EuColor.WithAlpha(color, 0.45f), 1f);
 
         if (!label.IsEmpty)
         {

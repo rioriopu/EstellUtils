@@ -18,7 +18,7 @@ public sealed class ThemeMetrics
     public float WindowBorderWidth { get; set; } = 1f;
 
     /// <summary>ウィンドウ内側の余白。</summary>
-    public EdgeInsets WindowPadding { get; set; } = EdgeInsets.All(10f);
+    public EdgeInsets WindowPadding { get; set; } = EdgeInsets.All(14f);
 
     /// <summary>タイトルバーの高さ。</summary>
     public float TitleBarHeight { get; set; } = 28f;

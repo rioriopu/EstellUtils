@@ -82,6 +82,10 @@ public static partial class EUi
 
         if (state.Open && !disabled)
         {
+            // 待ち受け中は ImGui にキーボードを押さえさせる。
+            // でないと押したキーがゲーム側のホットキーとして処理されてしまう
+            ImGui.SetNextFrameWantCaptureKeyboard(true);
+
             if (ctx.Input.IsKeyPressed(ImGuiKey.Escape))
             {
                 state.Open = false;
@@ -167,30 +171,45 @@ public static partial class EUi
     /// 割り当てに使えるキーを集める。
     /// </summary>
     /// <remarks>
-    /// <see cref="ImGuiKey"/> の列挙名はバインディングの版で変わりうるので、
-    /// 特定の名前には頼らず、修飾キーと内部用の値を名前で振るい落とす。
-    /// 起動時に一度だけ行う。
+    /// <para>
+    /// ImGui が扱える「名前付きキー」は 512 以降に並ぶ。それより小さい互換用の値や、
+    /// 修飾フラグ (4096 以降) を <c>IsKeyPressed</c> へ渡すと弾かれるため、範囲で先に絞る。
+    /// </para>
+    /// <para>
+    /// 列挙名はバインディングの版で変わりうるので、除外は名前の完全一致で行う。
+    /// 部分一致にすると <c>End</c> が <c>NamedKey_END</c> の判定に巻き込まれる。
+    /// </para>
     /// </remarks>
     private static ImGuiKey[] BuildBindableKeys()
     {
+        const int NamedKeyFirst = 512;
+        const int ModifierFlagFirst = 4096;
+
         return Enum.GetValues<ImGuiKey>()
-            .Where(key => (int)key > 0)
+            .Where(key => (int)key is >= NamedKeyFirst and < ModifierFlagFirst)
             .Where(key => !IsExcluded(key.ToString()))
             .Distinct()
             .ToArray();
 
         static bool IsExcluded(string name)
-            => name.Contains("Mod", StringComparison.Ordinal)
-               || name.Contains("Ctrl", StringComparison.Ordinal)
-               || name.Contains("Shift", StringComparison.Ordinal)
-               || name.Contains("Alt", StringComparison.Ordinal)
-               || name.Contains("Super", StringComparison.Ordinal)
-               || name.Contains("Reserved", StringComparison.Ordinal)
-               || name.Contains("COUNT", StringComparison.OrdinalIgnoreCase)
-               || name.Contains("BEGIN", StringComparison.OrdinalIgnoreCase)
-               || name.Contains("END", StringComparison.OrdinalIgnoreCase)
-               || name.StartsWith("Gamepad", StringComparison.Ordinal)
-               || name.StartsWith("Mouse", StringComparison.Ordinal);
+        {
+            // 数字キーは _0 のように始まる。それ以外で下線を含むものは境界値
+            if (name.IndexOf('_', 1) >= 0)
+                return true;
+
+            if (name.StartsWith("Gamepad", StringComparison.Ordinal) ||
+                name.StartsWith("Mouse", StringComparison.Ordinal) ||
+                name.StartsWith("Reserved", StringComparison.Ordinal) ||
+                name.StartsWith("Mod", StringComparison.Ordinal))
+                return true;
+
+            // 修飾キーそのものは単体では割り当てさせない
+            return name is "None"
+                or "LeftCtrl" or "RightCtrl"
+                or "LeftShift" or "RightShift"
+                or "LeftAlt" or "RightAlt"
+                or "LeftSuper" or "RightSuper";
+        }
     }
 
     /// <summary>列挙の名前を、人が読む形へ整える。</summary>
