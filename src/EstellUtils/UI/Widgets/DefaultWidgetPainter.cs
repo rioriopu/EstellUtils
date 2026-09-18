@@ -75,7 +75,11 @@ public class DefaultWidgetPainter : IWidgetPainter
         }
 
         var textColor = this.ResolveButtonTextColor(visual, style);
-        var textArea = body.Shrink(Metrics.WidgetPadding);
+
+        // 文字は沈み込みだけを追い、縮小は追わない。
+        // ボタンの幅は文字にちょうど合わせて作られるので、地に合わせて縮めると
+        // 押した瞬間にラベルが省略記号へ化けてしまう
+        var textArea = rect.Offset(0f, sink).Shrink(Metrics.WidgetPadding);
 
         if (style == ButtonStyle.Link)
         {
