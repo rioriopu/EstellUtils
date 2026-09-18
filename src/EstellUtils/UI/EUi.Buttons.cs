@@ -286,6 +286,118 @@ public static partial class EUi
     }
 
     /// <summary>チェックボックス等の右側に置くラベルを描く。</summary>
+    /// <summary>
+    /// 排他選択を横並びのひと続きで見せる。選択肢が少ないときはタブより軽く収まる。
+    /// <code>
+    /// if (EUi.SegmentedControl("方式", ref this.config.Method, ["GPU-GDI", "DComp", "CPU"]))
+    ///     this.config.Save();
+    /// </code>
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="index">選択中の添字。</param>
+    /// <param name="options">選択肢。</param>
+    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// 選択の印は隣の区画へ滑って移る。どこから動いたのかが分かるようにするため。
+    /// </remarks>
+    public static WidgetResult SegmentedControl(
+        ReadOnlySpan<char> id, ref int index, ReadOnlySpan<string> options,
+        SizeSpec? width = null, bool disabled = false)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
+
+        var euId = ctx.GetId(id);
+        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+
+        if (options.Length == 0)
+            return new WidgetResult { Id = euId, Rect = rect };
+
+        index = Math.Clamp(index, 0, options.Length - 1);
+
+        var rounding = Metrics.WidgetRounding;
+        Painter.Rect(rect, Colors.Track, rounding);
+
+        var segmentWidth = rect.Width / options.Length;
+
+        // 選択の印は位置を覚えておき、目標へ寄せていく
+        ref var state = ref ctx.Store.GetRef(euId);
+        var target = segmentWidth * index;
+
+        if (!state.Initialized)
+        {
+            state.Initialized = true;
+            state.Custom0 = target;
+        }
+
+        state.Custom0 = Motion.Enabled
+            ? Anim.Approach(state.Custom0, target, Motion.OpenSpeed, ctx.DeltaTime)
+            : target;
+
+        var markerRect = Rect.FromSize(
+            new Vector2(rect.Min.X + state.Custom0, rect.Min.Y),
+            new Vector2(segmentWidth, rect.Height));
+
+        Painter.Rect(
+            markerRect.Shrink(2f),
+            disabled ? Colors.SurfaceHover : Colors.Accent,
+            MathF.Max(0f, rounding - 1f));
+
+        var changed = false;
+
+        for (var i = 0; i < options.Length; i++)
+        {
+            var segment = Rect.FromSize(
+                new Vector2(rect.Min.X + (segmentWidth * i), rect.Min.Y),
+                new Vector2(segmentWidth, rect.Height));
+
+            var interaction = Interaction.Behavior(
+                segment, euId.Child(i),
+                disabled ? InteractionFlags.Disabled : InteractionFlags.None);
+
+            if (interaction.Clicked && i != index)
+            {
+                index = i;
+                changed = true;
+            }
+
+            var selected = i == index;
+
+            // 選択されていない区画は、乗せたときだけ薄く反応させる
+            if (!selected && interaction.HoverAmount > 0.01f)
+            {
+                Painter.Rect(
+                    segment.Shrink(2f),
+                    EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.7f),
+                    MathF.Max(0f, rounding - 1f));
+            }
+
+            uint color;
+
+            if (disabled)
+                color = Colors.TextDisabled;
+            else if (selected)
+                color = EuColor.ReadableOn(Colors.Accent);
+            else
+                color = EuColor.Lerp(Colors.TextMuted, Colors.Text, interaction.HoverAmount);
+
+            TextPainter.TextIn(segment, color, options[i], Align.Center, Align.Center);
+        }
+
+        Painter.RectOutline(rect, Colors.WidgetBorder, Metrics.WidgetBorderWidth, rounding);
+
+        return new WidgetResult
+        {
+            Id = euId,
+            Rect = rect,
+            Changed = changed,
+            Disabled = disabled,
+        };
+    }
+
     private static void DrawWidgetLabel(
         Rect rowRect, float startX, ReadOnlySpan<char> label, in InteractionResult interaction)
     {

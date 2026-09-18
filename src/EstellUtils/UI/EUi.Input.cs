@@ -3,10 +3,12 @@ using System.Globalization;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 using EstellUtils.UI.Render;
+using EstellUtils.UI.Theming;
 using EstellUtils.UI.Widgets;
 
 namespace EstellUtils.UI;
@@ -65,6 +67,23 @@ public static partial class EUi
 
         // ImGui の入力欄を枠の内側へ、背景・枠なしで重ねる
         var inner = rect.Shrink(Metrics.WidgetPadding);
+        var changed = TextInputRaw(id, ref value, hint, maxLength, inner, euId);
+
+        return WidgetResult.From(interaction, changed);
+    }
+
+    /// <summary>
+    /// 枠を描かずに、ImGui の入力欄を矩形へ重ねる。
+    /// </summary>
+    /// <remarks>
+    /// 枠と装飾は呼び出し側が描く。文字の編集そのもの (カーソル移動・選択・
+    /// クリップボード・日本語入力の変換) だけを ImGui へ委ねるための部分。
+    /// 枠付きの入力欄と絞り込み欄で、この部分を共有している。
+    /// </remarks>
+    private static bool TextInputRaw(
+        string id, ref string value, string? hint, int maxLength, Rect inner, EuId euId)
+    {
+        var ctx = UiContext.Current;
 
         ImGui.SetCursorScreenPos(inner.Min);
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0u);
@@ -91,6 +110,101 @@ public static partial class EUi
             ctx.SetFocus(euId);
         else if (ctx.FocusedId == euId)
             ctx.ClearFocus();
+
+        return changed;
+    }
+
+    /// <summary>
+    /// 絞り込み欄。虫眼鏡と、文字が入っているときだけ出る消しボタンが付く。
+    /// <code>
+    /// EUi.SearchBox("##filter", ref this.filter);
+    ///
+    /// foreach (var item in this.items)
+    /// {
+    ///     if (this.filter.Length > 0 &amp;&amp;
+    ///         !item.Name.Contains(this.filter, StringComparison.OrdinalIgnoreCase))
+    ///         continue;
+    ///
+    ///     EUi.Selectable(item.Name, item == this.selected);
+    /// }
+    /// </code>
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="query">絞り込みの文字列。</param>
+    /// <param name="hint">空のときに薄く表示する案内文。</param>
+    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// 消しボタンで空にしたときも <c>Changed</c> が立つので、
+    /// 絞り込みの反映は戻り値を見るだけで済む。
+    /// </remarks>
+    public static WidgetResult SearchBox(
+        string id, ref string query, string? hint = null,
+        SizeSpec? width = null, bool disabled = false)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
+
+        var euId = ctx.GetId(id);
+        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+
+        var interaction = Interaction.Behavior(
+            rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
+
+        var focused = ctx.FocusedId == euId;
+        WidgetPainter.DrawInputFrame(
+            WidgetVisual.From(interaction) with { Rect = rect, Focused = focused });
+
+        var inner = rect.Shrink(Metrics.WidgetPadding);
+        var iconWidth = MathF.Ceiling(TextPainter.LineHeight);
+
+        var iconArea = inner.CutLeft(iconWidth, out inner);
+
+        using (PushFont(FontRole.Icon))
+        {
+            TextPainter.TextIn(
+                iconArea,
+                focused ? Colors.Accent : Colors.TextMuted,
+                FontAwesomeIcon.Search.ToIconString(),
+                Align.Start, Align.Center, ellipsize: false);
+        }
+
+        inner.CutLeft(Metrics.SpacingXs, out inner);
+
+        var changed = false;
+
+        // 消しボタンは文字が入っているときだけ。空のときに押せる的が残っていると紛らわしい
+        if (!disabled && query.Length > 0)
+        {
+            var clearArea = inner.CutRight(iconWidth, out inner);
+            var clear = CustomAt(id + "##euSearchClear", clearArea);
+
+            using (PushFont(FontRole.Icon))
+            {
+                TextPainter.TextIn(
+                    clearArea,
+                    EuColor.Lerp(Colors.TextDisabled, Colors.Text, clear.Visual.Hover),
+                    FontAwesomeIcon.TimesCircle.ToIconString(),
+                    Align.Center, Align.Center, ellipsize: false);
+            }
+
+            if (clear.Result.Clicked)
+            {
+                query = string.Empty;
+                changed = true;
+            }
+        }
+
+        if (disabled)
+        {
+            TextPainter.TextIn(inner, Colors.TextDisabled, query, Align.Start, Align.Center);
+        }
+        else if (!changed)
+        {
+            changed = TextInputRaw(id, ref query, hint ?? "絞り込み", 128, inner, euId);
+        }
 
         return WidgetResult.From(interaction, changed);
     }

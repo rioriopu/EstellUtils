@@ -151,11 +151,77 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
 | `EUi.InputInt(id, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
 | `EUi.InputFloat(id, ref value, step, min, max, width)` | 小数の直接入力 |
+| `EUi.SearchBox(id, ref query, hint, width)` | 絞り込み欄。虫眼鏡と消しボタン付き |
+| `EUi.SegmentedControl(id, ref index, options, width)` | 排他選択をひと続きで見せる |
+| `EUi.KeyBind(label, ref binding, width)` | キー割り当て。修飾キーに対応 |
 
 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれません。
 そうした値は `InputInt` / `InputFloat` で直接打ち込みます。
 
 `ColorEdit` は `Vector4` と `uint`(0xAABBGGRR) の両方に対応します。
+
+### キー割り当て
+
+`KeyBinding` は単純なプロパティだけで構成してあるので、設定へそのまま保存できます。
+
+```csharp
+// 設定クラス
+public KeyBinding ToggleKey { get; set; } = new(ImGuiKey.F9, Ctrl: true, Shift: false, Alt: false);
+
+// 設定画面
+if (EUi.KeyBind("切り替えキー", ref this.config.ToggleKey))
+    this.config.Save();
+
+// 判定したい場所（毎フレーム）
+if (this.config.ToggleKey.IsPressed())
+    this.Toggle();
+```
+
+欄を押すと待ち受け状態になり、次に押したキーを覚えます。
+待ち受け中は **Esc で取り消し**、**右クリックで解除**です。
+修飾キー単体は割り当てられず、他のキーと一緒に押すと組み合わせになります。
+
+`IsPressed()` は修飾キーが指定どおりでなければ成立しません。
+`Ctrl+F9` を割り当てた場合、`Ctrl+Shift+F9` では反応しません。
+
+### 絞り込み
+
+消しボタンで空にしたときも `Changed` が立つので、戻り値だけ見れば反映できます。
+
+```csharp
+EUi.SearchBox("##filter", ref this.filter);
+
+foreach (var item in this.items)
+{
+    if (this.filter.Length > 0 &&
+        !item.Name.Contains(this.filter, StringComparison.OrdinalIgnoreCase))
+        continue;
+
+    EUi.Selectable(item.Name, item == this.selected);
+}
+```
+
+## 状態表示
+
+| API | 説明 |
+|---|---|
+| `EUi.Badge(text, kind, filled)` | 小さな見出し札。状態や種別を 1 語で |
+| `EUi.StatusDot(on, label, onColor, pulse)` | 点とラベル。動いているかを一目で |
+| `EUi.Sparkline(id, values, height, min, max, color, label)` | 値の推移を折れ線で |
+
+```csharp
+using (EUi.HStack())
+{
+    EUi.StatusDot(this.running, this.running ? "動作中" : "停止中", pulse: true);
+    EUi.Badge("試験", NoteKind.Warning);
+}
+
+EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{fps:0} fps");
+```
+
+`Sparkline` は古いものから順に並んだ配列を受け取ります。
+上下の範囲は既定で配列の最小・最大に合わせるので、値の細かい動きが見えます。
+`min` / `max` を渡すと固定できます。マウスを乗せると、その位置の値が出ます。
 
 ## ポップアップ・メニュー・確認ダイアログ
 

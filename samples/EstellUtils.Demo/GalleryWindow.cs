@@ -95,6 +95,14 @@ public sealed class GalleryWindow : EuWindow
     private int popupRowIndex = -1;
     private int ratingValue = 3;
 
+    // 追加ウィジェットの確認用
+    private int segmentIndex = 1;
+    private KeyBinding toggleKey = new(ImGuiKey.F9, Ctrl: true, Shift: false, Alt: false);
+    private string searchQuery = string.Empty;
+    private bool serviceRunning = true;
+    private readonly float[] fpsHistory = new float[72];
+    private float fpsSampleTimer;
+
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
         : base("EstellUtils ギャラリー")
@@ -318,6 +326,62 @@ public sealed class GalleryWindow : EuWindow
         EUi.Note("boxed: false にすると WrapColored と同じになります。", NoteKind.Info, boxed: false);
 
         EUi.Bullet("箇条書きの項目。長い文章でも領域の幅に合わせて折り返されます。");
+
+        EUi.Separator("排他選択");
+
+        EUi.SegmentedControl(
+            "##method", ref this.segmentIndex, ["GPU-GDI", "DComp", "CPU"])
+           .Tip("選択の印が隣へ滑って移ります。");
+
+        EUi.Separator("キー割り当て");
+
+        using (EUi.Field("切り替えキー"))
+        {
+            EUi.KeyBind("##toggleKey", ref this.toggleKey, 200f);
+        }
+
+        EUi.Muted(
+            this.toggleKey.IsSet
+                ? $"現在の割り当て: {this.toggleKey}（押すと下の状態が変わります）"
+                : "未設定です。欄を押してキーを入力してください。");
+
+        // 割り当てたキーは、そのまま押下の判定に使える
+        if (this.toggleKey.IsPressed())
+            this.serviceRunning = !this.serviceRunning;
+
+        EUi.Separator("状態表示");
+
+        using (EUi.HStack(16f))
+        {
+            EUi.StatusDot(this.serviceRunning, this.serviceRunning ? "動作中" : "停止中", pulse: true);
+            EUi.Badge("試験", NoteKind.Warning);
+            EUi.Badge("安定", NoteKind.Success);
+            EUi.Badge("必須", NoteKind.Danger, filled: true);
+        }
+
+        EUi.Separator("絞り込み");
+
+        EUi.SearchBox("##itemFilter", ref this.searchQuery, "アイテム名で絞り込み");
+
+        var matched = 0;
+
+        foreach (var item in ComboItems)
+        {
+            if (this.searchQuery.Length > 0 &&
+                !item.Contains(this.searchQuery, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            EUi.Bullet(item);
+            matched++;
+        }
+
+        if (matched == 0)
+            EUi.Muted("(一致するものがありません)");
+
+        EUi.Separator("推移");
+
+        EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{ImGui.GetIO().Framerate:0} fps")
+           .Tip("マウスを乗せると、その時点の値が出ます。");
     }
 
     /// <summary>ポップアップ・メニュー・確認ダイアログの確認。</summary>
@@ -886,7 +950,21 @@ public sealed class GalleryWindow : EuWindow
     /// 止まって見えていた。表示している場所に関係なく進むよう、描画の入口で更新する。
     /// </remarks>
     private void UpdateProgress()
-        => this.progress = (MathF.Sin(EUi.Context.Time * 0.8f) * 0.5f) + 0.5f;
+    {
+        this.progress = (MathF.Sin(EUi.Context.Time * 0.8f) * 0.5f) + 0.5f;
+
+        // 推移グラフ用に、一定間隔で FPS を溜める。
+        // 古いものを捨てて末尾へ足すので、渡す配列はそのまま時系列になる
+        this.fpsSampleTimer += EUi.DeltaTime;
+
+        if (this.fpsSampleTimer < 0.1f)
+            return;
+
+        this.fpsSampleTimer = 0f;
+
+        Array.Copy(this.fpsHistory, 1, this.fpsHistory, 0, this.fpsHistory.Length - 1);
+        this.fpsHistory[^1] = ImGui.GetIO().Framerate;
+    }
 
     /// <summary>選択中のテーマを反映する。</summary>
     private void ApplyTheme()
