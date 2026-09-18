@@ -81,9 +81,30 @@ public static partial class EUi
         return top <= clip.Max.Y && top + height >= clip.Min.Y;
     }
 
-    /// <summary>補足説明用の控えめな色のテキスト。</summary>
-    public static WidgetResult Muted(ReadOnlySpan<char> text, Align align = Align.Start)
-        => Label(text, Colors.TextMuted, align);
+    /// <summary>
+    /// 補足説明用の控えめな色のテキスト。
+    /// </summary>
+    /// <param name="text">表示する文字列。</param>
+    /// <param name="align">横方向の寄せ。<paramref name="wrap"/> が true のときは効かない。</param>
+    /// <param name="wrap">
+    /// 幅に合わせて折り返すか。既定は 1 行で、収まらない分は末尾を省略記号にする。
+    /// </param>
+    /// <remarks>
+    /// 補足説明には長い文が来やすい。既定のままだと黙って切られたように見えるので
+    /// (実際には省略記号が付き、全文はツールチップで読める)、
+    /// 説明文を置くときは <paramref name="wrap"/> を true にする。
+    /// </remarks>
+    public static WidgetResult Muted(
+        ReadOnlySpan<char> text, Align align = Align.Start, bool wrap = false)
+        => wrap
+            ? Paragraph(text, Colors.TextMuted)
+            : Label(text, Colors.TextMuted, align);
+
+    /// <summary>
+    /// 補足説明用の、幅に合わせて折り返すテキスト。<c>Muted(text, wrap: true)</c> と同じ。
+    /// </summary>
+    public static WidgetResult MutedParagraph(ReadOnlySpan<char> text)
+        => Paragraph(text, Colors.TextMuted);
 
     /// <summary>色を <see cref="Vector4"/> (RGBA, 0〜1) で指定する版。</summary>
     public static WidgetResult Label(ReadOnlySpan<char> text, Vector4 color, Align align = Align.Start)

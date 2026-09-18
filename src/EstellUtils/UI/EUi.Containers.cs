@@ -71,14 +71,21 @@ public static partial class EUi
     /// <param name="label">見出し。</param>
     /// <param name="collapsible">クリックで折りたためるか。</param>
     /// <param name="defaultOpen">初期状態で開いているか。</param>
+    /// <param name="id">
+    /// 開閉状態を覚えるための識別子。省略すると見出しから作る。
+    /// 同じ見出しを複数箇所で使う場合に指定する
+    /// (<c>"詳細設定##basic"</c> のように見出しへ埋め込むのと同じ意味)。
+    /// </param>
     public static SectionHandle Section(
-        ReadOnlySpan<char> label, bool collapsible = true, bool defaultOpen = true)
+        ReadOnlySpan<char> label, bool collapsible = true, bool defaultOpen = true,
+        ReadOnlySpan<char> id = default)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        var id = ctx.GetId(label, out var display);
-        ref var state = ref ctx.Store.GetRef(id);
+        var (sectionId, display) = ResolveSectionId(ctx, label, id);
+        var idAlias = sectionId;
+        ref var state = ref ctx.Store.GetRef(idAlias);
 
         // 初回だけ既定の開閉状態を入れる
         if (!state.Initialized)
@@ -92,7 +99,7 @@ public static partial class EUi
         var headerRect = ctx.Allocate(SizeSpec.Fill, headerHeight);
 
         var interaction = collapsible
-            ? Interaction.Behavior(headerRect, id)
+            ? Interaction.Behavior(headerRect, idAlias)
             : default;
 
         if (collapsible && interaction.Clicked)
@@ -121,7 +128,7 @@ public static partial class EUi
         var isOpen = state.Open || state.OpenAmount > 0.001f;
 
         if (!isOpen)
-            return new SectionHandle(id, false, false, default, 0f);
+            return new SectionHandle(idAlias, false, false, default, 0f);
 
         var clip = default(ClipScope);
         var bounds = ctx.Layout.AvailableRect;
@@ -141,7 +148,7 @@ public static partial class EUi
             LayoutKind.Vertical, bounds, new Vector2(0f, Metrics.ItemSpacing.Y),
             default, false, new EdgeInsets(Metrics.SpacingMd, Metrics.SpacingSm, 0f, Metrics.SpacingMd));
 
-        return new SectionHandle(id, state.Open, true, clip, eased);
+        return new SectionHandle(idAlias, state.Open, true, clip, eased);
     }
 
     /// <summary>
@@ -150,16 +157,19 @@ public static partial class EUi
     /// <param name="label">見出し。</param>
     /// <param name="open">開いているか。クリックで書き換わる。</param>
     /// <param name="collapsible">クリックで折りたためるか。</param>
+    /// <param name="id">開閉状態を覚えるための識別子。省略すると見出しから作る。</param>
     /// <remarks>
     /// 開閉の状態を設定へ保存したい場合や、コードから開け閉めしたい場合に使う。
     /// </remarks>
-    public static SectionHandle Section(ReadOnlySpan<char> label, ref bool open, bool collapsible = true)
+    public static SectionHandle Section(
+        ReadOnlySpan<char> label, ref bool open, bool collapsible = true,
+        ReadOnlySpan<char> id = default)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        var id = ctx.GetId(label);
-        ref var state = ref ctx.Store.GetRef(id);
+        var (sectionId, _) = ResolveSectionId(ctx, label, id);
+        ref var state = ref ctx.Store.GetRef(sectionId);
 
         // 呼び出し側の値を正として、内部の状態へ写してから通常の処理に乗せる
         if (!state.Initialized)
@@ -170,7 +180,7 @@ public static partial class EUi
 
         state.Open = open;
 
-        var handle = Section(label, collapsible, open);
+        var handle = Section(label, collapsible, open, id);
         open = handle.IsOpen;
 
         return handle;
@@ -180,9 +190,11 @@ public static partial class EUi
     /// コールバックで中身を書くセクション。
     /// 閉じているとき (畳むアニメーションも終わっているとき) は中身が呼ばれない。
     /// </summary>
-    public static void Section(ReadOnlySpan<char> label, Action body, bool collapsible = true, bool defaultOpen = true)
+    public static void Section(
+        ReadOnlySpan<char> label, Action body, bool collapsible = true, bool defaultOpen = true,
+        ReadOnlySpan<char> id = default)
     {
-        using var section = Section(label, collapsible, defaultOpen);
+        using var section = Section(label, collapsible, defaultOpen, id);
 
         if (section.IsVisible)
             body();
@@ -261,6 +273,24 @@ public static partial class EUi
         TextPainter.TextIn(labelRect, Colors.Text, label, Align.Start, Align.Center);
 
         return handle;
+    }
+
+    /// <summary>
+    /// セクションの ID と表示文字列を決める。
+    /// </summary>
+    /// <remarks>
+    /// id を省略した場合は見出しから作る。<c>##</c> の扱いは他のウィジェットと同じ。
+    /// </remarks>
+    private static (EuId Id, string Display) ResolveSectionId(
+        UiContext ctx, ReadOnlySpan<char> label, ReadOnlySpan<char> id)
+    {
+        if (id.IsEmpty)
+        {
+            var resolved = ctx.GetId(label, out var display);
+            return (resolved, display.ToString());
+        }
+
+        return (ctx.GetId(id), label.ToString());
     }
 
     /// <summary>ラベル幅を揃えるスコープの状態。</summary>

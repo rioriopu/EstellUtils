@@ -200,7 +200,7 @@ public static partial class EUi
     /// </summary>
     /// <remarks>
     /// 戻り値へ <c>.Tip()</c> をつなげられない場面 (戻り値を返さない自前のラッパーや、
-    /// <c>using</c> を返す <see cref="Section(ReadOnlySpan{char}, bool, bool)"/> のあと) で使う。
+    /// <c>using</c> を返す <see cref="Section(ReadOnlySpan{char}, bool, bool, ReadOnlySpan{char})"/> のあと) で使う。
     /// <code>
     /// using (var s = EUi.Section("試験機能"))
     /// {

@@ -65,7 +65,8 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | API | 説明 |
 |---|---|
 | `EUi.Label(text, color, align)` | 1 行。幅に収まらない場合は末尾を省略記号にする |
-| `EUi.Muted(text)` | 控えめな色のラベル |
+| `EUi.Muted(text, align, wrap)` | 控えめな色のラベル。`wrap: true` で折り返す |
+| `EUi.MutedParagraph(text)` | 控えめな色で折り返す。`Muted(text, wrap: true)` と同じ |
 | `EUi.TextColored(text, color)` | 色を指定した 1 行。`ImGui.TextColored` の置き換え |
 | `EUi.Paragraph(text, color)` | 幅に合わせて折り返す |
 | `EUi.WrapColored(text, color)` | 色を指定して折り返す。`Paragraph` と同じもの |
@@ -113,6 +114,20 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 | `EUi.Toggle(label, ref value, disabled)` | トグルスイッチ |
 | `EUi.Radio(label, selected, disabled)` | 単体のラジオボタン |
 | `EUi.RadioGroup(id, ref index, labels, horizontal)` | 選択肢から 1 つ選ぶ |
+
+### ラベルを付けない
+
+`Checkbox` / `Toggle` / `Radio` は、ラベルを `##` だけにすると**スイッチや四角だけを描きます**。
+表の中や、別にラベル列を持つ場合はこの形になります。
+
+```csharp
+EUi.Toggle("##target_JobBars", ref enabled);   // スイッチだけ
+
+using (EUi.Field("ジョブバー"))                 // ラベルは Field 側で出す
+    EUi.Toggle("##jobBars", ref enabled);
+```
+
+`##` の後ろは ID にのみ使われるので、**同じ画面に複数置くときは別の文字にしてください**。
 
 ## 数値
 
@@ -349,11 +364,19 @@ using (var popup = EUi.Popup("detail", new Vector2(280f, 150f)))
 | API | 説明 |
 |---|---|
 | `EUi.Card(id, padding)` | 枠と地を持つ箱 |
-| `EUi.Section(label, collapsible, defaultOpen)` | 折りたためる見出し付きの区画 |
+| `EUi.Section(label, collapsible, defaultOpen, id)` | 折りたためる見出し付きの区画 |
 | `EUi.Section(label, body)` | コールバック版。閉じているときは中身が呼ばれない |
 | `EUi.LabelColumn(id, minWidth, maxWidth)` | この中の `Field` のラベル幅を揃える |
 | `EUi.Field(label, labelWidth)` | 「ラベル + ウィジェット」の 1 行 |
 | `EUi.TabBar(id, labels...)` | タブ。選択中のタブを返す |
+
+同じ見出しを複数箇所で使う場合は `id` で分けます。
+見出しへ `##` を埋め込む書き方も同じ意味ですが、引数のほうが意図がはっきりします。
+
+```csharp
+EUi.Section("詳細設定", id: "basicAdvanced");
+EUi.Section("詳細設定", id: "displayAdvanced");
+```
 
 ```csharp
 using (var section = EUi.Section("共通設定"))
@@ -501,7 +524,7 @@ using (EUi.Row(SizeSpec.Fill, 24f, 24f))   // 入力欄が残りを取る
 
 ### 右へ寄せる
 
-余りを埋める列を作り、そこで `EUi.Spacer()` を呼びます。
+**列を宣言し**、余りを埋める位置で `EUi.Spacer()` を呼びます。
 
 ```csharp
 using (EUi.Row(SizeSpec.Fill, 80f, 80f))
@@ -512,9 +535,21 @@ using (EUi.Row(SizeSpec.Fill, 80f, 80f))
 }
 ```
 
+**`Spacer` は列を宣言した行 (`Row`) の中でだけ使えます。**
+`HStack` など列のない横並びでは何もしません（ログに一度だけ警告が出ます）。
+
+列がない行でこれが残り幅を全部取ると、**後ろの要素へ配る幅が無くなって描かれなくなります**。
+即時モードでは「後ろに何が来るか」を先に知れないため、行の幅を配るには列の宣言が要ります。
+
+| やりたいこと | 書き方 |
+|---|---|
+| 要素の間に隙間を空ける | `EUi.Spacing(amount)` |
+| 以降を右へ寄せる | `EUi.Row(SizeSpec.Fill, ...)` + `EUi.Spacer()` |
+| 右端へ確実に揃える | 行を `Reserve` して `rect.CutRight(...)` で切り出す |
+
 `EUi.Spacing()` とは別物です。**あちらは隙間を空けるだけで列を消費しない**ため、
 列を宣言した行で使うと以降の要素が 1 つずつ前の列へずれます
-（列を宣言した行では無視されるようにしてありますが、寄せたいときは `Spacer` を使ってください）。
+（列を宣言した行では無視されるようにしてあります）。
 
 配分そのものは `ColumnLayout.Resolve` に切り出してあり、
 「合計が行幅を超えない」ことを自己検証で機械的に確かめています。

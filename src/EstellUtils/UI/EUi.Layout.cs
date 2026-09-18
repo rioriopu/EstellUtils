@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 
+using EstellUtils.Diagnostics;
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 
@@ -13,6 +14,9 @@ public static partial class EUi
 {
     /// <summary>列を宣言できる上限。これを超える列は切り詰められる。</summary>
     private const int MaxColumns = 64;
+
+    /// <summary>Spacer の誤用をすでに知らせたか。毎フレーム出しても仕方がないので一度だけ。</summary>
+    private static bool spacerMisuseReported;
 
     /// <summary>次の要素を配置できる領域。</summary>
     public static Rect AvailableRect => UiContext.Current.Layout.AvailableRect;
@@ -236,12 +240,12 @@ public static partial class EUi
     }
 
     /// <summary>
-    /// 横並びの中で余った幅を埋め、以降の要素を右へ寄せる。
+    /// 列を宣言した行で、余った幅を埋めて以降の要素を右へ寄せる。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 列を宣言した行で使う。埋めたい位置の列を <see cref="SizeSpec.Fill"/> にしておき、
-    /// その列でこれを呼ぶ。
+    /// <b>列を宣言した行 (<see cref="Row(ReadOnlySpan{SizeSpec})"/>) の中でだけ使えます。</b>
+    /// 埋めたい位置の列を <see cref="SizeSpec.Fill"/> にしておき、その列でこれを呼ぶ。
     /// </para>
     /// <code>
     /// // ボタンを行の右端へ寄せる
@@ -253,11 +257,41 @@ public static partial class EUi
     /// }
     /// </code>
     /// <para>
-    /// <see cref="Spacing"/> とは別物なので注意。あちらは隙間を空けるだけで
-    /// 列を消費しないため、列を宣言した行で使うと以降の要素が 1 つずつ前の列へずれる。
+    /// 列を宣言していない横並び (<see cref="HStack"/>) では何もしません。
+    /// そこで残り幅を確保すると、後ろの要素へ配る幅が無くなって描かれなくなるためです。
+    /// 即時モードでは「後ろに何が来るか」を先に知れないので、
+    /// 右へ寄せたい場合は列を宣言してください。
+    /// </para>
+    /// <para>
+    /// <see cref="Spacing"/> とは別物です。あちらは隙間を空けるだけで
+    /// 列を消費しないため、列を宣言した行で使うと以降の要素が 1 つずつ前の列へずれます。
     /// </para>
     /// </remarks>
-    public static void Spacer() => Reserve(SizeSpec.Fill, 0f);
+    public static void Spacer()
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var scope = ctx.Layout.Current;
+
+        if (scope is not null && scope.Kind == LayoutKind.Horizontal && !scope.Columns.IsEmpty)
+        {
+            ctx.Allocate(SizeSpec.Fill, 0f);
+            return;
+        }
+
+        // ここで残り幅を取ってしまうと、後ろの要素が幅 0 になって消える。
+        // 黙って消えるのが一番たちが悪いので、何もせずに一度だけ知らせる
+        if (spacerMisuseReported)
+            return;
+
+        spacerMisuseReported = true;
+
+        UiLog.Warning(
+            "EUi.Spacer() は列を宣言した行 (EUi.Row) の中でだけ使えます。" +
+            "列のない横並びでは何もしません。右へ寄せたい場合は " +
+            "EUi.Row(SizeSpec.Fill, ...) で列を宣言してください。");
+    }
 
     /// <summary>横並びのとき、次の行へ移る。</summary>
     public static void NewLine() => UiContext.Current.Layout.Current?.NewLine();
