@@ -235,6 +235,30 @@ public static partial class EUi
             ctx.Allocate(new Vector2(0f, value));
     }
 
+    /// <summary>
+    /// 横並びの中で余った幅を埋め、以降の要素を右へ寄せる。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 列を宣言した行で使う。埋めたい位置の列を <see cref="SizeSpec.Fill"/> にしておき、
+    /// その列でこれを呼ぶ。
+    /// </para>
+    /// <code>
+    /// // ボタンを行の右端へ寄せる
+    /// using (EUi.Row(SizeSpec.Fill, 80f, 80f))
+    /// {
+    ///     EUi.Spacer();
+    ///     EUi.Button("キャンセル", ButtonStyle.Normal, SizeSpec.Fill);
+    ///     EUi.Button("OK", ButtonStyle.Primary, SizeSpec.Fill);
+    /// }
+    /// </code>
+    /// <para>
+    /// <see cref="Spacing"/> とは別物なので注意。あちらは隙間を空けるだけで
+    /// 列を消費しないため、列を宣言した行で使うと以降の要素が 1 つずつ前の列へずれる。
+    /// </para>
+    /// </remarks>
+    public static void Spacer() => Reserve(SizeSpec.Fill, 0f);
+
     /// <summary>横並びのとき、次の行へ移る。</summary>
     public static void NewLine() => UiContext.Current.Layout.Current?.NewLine();
 

@@ -414,6 +414,23 @@ var fieldWidth = totalWidth - (buttonWidth * 2f) - EUi.ColumnSpacing(3);
 using (EUi.Row(SizeSpec.Fill, 24f, 24f))   // 入力欄が残りを取る
 ```
 
+### 右へ寄せる
+
+余りを埋める列を作り、そこで `EUi.Spacer()` を呼びます。
+
+```csharp
+using (EUi.Row(SizeSpec.Fill, 80f, 80f))
+{
+    EUi.Spacer();                                              // 余りを吸う
+    EUi.Button("キャンセル", ButtonStyle.Normal, SizeSpec.Fill);
+    EUi.Button("OK", ButtonStyle.Primary, SizeSpec.Fill);
+}
+```
+
+`EUi.Spacing()` とは別物です。**あちらは隙間を空けるだけで列を消費しない**ため、
+列を宣言した行で使うと以降の要素が 1 つずつ前の列へずれます
+（列を宣言した行では無視されるようにしてありますが、寄せたいときは `Spacer` を使ってください）。
+
 配分そのものは `ColumnLayout.Resolve` に切り出してあり、
 「合計が行幅を超えない」ことを自己検証で機械的に確かめています。
 

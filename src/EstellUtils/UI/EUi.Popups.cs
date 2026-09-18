@@ -302,13 +302,11 @@ public static partial class EUi
             var cancelWidth = ButtonWidthFor(cancelText);
             var okWidth = ButtonWidthFor(okText);
 
-            // 3 列なので隙間は 2 つ。引き忘れるとボタンが枠からはみ出す
-            var spacer = MathF.Max(
-                0f, AvailableWidth - cancelWidth - okWidth - ColumnSpacing(3));
-
-            using (Row(SizeSpec.Px(spacer), SizeSpec.Px(cancelWidth), SizeSpec.Px(okWidth)))
+            // 左端の列に余りを吸わせて、ボタンを右へ寄せる。
+            // 残り幅の計算はレイアウト側が行うので、隙間を引く必要はない
+            using (Row(SizeSpec.Fill, SizeSpec.Px(cancelWidth), SizeSpec.Px(okWidth)))
             {
-                Spacing(0f);
+                Spacer();
 
                 if (Button(cancelText, ButtonStyle.Normal, SizeSpec.Fill))
                     result = ConfirmResult.Cancel;

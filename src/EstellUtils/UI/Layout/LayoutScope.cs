@@ -279,12 +279,23 @@ public sealed class LayoutScope
     }
 
     /// <summary>空き (スペーサー) を入れる。</summary>
+    /// <remarks>
+    /// 列を宣言した横並びでは何もしない。その行の位置は列幅で決まるため、
+    /// ここで隙間を足すと以降の要素が列からずれてしまう。
+    /// 余りを埋めて右へ寄せたい場合は <see cref="EUi.Spacer"/> を使う。
+    /// </remarks>
     public void AddSpacing(float amount)
     {
         if (this.Kind == LayoutKind.Vertical)
+        {
             this.Cursor = new Vector2(this.Cursor.X, this.Cursor.Y + amount);
-        else
-            this.Cursor = new Vector2(this.Cursor.X + amount, this.Cursor.Y);
+            return;
+        }
+
+        if (this.columnCount > 0)
+            return;
+
+        this.Cursor = new Vector2(this.Cursor.X + amount, this.Cursor.Y);
     }
 
     /// <summary>カーソルを直接動かす。独自配置を行うウィジェット向け。</summary>
