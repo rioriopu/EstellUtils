@@ -37,17 +37,48 @@ public static partial class EUi
         var id = ctx.GetId(label, out var display);
         var textSize = TextPainter.Measure(display);
 
-        var autoWidth = MathF.Max(
-            Metrics.WidgetMinWidth,
-            MathF.Ceiling(textSize.X) + Metrics.WidgetPadding.TotalHorizontal);
-
         var height = MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical);
-        var rect = ctx.Allocate(width ?? SizeSpec.Px(autoWidth), height);
+        var rect = ctx.Allocate(width ?? SizeSpec.Px(ButtonWidth(display)), height);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
         WidgetPainter.DrawButton(WidgetVisual.From(interaction), display, style);
 
         return WidgetResult.From(interaction);
+    }
+
+    /// <summary>
+    /// ラベルに合わせたボタンの幅。<see cref="Button"/> が幅を省略したときに使うものと同じ。
+    /// </summary>
+    /// <remarks>
+    /// 行の幅を自分で配るときに使う。ボタン側と別々に計算すると必ず食い違うので、
+    /// 幅の求め方はここ 1 箇所に置いてある。
+    /// </remarks>
+    public static float ButtonWidth(ReadOnlySpan<char> label)
+        => MathF.Max(
+            Metrics.WidgetMinWidth,
+            MathF.Ceiling(TextPainter.Measure(label).X) + Metrics.WidgetPadding.TotalHorizontal);
+
+    /// <summary>
+    /// 矩形を指定して描くボタン。レイアウトは進めない。
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="rect">描く場所。</param>
+    /// <param name="label">表示するラベル。</param>
+    /// <param name="style">見た目の種類。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// 確保済みの領域を自分で切り分けて置きたいときに使う。
+    /// 行の右端へ確実に揃えたい、といった場合は、列の配分に頼るより
+    /// <c>rect.CutRight(...)</c> で切り出すほうが確実になる。
+    /// </remarks>
+    public static WidgetResult ButtonAt(
+        ReadOnlySpan<char> id, Rect rect, ReadOnlySpan<char> label,
+        ButtonStyle style = ButtonStyle.Normal, bool disabled = false)
+    {
+        var widget = CustomAt(id, rect, InteractionFlags.None, disabled);
+        WidgetPainter.DrawButton(widget.Visual, label, style);
+
+        return widget.Result;
     }
 
     /// <summary>

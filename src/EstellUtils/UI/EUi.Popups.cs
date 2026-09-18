@@ -299,20 +299,23 @@ public static partial class EUi
             var cancelText = cancelLabel.IsEmpty ? "キャンセル" : cancelLabel;
             var okText = okLabel.IsEmpty ? "OK" : okLabel;
 
-            var cancelWidth = ButtonWidthFor(cancelText);
-            var okWidth = ButtonWidthFor(okText);
+            // 行を確保して、右端から順に切り出す。列の配分に任せると
+            // 幅の求め方がボタン側と食い違ったときに右端がずれるが、
+            // 切り出しなら実行ボタンの右端が必ず行の右端に一致する
+            var buttonRow = Reserve(SizeSpec.Fill, Metrics.WidgetHeight);
 
-            // 左端の列に余りを吸わせて、ボタンを右へ寄せる。
-            // 残り幅の計算はレイアウト側が行うので、隙間を引く必要はない
-            using (Row(SizeSpec.Fill, SizeSpec.Px(cancelWidth), SizeSpec.Px(okWidth)))
+            var okArea = buttonRow.CutRight(ButtonWidth(okText), out var rest);
+            rest.CutRight(Metrics.ItemSpacing.X, out rest);
+            var cancelArea = rest.CutRight(ButtonWidth(cancelText), out _);
+
+            if (ButtonAt("##euConfirmCancel", cancelArea, cancelText))
+                result = ConfirmResult.Cancel;
+
+            if (ButtonAt(
+                "##euConfirmOk", okArea, okText,
+                danger ? ButtonStyle.Danger : ButtonStyle.Primary))
             {
-                Spacer();
-
-                if (Button(cancelText, ButtonStyle.Normal, SizeSpec.Fill))
-                    result = ConfirmResult.Cancel;
-
-                if (Button(okText, danger ? ButtonStyle.Danger : ButtonStyle.Primary, SizeSpec.Fill))
-                    result = ConfirmResult.Ok;
+                result = ConfirmResult.Ok;
             }
         }
 
@@ -495,11 +498,6 @@ public static partial class EUi
         return interaction.Clicked && !disabled;
     }
 
-    /// <summary>文字に合わせたボタンの幅。</summary>
-    private static float ButtonWidthFor(ReadOnlySpan<char> label)
-        => MathF.Max(
-            Metrics.WidgetMinWidth,
-            MathF.Ceiling(TextPainter.Measure(label).X) + (Metrics.WidgetPadding.TotalHorizontal * 2f));
 }
 
 /// <summary>ポップアップを置く基準。</summary>
