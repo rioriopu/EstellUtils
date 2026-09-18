@@ -17,6 +17,9 @@ public static partial class EUi
     /// <summary>状態の点の半径。</summary>
     private const float StatusDotRadius = 4f;
 
+    /// <summary>状態の点を、左端から少しだけ離す量。丸が縁に触れると窮屈に見える。</summary>
+    private const float StatusDotInset = 2f;
+
     /// <summary>推移グラフの左右に空ける余白。</summary>
     private const float SparklinePadding = 1f;
 
@@ -94,7 +97,7 @@ public static partial class EUi
         ctx.EnsureFrame();
 
         var lineHeight = TextPainter.LineHeight;
-        var dotColumn = StatusDotRadius * 2f + Metrics.SpacingSm;
+        var dotColumn = StatusDotInset + (StatusDotRadius * 2f) + Metrics.SpacingSm;
 
         var textSize = label.IsEmpty ? Vector2.Zero : TextPainter.Measure(label);
         var rect = ctx.Allocate(
@@ -113,15 +116,13 @@ public static partial class EUi
         }
 
         var center = new Vector2(
-            rect.Min.X + StatusDotRadius,
+            rect.Min.X + StatusDotInset + StatusDotRadius,
             rect.Min.Y + (lineHeight * 0.5f));
 
-        // 点いているときは細いリングを添えて、消えている状態と見分けやすくする。
-        // 薄い面を敷く方法も試したが、点の背後に四角い染みがあるように見えた
+        // 点そのものだけを描く。暈しやリングを添える案も試したが、
+        // どちらも確保した矩形からはみ出して縁にめり込んで見えた。
+        // 点いているかどうかは色と、必要なら明滅で伝わる
         Painter.Circle(center, StatusDotRadius, color);
-
-        if (on)
-            Painter.CircleOutline(center, StatusDotRadius + 2f, EuColor.WithAlpha(color, 0.45f), 1f);
 
         if (!label.IsEmpty)
         {
