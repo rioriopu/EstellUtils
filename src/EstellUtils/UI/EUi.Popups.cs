@@ -244,6 +244,9 @@ public static partial class EUi
         var lineHeight = TextPainter.LineHeight;
         var textWidth = ConfirmWidth - padding.TotalHorizontal;
 
+        // 下のレイアウトと 1 対 1 で対応させる。要素間の隙間はレイアウト側で 0 にし、
+        // ここに書いた分だけが入るようにしてある。自動の隙間を許すと、
+        // 計算に入っていない分だけ中身が枠から溢れる
         var messageHeight = message.IsEmpty ? 0f : TextPainter.Measure(message, textWidth).Y;
         var height =
             padding.TotalVertical
@@ -282,7 +285,7 @@ public static partial class EUi
 
         var result = ConfirmResult.None;
 
-        using (Region(rect, padding))
+        using (Region(rect, padding, 0f))
         {
             if (!title.IsEmpty)
             {
