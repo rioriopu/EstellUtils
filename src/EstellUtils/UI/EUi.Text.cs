@@ -296,6 +296,44 @@ public static partial class EUi
     };
 
     /// <summary>
+    /// FontAwesome のアイコンを 1 つ描く。
+    /// <code>
+    /// using (EUi.HStack())
+    /// {
+    ///     EUi.Icon(FontAwesomeIcon.ExclamationTriangle, EUi.Colors.Warning);
+    ///     EUi.Label("対象が見つかりません");
+    /// }
+    /// </code>
+    /// </summary>
+    /// <param name="icon">アイコン。</param>
+    /// <param name="color">色。省略するとテーマの標準色。</param>
+    /// <remarks>
+    /// 計測も描画もアイコンフォントの下で行うので、文字と並べても位置がずれない。
+    /// 押せるようにしたい場合は <c>EUi.IconButton</c> を使う。
+    /// </remarks>
+    public static WidgetResult Icon(FontAwesomeIcon icon, uint? color = null)
+    {
+        using var font = PushFont(FontRole.Icon);
+        return Label(icon.ToIconString(), color, Align.Start, ellipsize: false);
+    }
+
+    /// <summary>アイコンと文字を並べて描く。</summary>
+    /// <param name="icon">アイコン。</param>
+    /// <param name="text">アイコンの右に置く文字。</param>
+    /// <param name="color">アイコンの色。省略するとテーマの標準色。</param>
+    /// <param name="textColor">文字の色。省略するとテーマの標準色。</param>
+    public static WidgetResult IconText(
+        FontAwesomeIcon icon, ReadOnlySpan<char> text,
+        uint? color = null, uint? textColor = null)
+    {
+        using (HStack(Metrics.SpacingSm))
+        {
+            Icon(icon, color);
+            return Label(text, textColor);
+        }
+    }
+
+    /// <summary>
     /// 見出し。テーマの見出し色と大きめのフォントで表示する。
     /// </summary>
     public static WidgetResult Heading(ReadOnlySpan<char> text, uint? color = null)

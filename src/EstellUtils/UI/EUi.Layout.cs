@@ -4,6 +4,7 @@ using System.Numerics;
 using EstellUtils.Diagnostics;
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
+using EstellUtils.UI.Render;
 
 namespace EstellUtils.UI;
 
@@ -293,8 +294,52 @@ public static partial class EUi
             "EUi.Row(SizeSpec.Fill, ...) で列を宣言してください。");
     }
 
-    /// <summary>横並びのとき、次の行へ移る。</summary>
-    public static void NewLine() => UiContext.Current.Layout.Current?.NewLine();
+    /// <summary>
+    /// 横並びのとき、次の行へ移る。
+    /// </summary>
+    /// <remarks>
+    /// <b><c>ImGui.NewLine</c> とは別物です。</b> あちらは空行を 1 つ入れるもので、
+    /// これは <see cref="HStack"/> の中で折り返す位置を指定するもの。
+    /// 空行を入れたい場合は <see cref="BlankLine"/> か <see cref="Spacing"/> を使う。
+    /// </remarks>
+    public static void LineBreak() => UiContext.Current.Layout.Current?.NewLine();
+
+    /// <summary>
+    /// 1 行分の空きを入れる。<c>ImGui.NewLine</c> の置き換え。
+    /// </summary>
+    /// <param name="lines">空ける行数。</param>
+    public static void BlankLine(int lines = 1)
+        => Spacing(TextPainter.LineHeight * Math.Max(1, lines));
+
+    /// <summary>
+    /// 左に字下げした縦積みを開く。項目のぶら下がりを表すときに使う。
+    /// <code>
+    /// EUi.Checkbox("詳細を表示", ref showDetail);
+    ///
+    /// if (showDetail)
+    /// {
+    ///     using (EUi.Indent())
+    ///     {
+    ///         EUi.Checkbox("座標も出す", ref showCoords);
+    ///     }
+    /// }
+    /// </code>
+    /// </summary>
+    /// <param name="amount">字下げの量。省略するとテーマの既定値。</param>
+    public static LayoutHandle Indent(float? amount = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var inset = amount ?? Metrics.IndentWidth;
+        var gap = new Vector2(0f, Metrics.ItemSpacing.Y);
+
+        ctx.Layout.Push(
+            LayoutKind.Vertical, ctx.Layout.AvailableRect, gap,
+            default, false, new EdgeInsets(inset, 0f, 0f, 0f));
+
+        return new LayoutHandle(ctx.Layout);
+    }
 
     /// <summary>
     /// 生の <c>ImGui.*</c> が進めたカーソル位置を、レイアウトへ取り込む。

@@ -141,3 +141,86 @@ this.binder.Reset(nameof(Configuration.UpdateInterval));
 型の解析は最初の 1 回だけで、結果は静的にキャッシュされます。
 値の読み書きは式木からコンパイルしたデリゲートを使うため、
 毎フレームのリフレクション呼び出しやボクシングは発生しません。
+
+
+## 表示言語を実行時に切り替える
+
+属性に書けるのはコンパイル時定数だけなので、ラベルを実行時に差し替えるには
+関数を渡します。方法は 2 つあります。
+
+### 静的メンバーから引く
+
+```csharp
+[EuLabelFrom(typeof(Language.Settings), nameof(Language.Settings.UpdateInterval))]
+public int UpdateInterval = 2;
+```
+
+指定先は `static` で、`string` を返すプロパティ・フィールド・引数なしメソッドのいずれか。
+描画のたびに読むので、言語を切り替えればそのまま追従します。
+
+### コードから差し替える
+
+```csharp
+this.binder.SetLabel(nameof(Config.UpdateInterval), () => Language.Settings.UpdateInterval);
+this.binder.SetTip(nameof(Config.UpdateInterval), () => Language.Tips.UpdateInterval);
+```
+
+起動時に一度呼べば足ります。項目の解析結果は型ごとに共有されるので、
+この差し替えも同じ型のすべての `Binder` に効きます。
+
+## 入れ子になった設定クラス
+
+設定をいくつかのクラスへ分けている場合は `[EuNested]` を付けます。
+
+```csharp
+public class PluginConfig
+{
+    [EuNested(Group = "モブハント")]
+    public MobHuntConfig MobHunt { get; set; } = new();
+
+    [EuNested(Group = "宝の地図")]
+    public TreasureConfig Treasure { get; set; } = new();
+}
+```
+
+中身の項目が、あたかも直下にあるかのように並びます。
+項目名は `MobHunt.Enabled` のように親を辿った形になるので、
+`Binder.SetLabel` などで指すときもこの名前を使います。
+
+**入れ子のクラスは初期化しておいてください** (`= new()`)。
+値の読み書きは `target.MobHunt.Enabled` という式を組み立てて行うため、
+途中が null だとそこで失敗します。入れ子は 4 段まで辿ります。
+
+## ベクトルと色の区別
+
+`Vector4` を**色として扱うのは `[EuColor]` を付けたときだけ**です。
+座標や余白の 4 つ組は数値の入力欄になります。
+
+```csharp
+[EuColor]
+public Vector4 MarkerColor = new(1f, 0.5f, 0f, 1f);       // 色ピッカー
+
+[EuVector("L", "D", "R", "U")]
+public Vector4 ScreenMargin = new(10f, 10f, 10f, 10f);    // 数値 4 つ
+```
+
+`[EuVector]` は成分のラベルを与えるためのもので、無くても数値として扱われます。
+`Step` / `Min` / `Max` も指定できます。
+
+## 破棄して閉じる
+
+既定値へ戻す `ResetAll()` とは別に、**編集前の値へ巻き戻す** `Revert()` があります。
+
+```csharp
+public override void OnOpen() => this.binder.MarkSaved();   // 基準を記録
+
+// 「破棄して閉じる」ボタン
+if (EUi.Button("破棄"))
+{
+    this.binder.Revert();
+    this.IsOpen = false;
+}
+```
+
+基準は `MarkSaved()` を呼んだ時点、または最後に保存が走った時点です。
+一度も記録していなければ何もしません。

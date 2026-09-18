@@ -77,6 +77,8 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Selectable(label, selected, width, height)` | 選択できる 1 行。一覧を自前で組むときに |
 | `EUi.Image(texture, size, tint)` | 画像。アイテムアイコンなどの表示に |
 | `EUi.ImageButton(texture, id, size)` | 押せる画像 |
+| `EUi.Icon(icon, color)` | FontAwesome のアイコンを 1 つ |
+| `EUi.IconText(icon, text, color, textColor)` | アイコンと文字を並べる |
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
 | `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |
@@ -166,6 +168,9 @@ using (EUi.Field("ジョブバー"))                 // ラベルは Field 側�
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
 | `EUi.InputInt(id, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
 | `EUi.InputFloat(id, ref value, step, min, max, width)` | 小数の直接入力 |
+| `EUi.DragFloat(label, ref value, speed, min, max, decimals, width)` | ドラッグで動かす。上限のはっきりしない値に |
+| `EUi.InputVector2/3/4(id, ref value, labels, step, min, max)` | 数値の並び。色ではないベクトルに |
+| `EUi.CheckboxFlags(label, ref value, mask)` | ビットマスクの 1 ビットを切り替える |
 | `EUi.SearchBox(id, ref query, hint, width)` | 絞り込み欄。虫眼鏡と消しボタン付き |
 | `EUi.SegmentedControl(id, ref index, options, width)` | 排他選択をひと続きで見せる |
 | `EUi.KeyBind(label, ref binding, width)` | キー割り当て。修飾キーに対応 |
@@ -520,6 +525,35 @@ var fieldWidth = totalWidth - (buttonWidth * 2f) - EUi.ColumnSpacing(3);
 
 ```csharp
 using (EUi.Row(SizeSpec.Fill, 24f, 24f))   // 入力欄が残りを取る
+```
+
+### ImGui から移るときの注意
+
+| ImGui | EstellUtils | 備考 |
+|---|---|---|
+| `ImGui.NewLine()` | `EUi.BlankLine()` | 空行を入れる |
+| `ImGui.SameLine()` | `EUi.HStack()` で囲む | 続けたい要素をまとめて囲む |
+| `ImGui.Indent()` / `Unindent()` | `using (EUi.Indent())` | スコープで戻る |
+
+**`EUi.LineBreak()` は `ImGui.NewLine()` ではありません。**
+こちらは `HStack` の中で折り返す位置を指定するものです。
+`ImGui.NewLine()` のつもりで置き換えると、空行がすべて消えます。
+
+`SameLine` に直接あたるものはありません。即時モードで「直前の要素の右に続ける」には
+レイアウトの状態を遡る必要があるためです。続けたい要素を `HStack` で囲んでください。
+
+```csharp
+// 移行前
+ImGui.Text("状態:");
+ImGui.SameLine();
+ImGui.TextColored(color, "動作中");
+
+// 移行後
+using (EUi.HStack())
+{
+    EUi.Label("状態:");
+    EUi.TextColored("動作中", color);
+}
 ```
 
 ### 右へ寄せる

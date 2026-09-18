@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using EstellUtils.Diagnostics;
 using EstellUtils.UI.Core;
 
 namespace EstellUtils.UI.Binding;
@@ -51,6 +52,9 @@ public sealed class Binder<T>
     private readonly Action? save;
 
     private bool pendingSave;
+
+    /// <summary>巻き戻しの基準にする、保存済みの値。</summary>
+    private readonly Dictionary<string, object?> saved = new(StringComparer.Ordinal);
 
     /// <summary>設定クラスと保存処理を結びつける。</summary>
     /// <param name="target">対象の設定インスタンス。</param>
@@ -212,6 +216,105 @@ public sealed class Binder<T>
         return changed;
     }
 
+    /// <summary>
+    /// 項目のラベルを、毎回求める関数へ差し替える。
+    /// </summary>
+    /// <param name="name">項目名。入れ子は <c>"MobHunt.Enabled"</c> のように書く。</param>
+    /// <param name="label">ラベルを返す関数。</param>
+    /// <remarks>
+    /// <para>
+    /// 属性に書けるのはコンパイル時定数だけなので、表示言語を実行時に切り替える場合はこれを使う。
+    /// 起動時に一度呼べばよい。
+    /// </para>
+    /// <code>
+    /// this.binder.SetLabel(nameof(Config.UpdateInterval), () => Language.Settings.UpdateInterval);
+    /// </code>
+    /// <para>
+    /// 項目の解析結果は型ごとに共有されるので、この差し替えも同じ型のすべての Binder に効く。
+    /// 表示言語はふつうアプリ全体で 1 つなので、そのほうが都合がよい。
+    /// </para>
+    /// </remarks>
+    public void SetLabel(string name, Func<string> label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+
+        var binding = ConfigModel<T>.Find(name);
+
+        if (binding is null)
+        {
+            UiLog.Warning($"設定項目「{name}」が見つかりません。ラベルを差し替えられませんでした。");
+            return;
+        }
+
+        binding.LabelProvider = label;
+    }
+
+    /// <summary>項目のツールチップを、毎回求める関数へ差し替える。</summary>
+    /// <param name="name">項目名。</param>
+    /// <param name="tip">説明を返す関数。</param>
+    public void SetTip(string name, Func<string?> tip)
+    {
+        ArgumentNullException.ThrowIfNull(tip);
+
+        var binding = ConfigModel<T>.Find(name);
+
+        if (binding is null)
+        {
+            UiLog.Warning($"設定項目「{name}」が見つかりません。説明を差し替えられませんでした。");
+            return;
+        }
+
+        binding.TipProvider = tip;
+    }
+
+    /// <summary>
+    /// 現在の値を「保存済み」として覚える。巻き戻しの基準になる。
+    /// </summary>
+    /// <remarks>
+    /// ウィンドウを開いた時点で呼んでおくと、<see cref="Revert"/> でそこまで戻せる。
+    /// <see cref="Flush"/> と保存の実行時にも自動で更新される。
+    /// </remarks>
+    public void MarkSaved()
+    {
+        this.saved.Clear();
+
+        foreach (var binding in ConfigModel<T>.Bindings)
+            this.saved[binding.Name] = binding.GetValue(this.Target);
+    }
+
+    /// <summary>
+    /// 最後に保存した値へ巻き戻す。「破棄して閉じる」に当たる操作。
+    /// </summary>
+    /// <returns>巻き戻した項目があれば true。</returns>
+    /// <remarks>
+    /// <para>
+    /// 既定値へ戻す <see cref="ResetAll"/> とは別物で、こちらは編集前の値へ戻す。
+    /// </para>
+    /// <para>
+    /// 基準は <see cref="MarkSaved"/> を呼んだ時点、または最後に保存が走った時点。
+    /// 一度も記録していない場合は何もしない。
+    /// </para>
+    /// </remarks>
+    public bool Revert()
+    {
+        if (this.saved.Count == 0)
+            return false;
+
+        var reverted = false;
+
+        foreach (var binding in ConfigModel<T>.Bindings)
+        {
+            if (this.saved.TryGetValue(binding.Name, out var value) &&
+                binding.SetValue(this.Target, value))
+            {
+                reverted = true;
+            }
+        }
+
+        this.pendingSave = false;
+        return reverted;
+    }
+
     /// <summary>すべての項目を既定値へ戻す。</summary>
     public void ResetAll()
     {
@@ -249,6 +352,7 @@ public sealed class Binder<T>
 
         this.save?.Invoke();
         this.pendingSave = false;
+        this.MarkSaved();
     }
 
     /// <summary>1 項目を描き、変更があれば保存を要求する。</summary>

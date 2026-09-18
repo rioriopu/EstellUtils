@@ -25,11 +25,49 @@ public abstract class FieldBinding<T>
     /// </summary>
     public string WidgetId { get; init; } = "##";
 
-    /// <summary>画面に出すラベル。</summary>
-    public string Label { get; init; } = string.Empty;
+    /// <summary>
+    /// 画面に出すラベル。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="LabelProvider"/> が設定されていればそちらが優先される。
+    /// 表示言語を実行時に切り替える場合に使う。
+    /// </remarks>
+    public string Label
+    {
+        get => this.LabelProvider?.Invoke() ?? this.StaticLabel;
+        init => this.StaticLabel = value;
+    }
 
     /// <summary>ツールチップ。</summary>
-    public string? Tip { get; init; }
+    /// <remarks><see cref="TipProvider"/> が設定されていればそちらが優先される。</remarks>
+    public string? Tip
+    {
+        get => this.TipProvider?.Invoke() ?? this.StaticTip;
+        init => this.StaticTip = value;
+    }
+
+    /// <summary>
+    /// ラベルを毎回求める関数。設定すると <see cref="Label"/> より優先される。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 属性に書けるのはコンパイル時定数だけなので、表示言語を実行時に切り替える場合は
+    /// ここへ関数を渡す。<c>Binder.SetLabel</c> か <c>[EuLabelFrom]</c> で設定する。
+    /// </para>
+    /// <para>
+    /// 毎フレーム呼ばれるので、文字列を組み立て直さずに済む形にしておくこと。
+    /// </para>
+    /// </remarks>
+    public Func<string>? LabelProvider { get; set; }
+
+    /// <summary>ツールチップを毎回求める関数。</summary>
+    public Func<string?>? TipProvider { get; set; }
+
+    /// <summary>属性などで与えられた、切り替わらないラベル。</summary>
+    protected string StaticLabel { get; private set; } = string.Empty;
+
+    /// <summary>属性などで与えられた、切り替わらないツールチップ。</summary>
+    protected string? StaticTip { get; private set; }
 
     /// <summary>所属するグループ名。</summary>
     public string? Group { get; init; }
@@ -48,6 +86,16 @@ public abstract class FieldBinding<T>
 
     /// <summary>現在値が既定値と異なるか。</summary>
     public abstract bool IsModified(T target);
+
+    /// <summary>
+    /// 現在値を型を問わない形で取り出す。巻き戻しの基準を覚えるのに使う。
+    /// </summary>
+    public abstract object? GetValue(T target);
+
+    /// <summary>
+    /// 型を問わない形で値を書き戻す。書き換わったら true。
+    /// </summary>
+    public abstract bool SetValue(T target, object? value);
 }
 
 /// <summary>型付きアクセサを持つ項目の共通実装。</summary>
@@ -75,6 +123,19 @@ public abstract class FieldBinding<T, TValue> : FieldBinding<T>
             return false;
 
         return !Equals(this.Getter(target), value);
+    }
+
+    /// <inheritdoc/>
+    public override object? GetValue(T target) => this.Getter(target);
+
+    /// <inheritdoc/>
+    public override bool SetValue(T target, object? value)
+    {
+        if (value is not TValue typed || Equals(this.Getter(target), typed))
+            return false;
+
+        this.Setter(target, typed);
+        return true;
     }
 }
 
@@ -279,6 +340,49 @@ public sealed class ColorPackedBinding<T> : FieldBinding<T, uint>
             if (!result.Changed)
                 return false;
         }
+
+        this.Setter(target, value);
+        return true;
+    }
+}
+
+/// <summary>
+/// <see cref="Vector4"/> を数値の並びとして編集する項目。
+/// </summary>
+/// <typeparam name="T">設定クラスの型。</typeparam>
+/// <remarks>
+/// 色として扱いたい場合は <c>[EuColor]</c> を付ける。付いていないベクトルはこちらになる。
+/// </remarks>
+public sealed class VectorBinding<T> : FieldBinding<T, Vector4>
+{
+    /// <summary>各成分に添える文字。</summary>
+    public string[] Labels { get; init; } = [];
+
+    /// <summary>増減ボタンの刻み。</summary>
+    public float Step { get; init; }
+
+    /// <summary>下限。</summary>
+    public float? Min { get; init; }
+
+    /// <summary>上限。</summary>
+    public float? Max { get; init; }
+
+    /// <inheritdoc/>
+    public override bool Draw(T target, bool disabled)
+    {
+        var value = this.Getter(target);
+
+        // 成分ごとに欄が並ぶので、ラベルは上に置いて幅を確保する
+        EUi.Label(this.Label);
+
+        var result = EUi.InputVector4(
+            this.WidgetId, ref value, this.Labels, this.Step, this.Min, this.Max, disabled);
+
+        if (this.Tip is not null)
+            result.Tip(this.Tip);
+
+        if (!result.Changed)
+            return false;
 
         this.Setter(target, value);
         return true;
