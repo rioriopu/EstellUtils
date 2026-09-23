@@ -57,6 +57,11 @@ public struct WidgetState
     /// <summary>選択中の項目。タブや一覧で使う。</summary>
     public int SelectedIndex;
 
+    /// <summary>
+    /// 選択がコードから要求されたか。タブバーが次に描かれるとき、これを見て採用する。
+    /// </summary>
+    public bool SelectionRequested;
+
     /// <summary>初期化済みか。既定値の投入を 1 度だけ行うために使う。</summary>
     public bool Initialized;
 

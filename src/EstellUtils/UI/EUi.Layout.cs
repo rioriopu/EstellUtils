@@ -26,6 +26,16 @@ public static partial class EUi
     public static float AvailableWidth => AvailableRect.Width;
 
     /// <summary>
+    /// 次に確保される要素の幅。列を宣言した行では列幅になる。
+    /// </summary>
+    /// <remarks>
+    /// 折り返しの行数を先に数えてから領域を確保するウィジェットは、この値を基準にする。
+    /// <see cref="AvailableWidth"/> は行全体の残りなので、列の中では食い違う。
+    /// </remarks>
+    public static float NextItemWidth
+        => UiContext.Current.Layout.Current?.NextWidth ?? AvailableWidth;
+
+    /// <summary>
     /// 列を並べたときに、列の間の隙間が占める合計幅。
     /// </summary>
     /// <param name="columnCount">列の数。</param>

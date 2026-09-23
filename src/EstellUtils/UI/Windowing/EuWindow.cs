@@ -42,6 +42,9 @@ public abstract class EuWindow
     private readonly string imguiId;
 
     private bool wasOpen;
+
+    /// <summary>次に描かれるとき手前へ出すか。</summary>
+    private bool wantsFocus;
     private bool placed;
     private bool resizing;
     private Vector2 animatedSize;
@@ -313,8 +316,25 @@ public abstract class EuWindow
     }
 
     /// <summary>ウィンドウを 1 フレーム分描く。ウィンドウ管理から呼ばれる。</summary>
+    /// <summary>
+    /// 次に描かれるとき、このウィンドウを手前へ出す。
+    /// </summary>
+    /// <remarks>
+    /// すでに開いているウィンドウを「開く」操作で呼び直したとき、
+    /// 他の窓の下に隠れたままだと何も起きていないように見える。
+    /// </remarks>
+    public void BringToFront() => this.wantsFocus = true;
+
     internal void Render()
     {
+        // 覚えていた状態は、何を描くより先に読み戻す。
+        // 本体を閉じたまま小窓だけ開いていた場合、本体の描画まで待つと復元されない
+        if (!this.stateRestored)
+        {
+            this.stateRestored = true;
+            this.RestoreState();
+        }
+
         // 小窓は独立したウィンドウなので、本体の開閉とは関係なく先に描く
         if (this.HasCompanion)
         {
@@ -336,14 +356,14 @@ public abstract class EuWindow
         if (!this.IsOpen || !this.DrawConditions())
             return;
 
-        this.PreDraw();
-
-        // 覚えていた位置や大きさは、最初の描画の前に読み戻す
-        if (!this.stateRestored)
+        // 手前へ出す要求があれば、この 1 回だけ使う
+        if (this.wantsFocus)
         {
-            this.stateRestored = true;
-            this.RestoreState();
+            this.wantsFocus = false;
+            ImGui.SetWindowFocus(this.imguiId);
         }
+
+        this.PreDraw();
 
         if (!this.placed)
             this.CenterOnScreen();

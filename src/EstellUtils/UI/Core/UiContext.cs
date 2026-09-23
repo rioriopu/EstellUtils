@@ -122,6 +122,7 @@ public sealed class UiContext
         Render.Painter.ResetClipStack();
         Render.Painter.ResetAlpha();
         EUi.ResetLabelColumns();
+        EUi.ResetRawImGuiDepth();
         EUi.ResetDisabled();
 
         this.LastItemHoveredDuration = 0f;

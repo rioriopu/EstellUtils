@@ -68,6 +68,22 @@ public class ConfigWindow : EuWindow
 }
 ```
 
+### 登録先も差し替える
+
+**`EuWindow` は `EUi.Windows` へ登録しないと一切描かれません。**
+基底クラスを変えただけでは窓が出ないので、登録も差し替えてください。
+
+```csharp
+// 移行前
+this.windowSystem.AddWindow(this.configWindow);
+
+// 移行後
+EUi.Windows.Add(this.configWindow, mainUi: true, configUi: true);
+```
+
+`mainUi` / `configUi` を渡すと、プラグイン一覧の「開く」と歯車ボタンへ繋がります
+(Dalamud はこれが無いプラグインを検査で指摘します)。解除は `EUi.Shutdown()` が行います。
+
 ### 中身が生の ImGui のままの場合
 
 **`Draw()` の先頭で `EUi.RawImGui()` を開いてください。**
@@ -88,6 +104,30 @@ public override void Draw()
 
 囲んでしまえば、中身は 1 関数ずつ置き換えていけます。
 EstellUtils のウィジェットへ全部移り終えたら、この行を外します。
+
+`RawImGui()` は既定で ImGui 側にも同じ大きさの領域を作ります。これが無いと
+`GetContentRegionAvail` / `TextWrapped` / `SetNextItemWidth(-1)` / 幅 0 の表が
+ImGui ウィンドウの右端を基準にしてしまい、右側がはみ出したり切れたりします。
+
+一部分だけ混ぜる場合は、その部分に必要な高さを渡してください。
+
+```csharp
+using (EUi.RawImGui(height: 120f))
+    ImGui.Image(handle, size);
+```
+
+### 送りが二重になる・無くなる場合
+
+`EuWindow.AutoScroll` は既定で true で、`Draw()` は EstellUtils の送り領域の内側で呼ばれます。
+ImGui ウィンドウ自体は送りを持たない設定なので、
+
+- 中身が生 ImGui のまま `RawImGui` で囲まないと、**送りが一つも無い**
+- 中身が生 ImGui で独自に送りを持つと、**つまみが 2 本並ぶ**
+
+ことがあります。`RawImGui()` を高さ指定なしで開けば、ImGui 側の領域が
+ちょうど残り高さを埋めるので、外側の送りは動かずに済みます。
+それでも合わない場合は `this.AutoScroll = false;` にして ImGui 側へ任せ、
+移し終えてから戻してください。
 
 部分的に混ぜる場合も同じです。詳しくは下の「[生 ImGui との混在](#生-imgui-との混在)」を参照してください。
 
@@ -116,6 +156,10 @@ if (EUi.SliderInt("オーバーレイ更新間隔##scrubIv", ref cfg.methodAUpda
 ```
 
 `ref` で直接フィールドを渡せるため、一時変数と `Clamp` が不要になります。
+
+**`width` はバーの幅です。** `ImGui.SetNextItemWidth` と違い、値の欄 (既定 58px) と
+ラベルはこれとは別に取られます。行全体を同じ幅にしたい場合は、
+`SliderValueWidth` とラベルの分を見込んでください。
 
 ### 色付きテキスト
 

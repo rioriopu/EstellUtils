@@ -194,3 +194,30 @@ public override void OnClose()
 
 読み込んだ位置を使うときは、初回の自動中央寄せが働かないよう `MarkPlaced()` を呼びます
 （ビルダーの場合は `.At(x, y)`）。
+
+
+## 登録とプラグイン一覧のボタン
+
+`EuWindow` は `EUi.Windows` へ登録しないと描かれません。
+
+```csharp
+EUi.Windows.Add(this.window, mainUi: true, configUi: true);
+```
+
+`mainUi` はプラグイン一覧の「開く」、`configUi` は歯車ボタンに対応します。
+どちらも**開くだけで、切り替えはしません**。すでに開いていれば手前へ出します。
+解除は `EUi.Shutdown()` が行います。
+
+`window.BringToFront()` で、任意のタイミングで手前へ出せます。
+
+## その他のプロパティ
+
+| プロパティ | 説明 |
+|---|---|
+| `ExtraFlags` | ImGui の箱へ足すフラグ。既定の装飾なし設定に追加される |
+| `IsCollapsed` | タイトルバーだけに畳まれているか。コードから畳むこともできる |
+| `AutoScroll` | `Draw()` を送り領域で包むか (既定 true)。移行の途中は false にすることがある |
+
+`AutoScroll` が true のとき、`Draw()` は EstellUtils の送り領域の内側で呼ばれます。
+中身がまだ生 ImGui で独自の送りを持つ場合、つまみが 2 本並ぶことがあります。
+`EUi.RawImGui()` で囲めば ImGui 側の領域が残り高さを埋めるので、外側の送りは動きません。

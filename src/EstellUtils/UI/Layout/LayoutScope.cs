@@ -80,6 +80,25 @@ public sealed class LayoutScope
     /// <summary>次の要素に使える残り幅。</summary>
     public float RemainingWidth => MathF.Max(0f, this.Bounds.Max.X - this.Cursor.X);
 
+    /// <summary>
+    /// 次に確保される要素の幅。
+    /// </summary>
+    /// <remarks>
+    /// 列を宣言した行では列幅、それ以外は使える幅。
+    /// 折り返しの行数を先に数えるウィジェットは、この値を基準にする。
+    /// <c>AvailableWidth</c> を使うと、列の中で幅が食い違う。
+    /// </remarks>
+    public float NextWidth
+    {
+        get
+        {
+            if (this.Kind == LayoutKind.Horizontal && this.columnCount > 0)
+                return this.columnWidths[Math.Min(this.ColumnIndex, this.columnCount - 1)];
+
+            return this.Kind == LayoutKind.Vertical ? this.Bounds.Width : this.RemainingWidth;
+        }
+    }
+
     /// <summary>次の要素に使える残り高さ。</summary>
     public float RemainingHeight => MathF.Max(0f, this.Bounds.Max.Y - this.Cursor.Y);
 
@@ -220,6 +239,15 @@ public sealed class LayoutScope
 
     private Rect AllocateHorizontal(Vector2 size)
     {
+        // 列を宣言した行では、要素の希望幅より列幅を優先する。
+        // Vector2 で大きさを渡すウィジェット (折り返しテキストなど) が
+        // 列を無視して行からはみ出すのを防ぐ
+        if (this.columnCount > 0)
+        {
+            var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
+            size = new Vector2(this.columnWidths[index], size.Y);
+        }
+
         if (this.ItemCount > 0)
         {
             var needsWrap = this.Wrap && this.Cursor.X + this.Spacing.X + size.X > this.Bounds.Max.X;

@@ -16,6 +16,9 @@ public static partial class EUi
     /// <summary>タブ同士の間隔。</summary>
     private const float TabGap = 2f;
 
+    /// <summary>ラベルで要求された選択。描かれるときに添字へ直す。</summary>
+    private static readonly System.Collections.Generic.Dictionary<EuId, string> PendingTabLabels = new();
+
     /// <summary>
     /// タブバーを描き、選択中のタブを返す。選択状態はライブラリ側が覚える。
     /// <code>
@@ -43,9 +46,14 @@ public static partial class EUi
 
         // 状態の参照は描画の前後で分ける。描画の途中で Store が育つと ref が無効になる
         var selected = Math.Clamp(ctx.Store.GetRef(euId).SelectedIndex, 0, labels.Length - 1);
+        ApplyPendingLabel(euId, ref selected, labels);
+
         var result = DrawTabBar(ctx, euId, ref selected, labels);
 
-        ctx.Store.GetRef(euId).SelectedIndex = selected;
+        ref var after = ref ctx.Store.GetRef(euId);
+        after.SelectedIndex = selected;
+        after.SelectionRequested = false;
+
         return result;
     }
 
@@ -75,11 +83,22 @@ public static partial class EUi
             return default;
 
         var euId = ctx.GetId(id);
+
+        // SelectTab で外から要求があればそちらを採る。
+        // 書き戻すだけだと、要求が次のフレームで上書きされて消えてしまう
+        ref var state = ref ctx.Store.GetRef(euId);
+
+        if (state.SelectionRequested)
+        {
+            selected = state.SelectedIndex;
+            state.SelectionRequested = false;
+        }
+
         selected = Math.Clamp(selected, 0, labels.Length - 1);
+        ApplyPendingLabel(euId, ref selected, labels);
 
         var result = DrawTabBar(ctx, euId, ref selected, labels);
 
-        // 内部の記憶も合わせておく。SelectTab と混ぜて使っても食い違わない
         ctx.Store.GetRef(euId).SelectedIndex = selected;
         return result;
     }
@@ -102,7 +121,47 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        ctx.Store.GetRef(ctx.GetId(id)).SelectedIndex = Math.Max(0, index);
+        ref var state = ref ctx.Store.GetRef(ctx.GetId(id));
+        state.SelectedIndex = Math.Max(0, index);
+        state.SelectionRequested = true;
+    }
+
+    /// <summary>
+    /// タブバーの選択を、ラベルを指定してコードから変える。
+    /// </summary>
+    /// <param name="id">タブバーの識別子。</param>
+    /// <param name="label">選ぶタブのラベル。宣言したとおりの文字列を渡す。</param>
+    /// <remarks>
+    /// 添字で指すと、条件によってタブが増減する画面では飛び先がずれる。
+    /// ラベルで指せば並びが変わっても壊れない。
+    /// <code>
+    /// if (EUi.Button("プリセットへ"))
+    ///     EUi.SelectTab("##tabs", "プリセット");
+    /// </code>
+    /// 一致するラベルが無ければ何も起きない。
+    /// </remarks>
+    public static void SelectTab(ReadOnlySpan<char> id, ReadOnlySpan<char> label)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        PendingTabLabels[ctx.GetId(id)] = label.ToString();
+    }
+
+    /// <summary>ラベルでの選択要求があれば、添字へ直して取り込む。</summary>
+    private static void ApplyPendingLabel(EuId euId, ref int selected, ReadOnlySpan<string> labels)
+    {
+        if (PendingTabLabels.Count == 0 || !PendingTabLabels.Remove(euId, out var wanted))
+            return;
+
+        for (var i = 0; i < labels.Length; i++)
+        {
+            if (string.Equals(labels[i], wanted, StringComparison.Ordinal))
+            {
+                selected = i;
+                return;
+            }
+        }
     }
 
     /// <summary>タブの見出し行を描く。</summary>
@@ -115,8 +174,9 @@ public static partial class EUi
     {
         var tabHeight = Metrics.TabHeight;
 
-        // 何行になるかを先に数えて、必要な高さを確保しておく
-        var rows = CountTabRows(labels, AvailableWidth);
+        // 何行になるかを先に数えて、必要な高さを確保しておく。
+        // 基準は「次に確保される幅」。列の中では行全体の残り幅と食い違う
+        var rows = CountTabRows(labels, NextItemWidth);
         var rowRect = ctx.Allocate(SizeSpec.Fill, (tabHeight * rows) + (TabGap * (rows - 1)));
 
         var x = rowRect.Min.X;
@@ -138,13 +198,16 @@ public static partial class EUi
                 new Vector2(x, y),
                 new Vector2(MathF.Min(width, rowRect.Width), tabHeight));
 
-            var interaction = Interaction.Behavior(tabRect, euId.Child(i));
+            // ID はラベル全体から作る。添字で作ると、条件でタブが増減したときに
+            // 別のタブの状態を引き継いでしまう
+            var tabId = EuId.FromLabel(label, euId.Value, out var display);
+            var interaction = Interaction.Behavior(tabRect, tabId);
 
             if (interaction.Clicked)
                 selected = i;
 
             var visual = WidgetVisual.From(interaction, i == selected) with { Rect = tabRect };
-            WidgetPainter.DrawTab(visual, label);
+            WidgetPainter.DrawTab(visual, display);
 
             x += width + TabGap;
         }
@@ -155,27 +218,55 @@ public static partial class EUi
         return new TabBarResult(selected, labels[selected]);
     }
 
-    /// <summary>タブ 1 枚分の幅。</summary>
+    /// <summary>タブ 1 枚分の幅。<c>##</c> 以降は表示されないので幅にも入れない。</summary>
     private static float TabWidth(ReadOnlySpan<char> label)
-        => MathF.Ceiling(TextPainter.Measure(label).X) + Metrics.TabPadding.TotalHorizontal;
+    {
+        EuId.FromLabel(label, 0UL, out var display);
+        return MathF.Ceiling(TextPainter.Measure(display).X) + Metrics.TabPadding.TotalHorizontal;
+    }
 
     /// <summary>与えられた幅で、タブが何行になるかを数える。</summary>
     private static int CountTabRows(ReadOnlySpan<string> labels, float available)
     {
+        if (labels.Length <= 8)
+        {
+            Span<float> widths = stackalloc float[labels.Length];
+
+            for (var i = 0; i < labels.Length; i++)
+                widths[i] = TabWidth(labels[i]);
+
+            return CountRows(widths, available, TabGap);
+        }
+
+        var buffer = new float[labels.Length];
+
+        for (var i = 0; i < labels.Length; i++)
+            buffer[i] = TabWidth(labels[i]);
+
+        return CountRows(buffer, available, TabGap);
+    }
+
+    /// <summary>
+    /// 幅の並びから、折り返した行数を数える。
+    /// </summary>
+    /// <remarks>
+    /// 描画にも文字の計測にも依らない純粋な計算に切り出してある。
+    /// 高さの確保と実際の折り返しが同じ規則で動くことを、機械的に検証するため。
+    /// </remarks>
+    internal static int CountRows(ReadOnlySpan<float> widths, float available, float gap)
+    {
         var rows = 1;
         var x = 0f;
 
-        for (var i = 0; i < labels.Length; i++)
+        for (var i = 0; i < widths.Length; i++)
         {
-            var width = TabWidth(labels[i]);
-
-            if (x > 0f && x + width > available)
+            if (x > 0f && x + widths[i] > available)
             {
                 rows++;
                 x = 0f;
             }
 
-            x += width + TabGap;
+            x += widths[i] + gap;
         }
 
         return rows;

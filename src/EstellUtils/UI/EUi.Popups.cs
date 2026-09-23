@@ -43,16 +43,39 @@ public static partial class EUi
     /// <summary>確認ダイアログの幅。</summary>
     private const float ConfirmWidth = 380f;
 
+    /// <summary>ポップアップへ渡す ImGui の ID。毎フレーム作らずに使い回す。</summary>
+    private static readonly System.Collections.Generic.Dictionary<EuId, string> PopupIds = new();
+
+    /// <summary>
+    /// ポップアップの ImGui ID を、EstellUtils の ID スタックを通して決める。
+    /// </summary>
+    /// <remarks>
+    /// ImGui の ID スタックは <c>EUi.PushId</c> の影響を受けない。
+    /// 文字列をそのまま渡すと、一覧の全行で同じポップアップになってしまう。
+    /// </remarks>
+    private static string ResolvePopupId(string id)
+    {
+        var euId = UiContext.Current.GetId(id);
+
+        if (PopupIds.TryGetValue(euId, out var cached))
+            return cached;
+
+        var built = "##euPopup" + euId.Value.ToString("X", System.Globalization.CultureInfo.InvariantCulture);
+        PopupIds[euId] = built;
+
+        return built;
+    }
+
     /// <summary>ポップアップを開く。</summary>
     /// <param name="id">識別子。<see cref="Popup"/> などへ渡すものと同じ文字列を使う。</param>
     /// <remarks>
     /// 開く操作と中身の描画は別々に書く。ボタンの中で開き、
     /// 描画は同じ階層のどこかで毎フレーム呼ぶ、という形になる。
     /// </remarks>
-    public static void OpenPopup(string id) => ImGui.OpenPopup(id);
+    public static void OpenPopup(string id) => ImGui.OpenPopup(ResolvePopupId(id));
 
     /// <summary>ポップアップが開いているか。</summary>
-    public static bool IsPopupOpen(string id) => ImGui.IsPopupOpen(id);
+    public static bool IsPopupOpen(string id) => ImGui.IsPopupOpen(ResolvePopupId(id));
 
     /// <summary>開いているポップアップを閉じる。ポップアップの中から呼ぶ。</summary>
     public static void ClosePopup() => ImGui.CloseCurrentPopup();
@@ -90,7 +113,7 @@ public static partial class EUi
         ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
-        if (!BeginPopupBox(id))
+        if (!BeginPopupBox(ResolvePopupId(id)))
             return default;
 
         // ImGui が画面内へ収め直すことがあるので、実際の位置を取り直す
@@ -138,7 +161,7 @@ public static partial class EUi
         ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
-        if (!BeginPopupBox(id))
+        if (!BeginPopupBox(ResolvePopupId(id)))
             return -1;
 
         var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
@@ -200,7 +223,7 @@ public static partial class EUi
             || (target.Hovered && !target.Disabled && ctx.Input.IsPressed(MouseButton.Right));
 
         if (opened)
-            ImGui.OpenPopup(id);
+            ImGui.OpenPopup(ResolvePopupId(id));
 
         return Menu(id, PopupAnchor.MousePosition, entries);
     }
@@ -237,7 +260,9 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        if (!ImGui.IsPopupOpen(id))
+        var popupId = ResolvePopupId(id);
+
+        if (!ImGui.IsPopupOpen(popupId))
             return ConfirmResult.None;
 
         var padding = Metrics.CardPadding;
@@ -268,7 +293,7 @@ public static partial class EUi
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
 
         var open = true;
-        var began = ImGui.BeginPopupModal(id, ref open, PopupWindowFlags);
+        var began = ImGui.BeginPopupModal(popupId, ref open, PopupWindowFlags);
 
         ImGui.PopStyleVar();
 

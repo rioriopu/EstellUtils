@@ -96,8 +96,22 @@ this.window.Toggle();
 
 ## 4. 位置とサイズを保存する
 
-ウィンドウの位置は ImGui の ini には保存されません。覚えておきたい場合は
-プラグインの設定へ保存してください。
+ウィンドウの位置は ImGui の ini には保存されません。
+**まとめて覚えさせるのが一番簡単です。**
+
+```csharp
+// 設定クラス
+public EuWindowLayout WindowLayout { get; set; } = new();
+
+// 起動時に一度
+EUi.Windows.BindLayout(this.config.WindowLayout, this.config.Save);
+```
+
+これだけで、登録済み・未登録を問わずすべてのウィンドウの位置・大きさ・
+畳んだ状態・小窓の開閉が保存され、次回そのまま復元されます。
+保存は動かし終えた時点で呼ばれます。詳しくは [windows.md](windows.md) を参照してください。
+
+### 1 つずつ自分で保存する場合
 
 ```csharp
 public override void OnClose()

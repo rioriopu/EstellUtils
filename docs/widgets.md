@@ -79,6 +79,7 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.ImageButton(texture, id, size)` | 押せる画像 |
 | `EUi.Icon(icon, color)` | FontAwesome のアイコンを 1 つ |
 | `EUi.IconText(icon, text, color, textColor)` | アイコンと文字を並べる |
+| `EUi.RichLabel(parts...)` | 色の違う断片を 1 行に並べる。`SameLine` の置き換え |
 | `EUi.Separator(label)` | 区切り線。ラベルを渡すと線の中に文字を挟む |
 | `EUi.Toast(message, kind, duration)` | 画面隅に出る通知。ウィンドウが閉じていても見える |
 | `EUi.Toast(title, message, kind, duration)` | 見出し付きの通知 |
@@ -111,6 +112,8 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 | API | 説明 |
 |---|---|
 | `EUi.Button(label, style, width, disabled)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
+| `EUi.ButtonAt(id, rect, label, style, disabled)` | 矩形を指定して描く。高さも自由 |
+| `EUi.ButtonWidth(label)` | ラベルに合わせた幅。行を自分で配るときに |
 | `EUi.IconButton(icon, id, style, disabled)` | FontAwesome の文字を渡す正方形ボタン |
 | `EUi.Checkbox(label, ref value, disabled)` | ラベル部分もクリックできる |
 | `EUi.Toggle(label, ref value, disabled)` | トグルスイッチ |
@@ -197,8 +200,8 @@ public Plugin(IDalamudPluginInterface pi, IPluginLog log, IKeyState keyState)
 `KeyBinding` は単純なプロパティだけで構成してあるので、設定へそのまま保存できます。
 
 ```csharp
-// 設定クラス
-public KeyBinding ToggleKey { get; set; } = new(VirtualKey.F9, Ctrl: true, Shift: false, Alt: false);
+// 設定クラス。ref で渡すのでフィールドにする
+public KeyBinding ToggleKey = new(VirtualKey.F9, Ctrl: true, Shift: false, Alt: false);
 
 // 設定画面
 if (EUi.KeyBind("切り替えキー", ref this.config.ToggleKey))
@@ -370,6 +373,7 @@ using (var popup = EUi.Popup("detail", new Vector2(280f, 150f)))
 |---|---|
 | `EUi.Card(id, padding)` | 枠と地を持つ箱 |
 | `EUi.Section(label, collapsible, defaultOpen, id)` | 折りたためる見出し付きの区画 |
+| `EUi.Section(label, ref open, collapsible, id)` | 開閉を呼び出し側で持つ版 |
 | `EUi.Section(label, body)` | コールバック版。閉じているときは中身が呼ばれない |
 | `EUi.LabelColumn(id, minWidth, maxWidth)` | この中の `Field` のラベル幅を揃える |
 | `EUi.Field(label, labelWidth)` | 「ラベル + ウィジェット」の 1 行 |
@@ -551,8 +555,24 @@ using (EUi.Row(SizeSpec.Fill, 24f, 24f))   // 入力欄が残りを取る
 こちらは `HStack` の中で折り返す位置を指定するものです。
 `ImGui.NewLine()` のつもりで置き換えると、空行がすべて消えます。
 
-`SameLine` に直接あたるものはありません。即時モードで「直前の要素の右に続ける」には
-レイアウトの状態を遡る必要があるためです。続けたい要素を `HStack` で囲んでください。
+**1 行の中で色を変えるだけなら `EUi.RichLabel` が最短です。**
+`HStack` と違ってスコープを開かないので、既存の 1 行を 1 行へ置き換えられます。
+
+```csharp
+// 移行前
+ImGui.TextColored(gray, "状態: ");
+ImGui.SameLine();
+ImGui.TextColored(green, "動作中");
+
+// 移行後
+EUi.RichLabel("状態: ", new TextRun("動作中", EUi.Colors.Success));
+```
+
+文字列をそのまま渡すと標準の文字色になります。幅に収まらない場合は断片の切れ目で折り返します。
+
+ウィジェットを並べる場合は `HStack` で囲んでください。即時モードで
+「直前の要素の右に続ける」にはレイアウトの状態を遡る必要があるため、
+`SameLine` に直接あたるものはありません。
 
 ```csharp
 // 移行前
@@ -623,6 +643,29 @@ for (var i = 0; i < items.Count; i++)
         EUi.TableCell(items[i].Count.ToString(), Align.End);
     }
 }
+```
+
+### 見出しを固定して行だけ送る
+
+固定見出しそのものはまだありません。見出しを送り領域の外に置けば固定できますが、
+**列がずれます。**
+
+```csharp
+EUi.TableHeader(columns);                 // 送り領域の外
+
+using (EUi.Scroll("rows", 240f))          // 行だけ送る
+    foreach (var row in rows) { ... }
+```
+
+送り領域は、つまみが出ているとき内容の右端を `ScrollbarWidth + SpacingSm` だけ削ります。
+見出しは全幅、行は削られた幅になるので、`Fill` の列がその差だけ縮み、
+以降の固定幅列が左へずれます。**つまみは行数で出たり消えたりするので、
+行が増えた瞬間に見出しだけズレる**という気づきにくい壊れ方をします。
+
+見出し側で同じ幅を引いておけば揃います。
+
+```csharp
+EUi.TableHeader(columns, reserveScrollbar: true);
 ```
 
 ## 独自ウィジェットを書く

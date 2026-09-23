@@ -25,6 +25,9 @@ public sealed class EuWindowManager : IDisposable
     private bool disposed;
     private float fontWait;
 
+    /// <summary>プラグイン一覧のボタンから外すための後始末。</summary>
+    private readonly List<Action> openers = new(2);
+
     /// <summary>管理しているウィンドウの数。</summary>
     public int Count => this.windows.Count;
 
@@ -32,15 +35,73 @@ public sealed class EuWindowManager : IDisposable
     public IReadOnlyList<EuWindow> Windows => this.windows;
 
     /// <summary>ウィンドウを追加する。</summary>
-    public void Add(EuWindow window)
+    /// <param name="window">追加するウィンドウ。</param>
+    /// <param name="mainUi">
+    /// プラグイン一覧の「開く」からこのウィンドウを開くか。
+    /// Dalamud はこれが無いプラグインを検査で指摘する。
+    /// </param>
+    /// <param name="configUi">歯車ボタンからこのウィンドウを開くか。</param>
+    /// <remarks>
+    /// <paramref name="mainUi"/> / <paramref name="configUi"/> は開くだけで、
+    /// 開閉の切り替えはしない。すでに開いていれば手前へ出す。
+    /// 解除は <c>EUi.Shutdown()</c> が面倒を見る。
+    /// </remarks>
+    public void Add(EuWindow window, bool mainUi = false, bool configUi = false)
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        if (this.windows.Contains(window))
-            return;
+        if (!this.windows.Contains(window))
+        {
+            // 名前は ImGui の ID と保存キーの両方に使う。
+            // 同名だと入力も位置の記憶も混ざるが、黙っていると原因に辿り着けない
+            if (this.Find(window.Name) is not null)
+            {
+                EstellUtils.Diagnostics.UiLog.Warning(
+                    $"ウィンドウ名「{window.Name}」が重複しています。" +
+                    "入力の判定と、位置・大きさの記憶が混ざります。名前を変えてください。");
+            }
 
-        this.windows.Add(window);
-        this.AttachState(window);
+            this.windows.Add(window);
+            this.AttachState(window);
+        }
+
+        if (mainUi)
+            this.BindOpener(window, main: true);
+
+        if (configUi)
+            this.BindOpener(window, main: false);
+    }
+
+    /// <summary>プラグイン一覧のボタンへウィンドウを繋ぐ。</summary>
+    private void BindOpener(EuWindow window, bool main)
+    {
+        var ui = EUi.PluginInterface?.UiBuilder;
+
+        if (ui is null)
+        {
+            EstellUtils.Diagnostics.UiLog.Warning(
+                "EUi.Initialize より前に Add が呼ばれたため、プラグイン一覧のボタンへ繋げませんでした。");
+            return;
+        }
+
+        // 一覧のボタンは「開く」であって「切り替え」ではない。
+        // 押すたびに閉じると、見えていないところで消えたように感じる
+        void Open()
+        {
+            window.IsOpen = true;
+            window.BringToFront();
+        }
+
+        if (main)
+        {
+            ui.OpenMainUi += Open;
+            this.openers.Add(() => ui.OpenMainUi -= Open);
+        }
+        else
+        {
+            ui.OpenConfigUi += Open;
+            this.openers.Add(() => ui.OpenConfigUi -= Open);
+        }
     }
 
     /// <summary>
@@ -166,6 +227,19 @@ public sealed class EuWindowManager : IDisposable
                 disposable.Dispose();
         }
 
+        foreach (var detach in this.openers)
+        {
+            try
+            {
+                detach();
+            }
+            catch
+            {
+                // 解除の失敗でプラグインの終了処理を止めない
+            }
+        }
+
+        this.openers.Clear();
         this.windows.Clear();
         this.drawBuffer.Clear();
     }

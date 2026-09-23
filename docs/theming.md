@@ -169,3 +169,23 @@ using (EUi.PushFont(FontRole.Mono))
 
 `Body` 系はゲームフォント（Axis）を使います。Dalamud の既定フォントにしたい場合は
 `EUi.Fonts.UseGameFont = false` を設定してください。
+
+
+## 寸法を書き換える
+
+`Derive` の中で `Metrics` を直接書き換える場合、**`SetMetrics` を使ってください。**
+
+```csharp
+var theme = XivNativeTheme.Create().Derive("広め", t =>
+{
+    var m = t.Metrics;
+    m.WindowPadding = EdgeInsets.All(18f);
+    t.SetMetrics(m);          // 拡大率の基準ごと差し替える
+});
+```
+
+`Scale` は基準の寸法から毎回作り直すため、`Metrics` を直接書き換えただけだと
+**あとで `Scale` を設定した瞬間に消えます**。`SetMetrics` は基準値も一緒に差し替えます。
+
+`Derive` は最後に `SetMetrics` を呼ぶので、その中での書き換えは保たれます。
+`Derive` を使わずに書き換える場合は、自分で呼んでください。

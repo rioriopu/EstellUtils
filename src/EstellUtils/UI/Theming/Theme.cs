@@ -122,6 +122,11 @@ public sealed class Theme
         var clone = this.Clone();
         clone.Name = name;
         configure(clone);
+
+        // configure の中で Metrics を直接書き換えた場合、基準値には反映されていない。
+        // そのままだと、あとで Scale を設定した瞬間に書き換えが消える
+        clone.SetMetrics(clone.Metrics);
+
         return clone;
     }
 }

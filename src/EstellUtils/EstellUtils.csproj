@@ -13,4 +13,11 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
+
+  <ItemGroup>
+    <!-- 自己検証から internal の純粋な計算を直接呼ぶ。
+         計算を写して検証すると、実装が変わったときに空振りするため -->
+    <InternalsVisibleTo Include="EstellUtils.SelfCheck" />
+  </ItemGroup>
+
 </Project>

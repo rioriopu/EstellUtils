@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
+using EstellUtils.UI;
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 using EstellUtils.UI.Render;
@@ -438,33 +439,15 @@ internal static class Program
         Span<float> widths = stackalloc float[9];
         widths.Fill(100f);
 
-        Expect(CountRows(widths, 320f, Gap) == 3, "9 枚が 3 行に折り返されていない");
-        Expect(CountRows(widths, 1000f, Gap) == 1, "収まるのに折り返している");
+        // 実装をそのまま呼ぶ。計算を写すと、実装が変わっても検証が空振りする
+        Expect(EUi.CountRows(widths, 320f, Gap) == 3, "9 枚が 3 行に折り返されていない");
+        Expect(EUi.CountRows(widths, 1000f, Gap) == 1, "収まるのに折り返している");
 
         // 1 枚で行幅を超える場合でも、行数が増え続けないこと
         Span<float> wide = stackalloc float[3];
         wide.Fill(500f);
 
-        Expect(CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
-
-        static int CountRows(ReadOnlySpan<float> widths, float available, float gap)
-        {
-            var rows = 1;
-            var x = 0f;
-
-            for (var i = 0; i < widths.Length; i++)
-            {
-                if (x > 0f && x + widths[i] > available)
-                {
-                    rows++;
-                    x = 0f;
-                }
-
-                x += widths[i] + gap;
-            }
-
-            return rows;
-        }
+        Expect(EUi.CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
     }
 
     private static void Expect(bool condition, string message)

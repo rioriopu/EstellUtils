@@ -71,7 +71,7 @@ public override void OnClose() => this.binder.Flush();
 | `float` | 小数スライダー（`[EuRange]` が無ければ 0〜1） |
 | `string` | テキスト入力 |
 | 列挙型 | ドロップダウン |
-| `Vector4` | カラーピッカー |
+| `Vector4` | 数値 4 つ。`[EuColor]` を付けるとカラーピッカー |
 | `uint` | カラーピッカー（`[EuColor]` が必要） |
 
 対応しない型は無視されます。手書きの画面と併用してください。
@@ -154,6 +154,8 @@ this.binder.Reset(nameof(Configuration.UpdateInterval));
 [EuLabelFrom(typeof(Language.Settings), nameof(Language.Settings.UpdateInterval))]
 public int UpdateInterval = 2;
 ```
+
+ツールチップ用に `[EuTipFrom]` もあります。
 
 指定先は `static` で、`string` を返すプロパティ・フィールド・引数なしメソッドのいずれか。
 描画のたびに読むので、言語を切り替えればそのまま追従します。

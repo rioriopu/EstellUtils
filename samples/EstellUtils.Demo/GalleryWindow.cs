@@ -310,6 +310,18 @@ public sealed class GalleryWindow : EuWindow
         using (EUi.PushFont(FontRole.Mono))
             EUi.Label("等幅フォント:  0x1A2B3C4D   ( 1234, 5678 )");
 
+        EUi.Separator("1 行の中で色を変える");
+
+        EUi.RichLabel(
+            "状態: ",
+            new TextRun(this.serviceRunning ? "動作中" : "停止中",
+                this.serviceRunning ? EUi.Colors.Success : EUi.Colors.TextMuted),
+            "  /  残り ",
+            new TextRun("3", EUi.Colors.Warning),
+            " 件");
+
+        EUi.Muted("ImGui.TextColored → SameLine → TextColored の置き換えです。", wrap: true);
+
         EUi.Separator("色付きテキスト — 文字の色だけが変わる");
 
         EUi.TextColored("⚠ 試験機能です。動作の保証はありません。", NoteKind.Warning);

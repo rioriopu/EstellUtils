@@ -42,9 +42,19 @@ public readonly record struct TableColumn(string Header, SizeSpec Width, Align A
 public static partial class EUi
 {
     /// <summary>表の見出し行を描く。</summary>
-    /// <param name="columns">列定義。</param>
+    /// <param name="columns">列定義。行と同じものを渡すこと。</param>
     /// <param name="height">見出し行の高さ。</param>
-    public static void TableHeader(ReadOnlySpan<TableColumn> columns, float? height = null)
+    /// <param name="reserveScrollbar">
+    /// 送りのつまみの分だけ、右端を空けておくか。
+    /// </param>
+    /// <remarks>
+    /// 見出しを送り領域の外に置いて固定する場合、<paramref name="reserveScrollbar"/> を
+    /// true にする。送り領域はつまみが出ているとき内容の右端を削るため、
+    /// 何もしないと見出しと行で列がずれる。しかもつまみは行数で出たり消えたりするので、
+    /// 行が増えた瞬間に見出しだけズレる、という気づきにくい壊れ方をする。
+    /// </remarks>
+    public static void TableHeader(
+        ReadOnlySpan<TableColumn> columns, float? height = null, bool reserveScrollbar = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -57,6 +67,12 @@ public static partial class EUi
         var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
 
         Painter.Rect(rowRect, EuColor.WithAlpha(Colors.Surface, 0.9f), Metrics.WidgetRounding, Corners.Top);
+
+        if (reserveScrollbar)
+        {
+            // 送り領域が内容の右端を削る分と、同じだけ空けておく
+            rowRect = rowRect.WithWidth(MathF.Max(0f, rowRect.Width - ScrollbarInset()));
+        }
 
         Span<SizeSpec> widths = stackalloc SizeSpec[columns.Length];
         for (var i = 0; i < columns.Length; i++)
@@ -93,6 +109,9 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        // セルが寄せ方を引けるよう、この行の列定義を控えておく
+        RememberTableColumns(columns);
+
         var rowHeight = height ?? Metrics.WidgetHeight;
         var available = ctx.Layout.AvailableRect;
         var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
@@ -113,13 +132,42 @@ public static partial class EUi
         return new TableRowHandle(rowRect);
     }
 
+    /// <summary>
+    /// 送り領域が、つまみのために内容の右端から削る幅。
+    /// </summary>
+    /// <remarks>
+    /// 送り領域の外に置いたものと、中に置いたものの幅を揃えたいときに使う。
+    /// </remarks>
+    public static float ScrollbarInset()
+        => Metrics.ScrollbarWidth + Metrics.SpacingSm;
+
+    /// <summary>この行の列定義。セルが寄せ方を引くために使う。</summary>
+    private static TableColumn[] tableColumns = [];
+
+    /// <summary>控えている列の数。</summary>
+    private static int tableColumnCount;
+
+    /// <summary>行の列定義を控える。毎フレームの確保を避けて配列を使い回す。</summary>
+    private static void RememberTableColumns(ReadOnlySpan<TableColumn> columns)
+    {
+        if (tableColumns.Length < columns.Length)
+            tableColumns = new TableColumn[Math.Max(8, columns.Length * 2)];
+
+        columns.CopyTo(tableColumns);
+        tableColumnCount = columns.Length;
+    }
+
+    /// <summary>控えた列定義から、寄せ方を引く。</summary>
+    private static Align ColumnAlignAt(int index)
+        => index >= 0 && index < tableColumnCount ? tableColumns[index].Align : Align.Start;
+
     /// <summary>表のセルへ文字列を表示する。</summary>
     /// <param name="text">表示する文字列。</param>
     /// <param name="align">寄せ方。</param>
     /// <param name="color">文字色。</param>
     /// <param name="tipWhenTruncated">省略したときに、全文をツールチップで見せるか。</param>
     public static WidgetResult TableCell(
-        ReadOnlySpan<char> text, Align align = Align.Start, uint? color = null,
+        ReadOnlySpan<char> text, Align? align = null, uint? color = null,
         bool tipWhenTruncated = true)
     {
         var ctx = UiContext.Current;
@@ -127,12 +175,16 @@ public static partial class EUi
 
         var scope = ctx.Layout.Current;
         var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
+
+        // 寄せ方を省略したら、列定義の指定に従う
+        var resolvedAlign = align ?? ColumnAlignAt(scope?.ColumnIndex ?? 0);
+
         var rect = ctx.Allocate(SizeSpec.Fill, height);
 
         var textRect = rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
         var truncated = TextPainter.Measure(text).X > textRect.Width + 1f;
 
-        TextPainter.TextIn(textRect, color ?? Colors.Text, text, align, Align.Center);
+        TextPainter.TextIn(textRect, color ?? Colors.Text, text, resolvedAlign, Align.Center);
 
         var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 

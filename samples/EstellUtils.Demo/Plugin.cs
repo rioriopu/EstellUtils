@@ -41,7 +41,9 @@ public sealed class Plugin : IDalamudPlugin
         EUi.Initialize(pluginInterface, log: log, keyState: keyState);
 
         this.window = new GalleryWindow { IsOpen = true };
-        EUi.Windows.Add(this.window);
+
+        // プラグイン一覧の「開く」と歯車ボタンにも繋ぐ
+        EUi.Windows.Add(this.window, mainUi: true, configUi: true);
 
         // 位置と大きさをまとめて覚えさせる。動かし終えた時点で保存が呼ばれる
         EUi.Windows.BindLayout(this.layout, this.SaveLayout);
@@ -51,16 +53,11 @@ public sealed class Plugin : IDalamudPlugin
             HelpMessage = "EstellUtils のウィジェットギャラリーを開きます。",
         });
 
-        this.pluginInterface.UiBuilder.OpenMainUi += this.OpenWindow;
-        this.pluginInterface.UiBuilder.OpenConfigUi += this.OpenWindow;
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        this.pluginInterface.UiBuilder.OpenMainUi -= this.OpenWindow;
-        this.pluginInterface.UiBuilder.OpenConfigUi -= this.OpenWindow;
-
         this.commandManager.RemoveHandler(CommandName);
 
         EUi.Shutdown();
@@ -75,5 +72,4 @@ public sealed class Plugin : IDalamudPlugin
         => EstellUtils.Diagnostics.UiLog.Debug(
             $"ウィンドウの配置が変わりました ({this.layout.Windows.Count} 件)");
 
-    private void OpenWindow() => this.window.IsOpen = true;
 }
