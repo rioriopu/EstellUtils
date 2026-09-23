@@ -58,12 +58,38 @@ public class ConfigWindow : EuWindow
         this.MaxSize = new Vector2(900f, 700f);
     }
 
-    public override void Draw() { /* 中身はそのままでも動く */ }
+    public override void Draw()
+    {
+        // 中身がまだ生の ImGui なら、最上段でこれを開く
+        using var raw = EUi.RawImGui();
+
+        // ここから下は今までどおりの ImGui コード
+    }
 }
 ```
 
-`Draw()` の中身が生の ImGui のままでも動作します。
-違いは、ウィンドウの枠とタイトルバーが EstellUtils の描画になることだけです。
+### 中身が生の ImGui のままの場合
+
+**`Draw()` の先頭で `EUi.RawImGui()` を開いてください。**
+
+`EuWindow.Draw()` の中は EstellUtils のレイアウトです。EstellUtils は独自のカーソルで
+位置を決めるため、囲まずに生の `ImGui.*` を呼ぶと**画面の外へ描かれ、窓枠だけが残ります**。
+何も出ていないように見えるので、原因に辿り着きにくい症状です。
+
+```csharp
+public override void Draw()
+{
+    using var raw = EUi.RawImGui();
+
+    using var tabs = ImRaii.TabBar("##tabs");
+    // ...
+}
+```
+
+囲んでしまえば、中身は 1 関数ずつ置き換えていけます。
+EstellUtils のウィジェットへ全部移り終えたら、この行を外します。
+
+部分的に混ぜる場合も同じです。詳しくは下の「[生 ImGui との混在](#生-imgui-との混在)」を参照してください。
 
 ## 3. 中身の置き換え
 
@@ -173,6 +199,22 @@ else if (tabs.IsSelected("試験機能")) DrawExp();
 
 タブのラベルを先に宣言する形になります。条件付きのタブがある場合は、
 `EUi.Window(...).Tab(label, body, visible)` のビルダーを使うと素直に書けます。
+
+**行に入り切らないタブは次の行へ折り返します。** タブが多い画面でも消えません。
+
+コードから別のタブへ飛ばす場合は、選択状態を呼び出し側で持つか、`SelectTab` を使います。
+
+```csharp
+// 呼び出し側で持つ
+if (EUi.Button("プリセットへ"))
+    this.tabIndex = 2;
+
+var tabs = EUi.TabBar("##tabs", ref this.tabIndex, "基本", "詳細", "プリセット");
+
+// ライブラリ側に持たせたまま飛ばす
+if (EUi.Button("プリセットへ"))
+    EUi.SelectTab("##tabs", 2);
+```
 
 ### 折りたたみ
 

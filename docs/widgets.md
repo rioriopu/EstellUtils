@@ -374,6 +374,18 @@ using (var popup = EUi.Popup("detail", new Vector2(280f, 150f)))
 | `EUi.LabelColumn(id, minWidth, maxWidth)` | この中の `Field` のラベル幅を揃える |
 | `EUi.Field(label, labelWidth)` | 「ラベル + ウィジェット」の 1 行 |
 | `EUi.TabBar(id, labels...)` | タブ。選択中のタブを返す |
+| `EUi.TabBar(id, ref index, labels...)` | 選択状態を呼び出し側で持つ版 |
+| `EUi.SelectTab(id, index)` | コードから選択を変える |
+
+タブは**行に入り切らない分を次の行へ折り返します**。枚数が増えても消えません。
+コードから別のタブへ飛ばしたい場合は `ref` 版か `EUi.SelectTab` を使います。
+
+```csharp
+if (EUi.Button("プリセットへ"))
+    EUi.SelectTab("##tabs", 2);
+
+var tabs = EUi.TabBar("##tabs", "基本", "詳細", "プリセット");
+```
 
 同じ見出しを複数箇所で使う場合は `id` で分けます。
 見出しへ `##` を埋め込む書き方も同じ意味ですが、引数のほうが意図がはっきりします。

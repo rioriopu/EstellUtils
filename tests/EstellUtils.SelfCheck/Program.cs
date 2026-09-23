@@ -37,6 +37,7 @@ internal static class Program
         CheckEdgeSnap();
         CheckCrossAlign();
         CheckColumnLayout();
+        CheckTabWrapping();
 
         if (Failures.Count == 0)
         {
@@ -420,6 +421,50 @@ internal static class Program
 
         // 丸め差は許す。1px を超えてはみ出したら失敗
         Expect(sum <= total + 1f, $"{message}: 合計 {sum} > 行幅 {total}");
+    }
+
+    /// <summary>
+    /// タブの折り返しの検証。
+    /// </summary>
+    /// <remarks>
+    /// 以前は行に入り切らないタブを捨てていた。タブがそもそも無いように見えるため、
+    /// 枚数が増えたときに気づけない。行数の数え方だけを取り出して確かめる。
+    /// </remarks>
+    private static void CheckTabWrapping()
+    {
+        const float Gap = 2f;
+
+        // 幅 100 のタブを 9 枚、行幅 320 に並べる
+        Span<float> widths = stackalloc float[9];
+        widths.Fill(100f);
+
+        Expect(CountRows(widths, 320f, Gap) == 3, "9 枚が 3 行に折り返されていない");
+        Expect(CountRows(widths, 1000f, Gap) == 1, "収まるのに折り返している");
+
+        // 1 枚で行幅を超える場合でも、行数が増え続けないこと
+        Span<float> wide = stackalloc float[3];
+        wide.Fill(500f);
+
+        Expect(CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
+
+        static int CountRows(ReadOnlySpan<float> widths, float available, float gap)
+        {
+            var rows = 1;
+            var x = 0f;
+
+            for (var i = 0; i < widths.Length; i++)
+            {
+                if (x > 0f && x + widths[i] > available)
+                {
+                    rows++;
+                    x = 0f;
+                }
+
+                x += widths[i] + gap;
+            }
+
+            return rows;
+        }
     }
 
     private static void Expect(bool condition, string message)
