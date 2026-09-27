@@ -57,7 +57,21 @@ public sealed class UiContext
     public uint FrameCount { get; private set; }
 
     /// <summary>前フレームからの経過秒数。</summary>
-    public float DeltaTime => this.Input.DeltaTime;
+    /// <summary>
+    /// 前フレームからの経過秒数。
+    /// </summary>
+    /// <remarks>
+    /// ゲームが一瞬止まったときの大きな値はそのまま使わず、上限で抑える。
+    /// 抑えないと、止まっている間に進むはずだった分がまとめて適用され、
+    /// アニメーションが瞬間移動したように見える。
+    /// </remarks>
+    public float DeltaTime => MathF.Min(this.Input.DeltaTime, MaxDeltaTime);
+
+    /// <summary>1 フレームで進める時間の上限 (秒)。約 20fps 相当。</summary>
+    public const float MaxDeltaTime = 1f / 20f;
+
+    /// <summary>このフレームの描画統計。重さの原因を切り分けるのに使う。</summary>
+    public UiStats Stats;
 
     /// <summary>累計経過秒数。</summary>
     public float Time => this.Input.Time;
@@ -108,6 +122,10 @@ public sealed class UiContext
     private void BeginFrame()
     {
         this.FrameCount++;
+        this.Stats.Reset();
+
+        // 生 ImGui 側でフォントが積まれている場合もあるので、フレームごとに取り直す
+        Render.TextPainter.InvalidateFontCache();
         this.Input.NewFrame();
         this.Store.NewFrame(this.FrameCount);
 
@@ -255,6 +273,8 @@ public sealed class UiContext
     /// </remarks>
     public Rect Allocate(Vector2 size)
     {
+        this.Stats.Allocations++;
+
         var scope = this.Layout.Current;
         if (scope is not null)
             return scope.Allocate(size);

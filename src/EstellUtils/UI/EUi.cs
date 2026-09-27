@@ -116,6 +116,15 @@ public static partial class EUi
     /// </remarks>
     public static Dalamud.Plugin.Services.IKeyState? KeyState { get; private set; }
 
+    /// <summary>
+    /// このフレームの描画統計。重さの原因を切り分けるのに使う。
+    /// </summary>
+    /// <remarks>
+    /// 描かずに済ませた数 (<c>Culled</c>) が伸びているほど、うまく間引けている。
+    /// 文字計測のキャッシュ率が低い場合は、毎フレーム別の文字列を組み立てている疑いがある。
+    /// </remarks>
+    public static UiStats Stats => UiContext.Current.Stats;
+
     /// <summary>ライブラリが確保した資源を解放する。プラグインの Dispose から呼ぶこと。</summary>
     public static void Shutdown()
     {

@@ -115,6 +115,7 @@ public static class Interaction
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
+        ctx.Stats.Interactions++;
 
         var input = ctx.Input;
         var disabled = (flags & InteractionFlags.Disabled) != 0;

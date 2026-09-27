@@ -614,7 +614,17 @@ public static class Painter
     /// <summary>
     /// 矩形が現在のクリップ領域と重なっているか。描画を省けるかの判定に使う。
     /// </summary>
-    public static bool IsVisible(Rect rect) => CurrentClip.Overlaps(rect);
+    public static bool IsVisible(Rect rect)
+    {
+        if (CurrentClip.Overlaps(rect))
+        {
+            Core.UiContext.Current.Stats.DrawCalls++;
+            return true;
+        }
+
+        Core.UiContext.Current.Stats.Culled++;
+        return false;
+    }
 
     /// <summary>点が現在のクリップ領域の中にあるか。</summary>
     public static bool IsInsideClip(Vector2 point) => CurrentClip.Contains(point);

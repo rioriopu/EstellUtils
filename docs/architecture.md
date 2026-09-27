@@ -119,3 +119,61 @@ UI は毎フレーム実行されるので、GC を刺激しない書き方を�
 | ボタンの見た目を作り直す | `DefaultWidgetPainter` を継承して `DrawButton` だけ差し替える |
 | 独自ウィジェットを作る | `EUi.Reserve` で矩形を取り、`Interaction.Behavior` で判定し、`Painter` で描く |
 | トークンを増やす | `theme.CustomColors` / `theme.CustomMetrics` に自由に追加できる |
+
+## 動作の重さを追う
+
+immediate mode では毎フレーム全部を組み直すため、コストはほぼ「いくつ処理したか」で決まります。
+`EUi.Stats` に 1 フレームぶんの内訳が入っています。
+
+| 値 | 意味 |
+|---|---|
+| `Allocations` | 領域を確保した回数。おおよそのウィジェット数 |
+| `Interactions` | 入力判定の回数 |
+| `DrawCalls` / `Culled` | 描いた回数 / クリップ外で省いた回数 |
+| `TextMeasures` / `TextCacheHitRate` | 文字を測った回数とキャッシュ率 |
+
+デモの「動作確認」タブに表示しています。読み方は次のとおりです。
+
+- **`Culled` が伸びている** — 見えていない部分をうまく飛ばせています
+- **`TextCacheHitRate` が低い** — 毎フレーム別の文字列を組み立てている疑いがあります。
+  `$"{value:F1} fps"` のような文字列は値が変わるたびに測り直しになります
+- **`Allocations` が数百を超える** — 一覧を仮想化できないか検討してください
+
+### 件数の多い一覧
+
+高さが揃っているなら `EUi.VirtualList` を使うと、**件数に関係なく 1 フレームの仕事が一定**になります。
+
+```csharp
+EUi.VirtualList("items", this.items.Count, 24f, 300f, i => DrawRow(this.items[i]));
+```
+
+高さが項目ごとに違う場合は `EUi.IsRowVisible(height)` で 1 行ずつ間引きます。
+
+```csharp
+foreach (var item in items)
+{
+    if (!EUi.IsRowVisible(24f))
+    {
+        EUi.Reserve(SizeSpec.Fill, 24f);
+        continue;
+    }
+
+    DrawRow(item);
+}
+```
+
+### 滑らかさを保つ仕組み
+
+- アニメーションは**指数減衰**なので、60fps でも 144fps でも同じ体感速度になります
+- 目標に十分近づいたら**吸着**します。微小な差分が残り続けて再描画されることはありません
+- `DeltaTime` は **20fps 相当で頭打ち**にしています。ゲームが一瞬止まったとき、
+  止まっていた分がまとめて適用されてアニメーションが瞬間移動するのを防ぎます
+
+`Motion.Enabled` を false にすると遷移が即座になります。軽くはなりますが、
+上の仕組みがあるので、重さの対策としてまずここを切る必要はないはずです。
+
+### 文字の計測
+
+計測結果はフォントごとにキャッシュされます。フォントの識別子と大きさは
+**フレームに一度だけ** ImGui へ問い合わせ、`PushFont` の出入りで取り直します。
+項目の多い画面では、この問い合わせだけで数百回に達するためです。

@@ -213,8 +213,22 @@ public readonly struct FontScope : IDisposable
 {
     private readonly IDisposable? handle;
 
-    internal FontScope(IDisposable? handle) => this.handle = handle;
+    internal FontScope(IDisposable? handle)
+    {
+        this.handle = handle;
+
+        // 文字計測はフォントごとに結果が変わる。切り替えを知らせておく
+        if (handle is not null)
+            Render.TextPainter.InvalidateFontCache();
+    }
 
     /// <inheritdoc/>
-    public void Dispose() => this.handle?.Dispose();
+    public void Dispose()
+    {
+        if (this.handle is null)
+            return;
+
+        this.handle.Dispose();
+        Render.TextPainter.InvalidateFontCache();
+    }
 }

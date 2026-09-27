@@ -55,10 +55,15 @@ public static class TextPainter
     /// <summary>キャッシュを見てから計測する。</summary>
     private static Vector2 MeasureCached(ReadOnlySpan<char> text, float wrapWidth)
     {
+        ref var stats = ref Core.UiContext.Current.Stats;
+        stats.TextMeasures++;
+
         var key = MeasureKey.For(text, wrapWidth);
 
         if (MeasureCache.TryGetValue(key, out var cached))
             return cached;
+
+        stats.TextMeasureMisses++;
 
         var size = wrapWidth < 0f
             ? ImGui.CalcTextSize(text)
@@ -72,6 +77,41 @@ public static class TextPainter
         return size;
     }
 
+    /// <summary>今のフォントの識別子と大きさ。計測のたびに ImGui へ問い合わせない。</summary>
+    private static nint cachedFontHandle;
+    private static float cachedFontSize;
+    private static int cachedFontStamp = -1;
+
+    /// <summary>フォントが切り替わるたびに増える印。</summary>
+    private static int fontStamp;
+
+    /// <summary>
+    /// フォントが切り替わったことを知らせる。キャッシュを取り直す合図。
+    /// </summary>
+    /// <remarks>
+    /// 計測の鍵にはフォントの識別子と大きさが要るが、これを毎回 ImGui へ
+    /// 問い合わせると、項目の多い画面では呼び出し回数が数百に達する。
+    /// 切り替わったときだけ取り直す。
+    /// </remarks>
+    public static void InvalidateFontCache() => fontStamp++;
+
+    /// <summary>今のフォントの識別子と大きさを返す。</summary>
+    private static (nint Handle, float Size) CurrentFont()
+    {
+        if (cachedFontStamp == fontStamp)
+            return (cachedFontHandle, cachedFontSize);
+
+        unsafe
+        {
+            cachedFontHandle = (nint)ImGui.GetFont().Handle;
+        }
+
+        cachedFontSize = ImGui.GetFontSize();
+        cachedFontStamp = fontStamp;
+
+        return (cachedFontHandle, cachedFontSize);
+    }
+
     /// <summary>計測キャッシュを捨てる。フォントを作り直したときに呼ぶ。</summary>
     public static void ClearMeasureCache() => MeasureCache.Clear();
 
@@ -82,15 +122,19 @@ public static class TextPainter
     private readonly record struct MeasureKey(
         int Hash, int Length, char First, char Last, float FontSize, float WrapWidth, nint Font)
     {
-        public static unsafe MeasureKey For(ReadOnlySpan<char> text, float wrapWidth)
-            => new(
+        public static MeasureKey For(ReadOnlySpan<char> text, float wrapWidth)
+        {
+            var (handle, size) = CurrentFont();
+
+            return new MeasureKey(
                 string.GetHashCode(text),
                 text.Length,
                 text[0],
                 text[^1],
-                ImGui.GetFontSize(),
+                size,
                 wrapWidth,
-                (nint)ImGui.GetFont().Handle);
+                handle);
+        }
     }
 
     /// <summary>指定座標を左上としてテキストを描く。</summary>

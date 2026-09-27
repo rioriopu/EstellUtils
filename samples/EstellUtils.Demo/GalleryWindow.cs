@@ -103,6 +103,7 @@ public sealed class GalleryWindow : EuWindow
     private bool serviceRunning = true;
     private readonly float[] fpsHistory = new float[72];
     private float fpsSampleTimer;
+    private bool useVirtualList = true;
 
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
@@ -804,6 +805,17 @@ public sealed class GalleryWindow : EuWindow
         EUi.Muted("スライダーをドラッグ中は保存されず、マウスを離したときにまとめて保存されます。");
     }
 
+    /// <summary>負荷確認用の 1 行。仮想化の有無で同じものを描く。</summary>
+    private void DrawStressRow(int index)
+    {
+        using (EUi.Row(70f, SizeSpec.Fill, 80f))
+        {
+            EUi.Label(StressIds[index % StressIds.Length]);
+            EUi.Label(StressNames[index % StressNames.Length]);
+            EUi.Label(StressValues[index % StressValues.Length], null, Align.End);
+        }
+    }
+
     /// <summary>動作状況の表示。</summary>
     private void DrawDiagnosticsTab()
     {
@@ -825,6 +837,27 @@ public sealed class GalleryWindow : EuWindow
             DrawStat("タイトルバー高さ", $"{EUi.Metrics.TitleBarHeight:F0} px");
             DrawStat("ウィンドウ実寸", $"{io.DisplaySize.X:F0} x {io.DisplaySize.Y:F0} の画面 / 本体 {this.Size.X:F0} x {this.Size.Y:F0}");
         }
+
+        EUi.Separator("このフレームの内訳");
+
+        // 統計は前フレームぶん。このタブを描いている最中の値はまだ増え続けている
+        var stats = EUi.Stats;
+
+        using (EUi.LabelColumn("diagStats"))
+        {
+            DrawStat("領域の確保", stats.Allocations.ToString(CultureInfo.InvariantCulture));
+            DrawStat("入力の判定", stats.Interactions.ToString(CultureInfo.InvariantCulture));
+            DrawStat("描いた回数", stats.DrawCalls.ToString(CultureInfo.InvariantCulture));
+            DrawStat("省いた回数", stats.Culled.ToString(CultureInfo.InvariantCulture));
+            DrawStat(
+                "文字の計測",
+                $"{stats.TextMeasures} 回 / キャッシュ率 {stats.TextCacheHitRate * 100f:F0}%");
+        }
+
+        EUi.Muted(
+            "「省いた回数」が伸びているほど、見えていない部分をうまく飛ばせています。" +
+            "文字のキャッシュ率が低い場合は、毎フレーム別の文字列を組み立てている疑いがあります。",
+            wrap: true);
 
         EUi.Separator("通知");
 
@@ -856,23 +889,33 @@ public sealed class GalleryWindow : EuWindow
             EUi.SliderInt("##stressRows", ref this.stressRows, 0, 2000, SizeSpec.Fill, "行");
         }
 
-        EUi.Muted("画面に映っていない行は描画を省くので、行数を増やしても fps はほとんど落ちません。");
+        EUi.Muted(
+            "画面に映っていない行は描画を省くので、行数を増やしても fps はほとんど落ちません。",
+            wrap: true);
 
-        if (this.stressRows > 0)
+        using (EUi.HStack())
+        {
+            EUi.Toggle("仮想化して描く", ref this.useVirtualList);
+            EUi.Muted(this.useVirtualList
+                ? "見えている範囲だけを回します"
+                : "全行を回し、見えない分は描画だけ省きます");
+        }
+
+        if (this.stressRows > 0 && this.useVirtualList)
+        {
+            // 見えている範囲だけを回す。件数が増えても 1 フレームの仕事は変わらない
+            EUi.VirtualList(
+                "stressVirtual", this.stressRows, EUi.Metrics.WidgetHeight, 140f,
+                i => this.DrawStressRow(i), 0f);
+        }
+        else if (this.stressRows > 0)
         {
             // 文字列を毎フレーム作ると、測っているのが描画性能ではなく
             // 文字列生成と GC になってしまうので、あらかじめ用意したものを使い回す
             using (EUi.Scroll("stressList", 140f, 0f))
             {
                 for (var i = 0; i < this.stressRows; i++)
-                {
-                    using (EUi.Row(70f, SizeSpec.Fill, 80f))
-                    {
-                        EUi.Label(StressIds[i % StressIds.Length]);
-                        EUi.Label(StressNames[i % StressNames.Length]);
-                        EUi.Label(StressValues[i % StressValues.Length], null, Align.End);
-                    }
-                }
+                    this.DrawStressRow(i);
             }
         }
 
