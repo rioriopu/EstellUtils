@@ -460,12 +460,88 @@ public static partial class EUi
         string id, ref int selectedIndex, ReadOnlySpan<string> items,
         SizeSpec? width = null, bool disabled = false)
     {
+        var current = selectedIndex >= 0 && selectedIndex < items.Length
+            ? items[selectedIndex]
+            : string.Empty;
+
+        var itemHeight = Metrics.WidgetHeight;
+        var visibleCount = Math.Min(Math.Max(items.Length, 1), ComboVisibleItems);
+
+        var euId = UiContext.Current.GetId(id);
+        var changed = false;
+
+        using (var list = ComboBody(id, current, width, itemHeight * visibleCount, disabled))
+        {
+            if (list.IsOpen)
+            {
+                for (var i = 0; i < items.Length; i++)
+                {
+                    if (!SelectableRow(euId.Child(i), items[i], i == selectedIndex, itemHeight))
+                        continue;
+
+                    if (i != selectedIndex)
+                    {
+                        selectedIndex = i;
+                        changed = true;
+                    }
+
+                    list.Close();
+                }
+            }
+        }
+
+        return new WidgetResult { Id = euId, Changed = changed, Disabled = disabled };
+    }
+
+    /// <summary>
+    /// 一覧の中身を自分で描くドロップダウン。
+    /// </summary>
+    /// <param name="label">ラベル兼識別子。<c>##</c> より前が画面に出る。</param>
+    /// <param name="preview">閉じているときに欄へ出す文字。ふつうは選択中のものの名前。</param>
+    /// <param name="width">欄の幅。省略するとラベルの分を残した残り幅。</param>
+    /// <param name="listHeight">開いたときの一覧の高さ。省略すると 10 項目ぶん。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// <para>
+    /// <c>ImGui.BeginCombo</c> に当たるもの。見出しを差し込む・項目ごとに色を変える・
+    /// 薄く見せるが押せる、といった一覧は文字列の並びでは表せないので、こちらを使う。
+    /// </para>
+    /// <code>
+    /// using (var list = EUi.ComboBody("監視する通貨##cur", current.Name, width: 320f))
+    /// {
+    ///     if (list.IsOpen)
+    ///     {
+    ///         foreach (var group in groups)
+    ///         {
+    ///             EUi.Muted(group.Kind);                 // 見出しを差し込む
+    ///
+    ///             foreach (var item in group.Items)
+    ///             {
+    ///                 if (EUi.Selectable(item.Name, item == current, color: item.Color))
+    ///                 {
+    ///                     Pick(item);
+    ///                     list.Close();
+    ///                 }
+    ///             }
+    ///         }
+    ///     }
+    /// }
+    /// </code>
+    /// <para>
+    /// 一覧の中は縦に積まれ、はみ出すと送りが付く。
+    /// 選んだら <c>Close()</c> を呼ぶこと。呼ばないと開いたままになる。
+    /// </para>
+    /// </remarks>
+    public static ComboScope ComboBody(
+        string label, ReadOnlySpan<char> preview, SizeSpec? width = null,
+        float? listHeight = null, bool disabled = false)
+    {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id, out var display);
+        var euId = ctx.GetId(label, out var display);
         var rect = AllocateLabeledRow(display, width, Metrics.WidgetHeight, out var labelRect);
 
         var interaction = Interaction.Behavior(
@@ -475,66 +551,45 @@ public static partial class EUi
         WidgetPainter.DrawInputFrame(visual);
         DrawTrailingLabel(labelRect, display, disabled);
 
-        // 現在の選択内容とシェブロン
-        var arrowRect = rect.CutRight(rect.Height, out var labelArea);
-        var current = selectedIndex >= 0 && selectedIndex < items.Length ? items[selectedIndex] : string.Empty;
+        // 閉じているときの中身。選択中のものとシェブロン
+        var arrowRect = rect.CutRight(rect.Height, out var previewArea);
 
         TextPainter.TextIn(
-            labelArea.Shrink(Metrics.WidgetPadding),
+            previewArea.Shrink(Metrics.WidgetPadding),
             disabled ? Colors.TextDisabled : Colors.Text,
-            current, Align.Start, Align.Center);
+            preview, Align.Start, Align.Center);
 
         Painter.Chevron(
             arrowRect, Direction.Down,
             EuColor.Lerp(Colors.TextMuted, Colors.Accent, interaction.HoverAmount), 1.6f);
 
-        var popupId = id + "##euComboPopup";
+        var popupId = ResolvePopupId(label + "##euComboPopup");
 
         // 開いている状態でもう一度押したときは、ImGui 側が「外側のクリック」として
         // 閉じてくれる。ここで開き直さないことで、クリックのたびに開閉が入れ替わる
         if (interaction.Clicked && !disabled && !ImGui.IsPopupOpen(popupId))
             ImGui.OpenPopup(popupId);
 
-        var changed = false;
-
-        var itemHeight = Metrics.WidgetHeight;
-        var visibleCount = Math.Min(items.Length, ComboVisibleItems);
         var popupPadding = Metrics.SpacingXs;
-        var popupHeight = (itemHeight * visibleCount) + (popupPadding * 2f);
+        var bodyHeight = listHeight ?? (Metrics.WidgetHeight * ComboVisibleItems);
+        var popupHeight = bodyHeight + (popupPadding * 2f);
 
         ImGui.SetNextWindowPos(new Vector2(rect.Min.X, rect.Max.Y + 2f));
         ImGui.SetNextWindowSize(new Vector2(rect.Width, popupHeight));
 
-        if (BeginPopupBox(popupId))
-        {
-            var popupRect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+        if (!BeginPopupBox(popupId))
+            return default;
 
-            // 親ウィンドウのクリップを持ち込まない。引き継ぐと地や中身が切り取られる
-            using var popupClip = Painter.ClipFullScreen();
-            DrawPopupSurface(popupRect);
+        var popupRect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
 
-            using (Region(popupRect, EdgeInsets.All(popupPadding), 0f))
-            using (Scroll(id + "##euComboScroll", popupHeight - (popupPadding * 2f), 0f))
-            {
-                for (var i = 0; i < items.Length; i++)
-                {
-                    if (SelectableRow(euId.Child(i), items[i], i == selectedIndex, itemHeight))
-                    {
-                        if (i != selectedIndex)
-                        {
-                            selectedIndex = i;
-                            changed = true;
-                        }
+        // 親ウィンドウのクリップを持ち込まない。引き継ぐと地や中身が切り取られる
+        var popupClip = Painter.ClipFullScreen();
+        DrawPopupSurface(popupRect);
 
-                        ImGui.CloseCurrentPopup();
-                    }
-                }
-            }
+        var region = Region(popupRect, EdgeInsets.All(popupPadding), 0f);
+        var scroll = Scroll(label + "##euComboScroll", bodyHeight, 0f);
 
-            ImGui.EndPopup();
-        }
-
-        return WidgetResult.From(interaction, changed);
+        return new ComboScope(region, scroll, popupClip);
     }
 
     /// <summary>
@@ -613,5 +668,50 @@ public static partial class EUi
         TextPainter.TextIn(rect.Shrink(Metrics.WidgetPadding), color, label, Align.Start, Align.Center);
 
         return interaction.Clicked;
+    }
+}
+
+/// <summary>
+/// <c>using</c> でドロップダウンの一覧を閉じるハンドル。
+/// </summary>
+/// <remarks>
+/// 開いていないときは <see cref="IsOpen"/> が false になり、中身を描く必要はない。
+/// </remarks>
+public readonly struct ComboScope : IDisposable
+{
+    private readonly LayoutHandle region;
+    private readonly ScrollHandle scroll;
+    private readonly ClipScope clip;
+    private readonly bool open;
+
+    internal ComboScope(LayoutHandle region, ScrollHandle scroll, ClipScope clip)
+    {
+        this.region = region;
+        this.scroll = scroll;
+        this.clip = clip;
+        this.open = true;
+    }
+
+    /// <summary>一覧が開いているか。中身はこれが true のときだけ描く。</summary>
+    public bool IsOpen => this.open;
+
+    /// <summary>一覧を閉じる。項目を選んだときに呼ぶ。</summary>
+    public readonly void Close()
+    {
+        if (this.open)
+            Dalamud.Bindings.ImGui.ImGui.CloseCurrentPopup();
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (!this.open)
+            return;
+
+        this.scroll.Dispose();
+        this.region.Dispose();
+        this.clip.Dispose();
+
+        Dalamud.Bindings.ImGui.ImGui.EndPopup();
     }
 }

@@ -87,6 +87,74 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 中身を自分で描く選択行。
+    /// </summary>
+    /// <param name="id">識別子。</param>
+    /// <param name="selected">選択中として強調するか。</param>
+    /// <param name="height">行の高さ。省略すると標準の高さ。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <param name="spacing">中身の要素間の空き。</param>
+    /// <remarks>
+    /// <para>
+    /// 行全体が当たり判定になり、その中へ好きなものを並べられる。
+    /// 文字だけなら <c>EUi.Selectable</c> で足りる。
+    /// </para>
+    /// <code>
+    /// var row = EUi.SelectableRow("##item" + item.Id, item == current);
+    ///
+    /// using (row)
+    /// {
+    ///     EUi.TextColored(item.Name, item.Color);
+    ///     EUi.Muted($"所持 {item.Count:N0}");
+    /// }
+    ///
+    /// if (row.Clicked)
+    ///     Pick(item);
+    /// </code>
+    /// <para>
+    /// クリックの判定は開いた時点で済んでいるので、<c>using</c> を抜けたあとに読める。
+    /// </para>
+    /// </remarks>
+    public static SelectableRowScope SelectableRow(
+        ReadOnlySpan<char> id, bool selected,
+        float? height = null, bool disabled = false, float? spacing = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
+
+        var euId = ctx.GetId(id);
+        var rowHeight = height ?? Metrics.WidgetHeight;
+        var rect = ctx.Allocate(SizeSpec.Fill, rowHeight);
+
+        var interaction = Interaction.Behavior(
+            rect, euId,
+            disabled ? InteractionFlags.Disabled : InteractionFlags.AllowRightClick);
+
+        if (selected)
+        {
+            Painter.Rect(rect, Colors.Selection, Metrics.WidgetRounding);
+        }
+        else if (interaction.HoverAmount > 0.01f)
+        {
+            Painter.Rect(
+                rect,
+                EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.9f),
+                Metrics.WidgetRounding);
+        }
+
+        var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f);
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, rect, gap, default, false,
+            EdgeInsets.Horizontal(Metrics.SpacingSm), Align.Center, rowHeight);
+
+        // 領域は上で確保済みなので、閉じるときに二重で消費しない
+        return new SelectableRowScope(WidgetResult.From(interaction), rect);
+    }
+
+    /// <summary>
     /// 選択できる 1 行。一覧を自前で組み立てるときに使う。
     /// </summary>
     /// <param name="label">表示する文字列。</param>
@@ -94,6 +162,11 @@ public static partial class EUi
     /// <param name="width">幅。省略すると残り幅いっぱい。</param>
     /// <param name="height">高さ。省略すると標準のウィジェット高さ。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="color">
+    /// 文字色。省略するとテーマの標準色。
+    /// 「薄く見せるが押せる」項目を作るのに使う。無効にすると押せなくなるので、
+    /// 選べない理由を知らせたい場合はこちらで薄くする。
+    /// </param>
     /// <remarks>
     /// <see cref="ListBox"/> は文字列の配列しか扱えないため、行ごとに色を変えたり
     /// アイコンを添えたりしたい場合はこちらを使う。
@@ -112,7 +185,8 @@ public static partial class EUi
     /// </remarks>
     public static WidgetResult Selectable(
         ReadOnlySpan<char> label, bool selected,
-        SizeSpec? width = null, float? height = null, bool disabled = false)
+        SizeSpec? width = null, float? height = null, bool disabled = false,
+        uint? color = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -139,14 +213,15 @@ public static partial class EUi
                 Metrics.WidgetRounding);
         }
 
-        var color = disabled
+        // 指定があればそれを使う。無効なら必ず薄い色にする
+        var textColor = disabled
             ? Colors.TextDisabled
-            : selected ? Colors.TextHeading : Colors.Text;
+            : color ?? (selected ? Colors.TextHeading : Colors.Text);
 
         var textRect = rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
         var truncated = TextPainter.Measure(display).X > textRect.Width + 1f;
 
-        TextPainter.TextIn(textRect, color, display, Align.Start, Align.Center);
+        TextPainter.TextIn(textRect, textColor, display, Align.Start, Align.Center);
 
         var result = WidgetResult.From(interaction) with { Truncated = truncated };
 
@@ -155,4 +230,41 @@ public static partial class EUi
 
         return result;
     }
+}
+
+/// <summary>
+/// <c>using</c> で選択行を閉じるハンドル。
+/// </summary>
+/// <remarks>
+/// クリックの判定は行を開いた時点で済んでいる。
+/// <c>using</c> を抜けたあとでも結果を読める。
+/// </remarks>
+public readonly struct SelectableRowScope : IDisposable
+{
+    internal SelectableRowScope(WidgetResult result, Rect rect)
+    {
+        this.Result = result;
+        this.Rect = rect;
+    }
+
+    /// <summary>入力の結果。</summary>
+    public WidgetResult Result { get; }
+
+    /// <summary>行の矩形。</summary>
+    public Rect Rect { get; }
+
+    /// <summary>クリックされたか。</summary>
+    public bool Clicked => this.Result.Clicked;
+
+    /// <summary>右クリックされたか。</summary>
+    public bool RightClicked => this.Result.RightClicked;
+
+    /// <summary>ダブルクリックされたか。</summary>
+    public bool DoubleClicked => this.Result.DoubleClicked;
+
+    /// <summary>マウスが乗っているか。</summary>
+    public bool Hovered => this.Result.Hovered;
+
+    /// <inheritdoc/>
+    public void Dispose() => UiContext.Current.Layout.Pop(commitToParent: false);
 }

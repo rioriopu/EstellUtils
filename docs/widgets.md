@@ -169,6 +169,8 @@ using (EUi.Field("ジョブバー"))                 // ラベルは Field 側�
 | `EUi.TextArea(label, ref value, height, maxLength, disabled)` | 複数行入力 |
 | `EUi.Combo(label, ref index, items, width, disabled)` | ドロップダウン |
 | `EUi.ListBox(label, ref index, items, height, disabled)` | スクロールする一覧 |
+| `EUi.ComboBody(label, preview, width, listHeight, disabled)` | 一覧の中身を自分で描くドロップダウン |
+| `EUi.SelectableRow(id, selected, height, disabled)` | 中身を自分で描く選択行 |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
 | `EUi.InputInt(label, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
 | `EUi.InputFloat(label, ref value, step, min, max, width)` | 小数の直接入力 |
@@ -198,6 +200,68 @@ using (EUi.Field("保存先"))
 
 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれません。
 そうした値は `InputInt` / `InputFloat` で直接打ち込みます。
+
+### 一覧の中身を自分で描く
+
+見出しを差し込む・項目ごとに色を変える・薄く見せるが押せる、といった一覧は
+文字列の並びでは表せません。`ComboBody` を使います（`ImGui.BeginCombo` に当たるもの）。
+
+```csharp
+using (var list = EUi.ComboBody("監視する通貨##cur", current.Name, width: 320f))
+{
+    if (list.IsOpen)
+    {
+        foreach (var group in groups)
+        {
+            EUi.Muted(group.Kind);                      // 見出しを差し込む
+
+            foreach (var item in group.Items)
+            {
+                if (EUi.Selectable(item.Name, item == current, color: item.Color))
+                {
+                    Pick(item);
+                    list.Close();
+                }
+            }
+        }
+    }
+}
+```
+
+**選んだら `Close()` を呼んでください。** 呼ばないと開いたままになります。
+
+行の中へ複数のものを並べたい場合は `SelectableRow` を使います。
+
+```csharp
+var row = EUi.SelectableRow("##item" + item.Id, item == current);
+
+using (row)
+{
+    EUi.TextColored(item.Name, item.Color);
+    EUi.Muted($"所持 {item.Count:N0}");
+}
+
+if (row.Clicked)
+    Pick(item);
+```
+
+行全体が当たり判定になります。**クリックの判定は行を開いた時点で済んでいる**ので、
+`using` を抜けたあとに読めます。
+
+### 押せるが選べない項目
+
+`disabled: true` にすると押せなくなり、「なぜ選べないのか」を知らせる機会が消えます。
+薄く見せたいだけなら `color` を渡してください。
+
+```csharp
+if (EUi.Selectable(vendor.Name, i == index, color: locked ? EUi.Colors.TextDisabled : null))
+{
+    if (locked)
+        ShowLockedMessage($"{vendor.Name}：達成度が足りません（{vendor.LockReason}）");
+    else
+        Pick(vendor);
+}
+```
 
 ### 入力が確定したとき
 

@@ -62,6 +62,17 @@ public sealed class GalleryWindow : EuWindow
         "トライヨラ",
     ];
 
+    private static readonly (string Name, string Kind, bool Locked)[] ComboBodyItems =
+    [
+        ("アラガントームストーン:詩学", "トームストーン", false),
+        ("アラガントームストーン:天文", "トームストーン", false),
+        ("アラガントームストーン:理論", "トームストーン", true),
+        ("白貨", "クラフター", false),
+        ("紫貨", "クラフター", true),
+        ("黄貨", "ギャザラー", false),
+        ("ギル", "その他", false),
+    ];
+
     private static readonly TableColumn[] CellDemoColumns =
     [
         new("プラグイン", SizeSpec.Fill),
@@ -118,6 +129,7 @@ public sealed class GalleryWindow : EuWindow
     private readonly float[] fpsHistory = new float[72];
     private float fpsSampleTimer;
     private bool useVirtualList = true;
+    private int comboBodyIndex;
 
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
@@ -406,6 +418,7 @@ public sealed class GalleryWindow : EuWindow
         if (matched == 0)
             EUi.Muted("(一致するものがありません)");
 
+        this.DrawComboBodyDemo();
         this.DrawCellDemo();
 
         EUi.Separator("推移");
@@ -819,6 +832,53 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Muted($"保存が実行された回数: {this.config.SaveCount}");
         EUi.Muted("スライダーをドラッグ中は保存されず、マウスを離したときにまとめて保存されます。");
+    }
+
+    /// <summary>一覧の中身を自分で描くドロップダウンの例。</summary>
+    private void DrawComboBodyDemo()
+    {
+        EUi.Separator("中身を自分で描くドロップダウン");
+
+        var current = ComboBodyItems[this.comboBodyIndex];
+
+        using (var list = EUi.ComboBody("通貨##comboBody", current.Name, 280f))
+        {
+            if (list.IsOpen)
+            {
+                var lastKind = string.Empty;
+
+                for (var i = 0; i < ComboBodyItems.Length; i++)
+                {
+                    var item = ComboBodyItems[i];
+
+                    // 種別が変わるところに見出しを差し込む
+                    if (item.Kind != lastKind)
+                    {
+                        lastKind = item.Kind;
+                        EUi.Muted(item.Kind);
+                    }
+
+                    // 解放されていないものは薄く見せるが、押せるままにする
+                    var color = item.Locked ? EUi.Colors.TextDisabled : (uint?)null;
+
+                    if (EUi.Selectable(item.Name, i == this.comboBodyIndex, color: color))
+                    {
+                        if (item.Locked)
+                        {
+                            EUi.Toast($"{item.Name} はまだ解放されていません。", NoteKind.Warning);
+                        }
+                        else
+                        {
+                            this.comboBodyIndex = i;
+                        }
+
+                        list.Close();
+                    }
+                }
+            }
+        }
+
+        EUi.Muted("種別の見出しを挟み、未解放のものは薄く見せています（押すと理由が出ます）。", wrap: true);
     }
 
     /// <summary>セルの中へ複数のものを置く例。</summary>
