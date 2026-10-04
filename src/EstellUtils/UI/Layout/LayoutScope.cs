@@ -329,6 +329,18 @@ public sealed class LayoutScope
     /// <summary>カーソルを直接動かす。独自配置を行うウィジェット向け。</summary>
     public void SetCursor(Vector2 position) => this.Cursor = position;
 
+    /// <summary>
+    /// 列を進めずに、使った範囲だけを広げる。
+    /// </summary>
+    /// <remarks>
+    /// セルの中身が、確保しておいた高さを超えたときに使う。
+    /// <see cref="Allocate(Vector2)"/> で申告すると列まで進んでしまう。
+    /// </remarks>
+    public void ExpandContent(Rect rect)
+    {
+        this.ContentBounds = this.ItemCount == 0 ? rect : this.ContentBounds.Union(rect);
+    }
+
     /// <summary>使用済み範囲を更新する。</summary>
     private void Track(Rect rect)
     {

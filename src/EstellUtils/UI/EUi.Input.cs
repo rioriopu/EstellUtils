@@ -236,21 +236,23 @@ public static partial class EUi
     /// 複数行のテキスト入力。
     /// </summary>
     public static WidgetResult TextArea(
-        string id, ref string value, float height, int maxLength = 4096, bool disabled = false)
+        string label, ref string value, float height, int maxLength = 4096, bool disabled = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
-        var rect = ctx.Allocate(SizeSpec.Fill, height);
+        var id = label;
+        var euId = ctx.GetId(label, out var display);
+        var rect = AllocateLabeledRow(display, null, height, out var labelRect);
 
         var interaction = Interaction.Behavior(
             rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
         var focused = ctx.FocusedId == euId;
         WidgetPainter.DrawInputFrame(WidgetVisual.From(interaction) with { Rect = rect, Focused = focused });
+        DrawTrailingLabel(labelRect, display, disabled);
 
         if (disabled)
             return WidgetResult.From(interaction);
@@ -280,7 +282,7 @@ public static partial class EUi
     /// <summary>
     /// 整数を直接入力する欄。
     /// </summary>
-    /// <param name="id">識別子。</param>
+    /// <param name="label">ラベル兼識別子。<c>##</c> より前が画面に出る。</param>
     /// <param name="value">対象の値。</param>
     /// <param name="step">増減ボタンの刻み。0 にするとボタンを出さない。</param>
     /// <param name="min">下限。省略すると制限しない。</param>
@@ -292,11 +294,11 @@ public static partial class EUi
     /// そうした値はこちらで直接打ち込む。
     /// </remarks>
     public static WidgetResult InputInt(
-        string id, ref int value, int step = 1,
+        string label, ref int value, int step = 1,
         int? min = null, int? max = null, SizeSpec? width = null, bool disabled = false)
     {
         var text = value.ToString(CultureInfo.InvariantCulture);
-        var result = NumberInput(id, ref text, width, disabled, step != 0, out var stepped);
+        var result = NumberInput(label, ref text, width, disabled, step != 0, out var stepped);
 
         var changed = false;
 
@@ -317,7 +319,7 @@ public static partial class EUi
     /// <summary>
     /// 小数を直接入力する欄。
     /// </summary>
-    /// <param name="id">識別子。</param>
+    /// <param name="label">ラベル兼識別子。<c>##</c> より前が画面に出る。</param>
     /// <param name="value">対象の値。</param>
     /// <param name="step">増減ボタンの刻み。0 にするとボタンを出さない。</param>
     /// <param name="min">下限。省略すると制限しない。</param>
@@ -325,11 +327,11 @@ public static partial class EUi
     /// <param name="width">幅。省略すると残り幅いっぱい。</param>
     /// <param name="disabled">無効にするか。</param>
     public static WidgetResult InputFloat(
-        string id, ref float value, float step = 0f,
+        string label, ref float value, float step = 0f,
         float? min = null, float? max = null, SizeSpec? width = null, bool disabled = false)
     {
         var text = value.ToString("G", CultureInfo.InvariantCulture);
-        var result = NumberInput(id, ref text, width, disabled, step != 0f, out var stepped);
+        var result = NumberInput(label, ref text, width, disabled, step != 0f, out var stepped);
 
         var changed = false;
 
@@ -349,45 +351,70 @@ public static partial class EUi
 
     /// <summary>数値入力の共通部分。文字列として編集し、増減ボタンを添える。</summary>
     private static WidgetResult NumberInput(
-        string id, ref string text, SizeSpec? width, bool disabled, bool withStepper, out int stepped)
+        string label, ref string text, SizeSpec? width, bool disabled, bool withStepper, out int stepped)
     {
         stepped = 0;
 
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        using var scope = ctx.ScopedId(id);
+        // ラベルは外側で 1 列として持つ。内側の入力欄へそのまま渡すと、
+        // 入力欄が二重にラベルを描こうとして位置が合わない
+        ctx.GetId(label, out var display);
 
-        var columnCount = withStepper ? 3 : 1;
+        using var scope = ctx.ScopedId(label);
+
         var buttonWidth = withStepper ? Metrics.WidgetHeight : 0f;
+
+        var labelSpace = display.IsEmpty
+            ? 0f
+            : MathF.Ceiling(TextPainter.Measure(display).X) + Metrics.LabelSpacing;
 
         // 列の間には隙間が入る。その分を引かずに幅を決めると、
         // 右端のボタンが行からはみ出して枠を突き抜ける
-        var totalWidth = width?.Resolve(NextItemWidth) ?? NextItemWidth;
+        var columnCount = (withStepper ? 3 : 1) + (display.IsEmpty ? 0 : 1);
+        var available = MathF.Max(0f, NextItemWidth - labelSpace);
+        var totalWidth = width?.Resolve(available) ?? available;
+
         var fieldWidth = MathF.Max(
             Metrics.WidgetMinWidth,
             totalWidth - (buttonWidth * 2f) - ColumnSpacing(columnCount));
 
+        Span<SizeSpec> columns = stackalloc SizeSpec[4];
+        var count = 0;
+
+        columns[count++] = SizeSpec.Px(fieldWidth);
+
+        if (withStepper)
+        {
+            columns[count++] = SizeSpec.Px(buttonWidth);
+            columns[count++] = SizeSpec.Px(buttonWidth);
+        }
+
+        if (!display.IsEmpty)
+            columns[count++] = SizeSpec.Px(labelSpace);
+
         WidgetResult result;
 
-        using (Row(SizeSpec.Px(fieldWidth), SizeSpec.Px(buttonWidth), SizeSpec.Px(buttonWidth)))
+        using (Row(Align.Center, columns[..count]))
         {
             result = TextInput("##value", ref text, null, 32, SizeSpec.Fill, disabled);
 
-            // 増減ボタンは押した時点で確定とみなす
+            if (withStepper)
+            {
+                // 増減ボタンは押した時点で確定とみなす
+                if (Button("-##down", ButtonStyle.Normal, SizeSpec.Fill, disabled))
+                    stepped = -1;
 
+                if (Button("+##up", ButtonStyle.Normal, SizeSpec.Fill, disabled))
+                    stepped = 1;
 
-            if (!withStepper)
-                return result;
+                if (stepped != 0)
+                    result = result with { Committed = true };
+            }
 
-            if (Button("-##down", ButtonStyle.Normal, SizeSpec.Fill, disabled))
-                stepped = -1;
-
-            if (Button("+##up", ButtonStyle.Normal, SizeSpec.Fill, disabled))
-                stepped = 1;
-
-            if (stepped != 0)
-                result = result with { Committed = true };
+            if (!display.IsEmpty)
+                Label(display, disabled ? Colors.TextDisabled : Colors.Text);
         }
 
         return result;
@@ -527,11 +554,11 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
-        var available = ctx.Layout.AvailableRect;
-        var frameRect = Rect.FromSize(available.Min, new Vector2(available.Width, height));
+        var euId = ctx.GetId(id, out var display);
+        var frameRect = AllocateLabeledRow(display, null, height, out var labelRect);
 
         WidgetPainter.DrawInputFrame(new WidgetVisual { Rect = frameRect });
+        DrawTrailingLabel(labelRect, display, disabled);
 
         var changed = false;
         var itemHeight = Metrics.WidgetHeight;
@@ -559,9 +586,7 @@ public static partial class EUi
             }
         }
 
-        // 一覧の分だけ領域を消費する
-        ctx.Allocate(new Vector2(frameRect.Width, height));
-
+        // 領域はラベル行の確保で済んでいる。ここで取り直すと二重に消費する
         return new WidgetResult { Id = euId, Rect = frameRect, Changed = changed, Disabled = disabled };
     }
 

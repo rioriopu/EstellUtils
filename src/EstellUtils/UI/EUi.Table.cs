@@ -139,19 +139,8 @@ public static partial class EUi
             LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f),
             widths[..columns.Length], false, default, Align.Center, rowHeight);
 
-        return new TableRowHandle(rowRect, rowId, height is null && HasWrapColumn(columns));
-    }
-
-    /// <summary>折り返す列が含まれているか。</summary>
-    private static bool HasWrapColumn(ReadOnlySpan<TableColumn> columns)
-    {
-        for (var i = 0; i < columns.Length; i++)
-        {
-            if (columns[i].Wrap)
-                return true;
-        }
-
-        return false;
+        // 高さを明示していなければ、折り返す列とセルの中身の両方を拾って次フレームへ渡す
+        return new TableRowHandle(rowRect, rowId, height is null);
     }
 
     /// <summary>
@@ -213,7 +202,7 @@ public static partial class EUi
     /// 表の外でも使えますが、その場合は残り幅を 1 つ分として取ります。
     /// </para>
     /// </remarks>
-    public static LayoutHandle Cell(
+    public static CellHandle Cell(
         float? spacing = null, Align align = Align.Center, EdgeInsets? padding = null)
     {
         var ctx = UiContext.Current;
@@ -231,8 +220,8 @@ public static partial class EUi
         ctx.Layout.Push(
             LayoutKind.Horizontal, rect, gap, default, false, inset, align, height);
 
-        // 領域は上で確保済みなので、閉じるときに二重で消費しない
-        return new LayoutHandle(ctx.Layout, commitToParent: false);
+        // 領域は上で確保済み。閉じるときは、はみ出した高さだけを行へ伝える
+        return new CellHandle(scope, rect);
     }
 
     /// <summary>
@@ -245,7 +234,7 @@ public static partial class EUi
     /// 行の高さは <c>TableRow</c> へ渡した高さのままなので、
     /// 2 段ぶんの高さを指定しておくこと。
     /// </remarks>
-    public static LayoutHandle CellStack(float? spacing = null, EdgeInsets? padding = null)
+    public static CellHandle CellStack(float? spacing = null, EdgeInsets? padding = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -259,7 +248,7 @@ public static partial class EUi
 
         ctx.Layout.Push(LayoutKind.Vertical, rect, gap, default, false, inset);
 
-        return new LayoutHandle(ctx.Layout, commitToParent: false);
+        return new CellHandle(scope, rect);
     }
 
     /// <summary>表のセルへ文字列を表示する。</summary>
@@ -293,6 +282,47 @@ public static partial class EUi
             result.Tip(text);
 
         return result;
+    }
+}
+
+/// <summary>
+/// <c>using</c> でセルを閉じるハンドル。
+/// </summary>
+/// <remarks>
+/// 中身が確保しておいた高さを超えた場合、その分を行へ伝える。
+/// 行の高さを <c>TableColumn.Wrap</c> に任せているとき、
+/// セルの中身も一緒に数えられるようにするため。
+/// </remarks>
+public readonly struct CellHandle : IDisposable
+{
+    private readonly LayoutScope? parent;
+    private readonly Rect rect;
+
+    internal CellHandle(LayoutScope? parent, Rect rect)
+    {
+        this.parent = parent;
+        this.rect = rect;
+    }
+
+    /// <summary>セルの矩形。</summary>
+    public Rect Rect => this.rect;
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        var ctx = UiContext.Current;
+        var consumed = ctx.Layout.Current?.ConsumedSize ?? Vector2.Zero;
+
+        // 領域は開くときに確保済みなので、外側へは申告しない
+        ctx.Layout.Pop(commitToParent: false);
+
+        // 中身がはみ出した分だけ、行の使用範囲を広げる。
+        // Allocate で申告すると列まで進んでしまうので、範囲だけを伝える
+        if (this.parent is null || consumed.Y <= this.rect.Height + 0.5f)
+            return;
+
+        this.parent.ExpandContent(
+            Rect.FromSize(this.rect.Min, new Vector2(this.rect.Width, consumed.Y)));
     }
 }
 

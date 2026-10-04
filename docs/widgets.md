@@ -165,17 +165,17 @@ using (EUi.Field("ジョブバー"))                 // ラベルは Field 側�
 
 | API | 説明 |
 |---|---|
-| `EUi.TextInput(id, ref value, hint, maxLength, width, disabled)` | 1 行入力。IME 対応 |
-| `EUi.TextArea(id, ref value, height, maxLength, disabled)` | 複数行入力 |
-| `EUi.Combo(id, ref index, items, width, disabled)` | ドロップダウン |
-| `EUi.ListBox(id, ref index, items, height, disabled)` | スクロールする一覧 |
+| `EUi.TextInput(label, ref value, hint, maxLength, width, disabled)` | 1 行入力。IME 対応 |
+| `EUi.TextArea(label, ref value, height, maxLength, disabled)` | 複数行入力 |
+| `EUi.Combo(label, ref index, items, width, disabled)` | ドロップダウン |
+| `EUi.ListBox(label, ref index, items, height, disabled)` | スクロールする一覧 |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
-| `EUi.InputInt(id, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
-| `EUi.InputFloat(id, ref value, step, min, max, width)` | 小数の直接入力 |
+| `EUi.InputInt(label, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
+| `EUi.InputFloat(label, ref value, step, min, max, width)` | 小数の直接入力 |
 | `EUi.DragFloat(label, ref value, speed, min, max, decimals, width)` | ドラッグで動かす。上限のはっきりしない値に |
 | `EUi.InputVector2/3/4(id, ref value, labels, step, min, max)` | 数値の並び。色ではないベクトルに |
 | `EUi.CheckboxFlags(label, ref value, mask)` | ビットマスクの 1 ビットを切り替える |
-| `EUi.SearchBox(id, ref query, hint, width)` | 絞り込み欄。虫眼鏡と消しボタン付き |
+| `EUi.SearchBox(label, ref query, hint, width)` | 絞り込み欄。虫眼鏡と消しボタン付き |
 | `EUi.SegmentedControl(id, ref index, options, width)` | 排他選択をひと続きで見せる |
 | `EUi.KeyBind(label, ref binding, width)` | キー割り当て。修飾キーに対応 |
 
@@ -740,8 +740,8 @@ using (EUi.TableRow(columns, i))
 **中で置くものの数が行ごとに変わっても、消費する列は 1 つのままです。**
 条件によってボタンが出たり出なかったりする行でも、列がずれません。
 
-名前の下に補足を添えるような 2 段のセルには `EUi.CellStack()` を使います
-（行の高さは `TableRow` へ渡した分のままなので、2 段ぶんを指定してください）。
+名前の下に補足を添えるような 2 段のセルには `EUi.CellStack()` を使います。
+高さを明示しなければ、中身に合わせて行が伸びます。
 
 ### 折り返す列
 
@@ -757,6 +757,9 @@ private static readonly TableColumn[] Columns =
 
 高さを自分で逆算する必要はありません。内容が変わった直後の 1 フレームだけ高さがずれ、
 次のフレームで揃います（前フレームの実測を使うため）。
+
+**`Cell` / `CellStack` の中身も一緒に数えます。** 2 段のセルを置いた行も、
+高さを明示せずに任せられます。
 
 `TableRow` へ `height` を明示した場合は、そちらが優先されます。
 
