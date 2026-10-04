@@ -21,6 +21,34 @@ public static partial class EUi
     /// <summary>ドロップダウンに一度に表示する項目数の上限。</summary>
     private const int ComboVisibleItems = 10;
 
+    /// <summary>ImGui の入力欄へ渡す識別子。毎フレーム組み立てないよう控えておく。</summary>
+    private static readonly System.Collections.Generic.Dictionary<string, string> RawInputIds =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// ImGui の入力欄へ渡す識別子を作る。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ImGui は <c>##</c> より前を自前で欄の右へ描く。EstellUtils も同じ文字を
+    /// 描くので、そのまま渡すとラベルが二重になって潰れる。
+    /// </para>
+    /// <para>
+    /// <c>###</c> を前置すると、以降すべてが識別子になり表示は行われない。
+    /// 元のラベル全体が識別子に入るので、一意性はそのまま保たれる。
+    /// </para>
+    /// </remarks>
+    private static string RawInputId(string label)
+    {
+        if (RawInputIds.TryGetValue(label, out var cached))
+            return cached;
+
+        var built = "###" + label;
+        RawInputIds[label] = built;
+
+        return built;
+    }
+
     /// <summary>
     /// 1 行のテキスト入力。
     /// </summary>
@@ -53,7 +81,7 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var id = label;
+        var id = RawInputId(label);
         var euId = ctx.GetId(label, out var display);
         var height = Metrics.WidgetHeight;
         var rect = AllocateLabeledRow(display, width, height, out var labelRect);
@@ -226,7 +254,7 @@ public static partial class EUi
         }
         else if (!changed)
         {
-            changed = TextInputRaw(id, ref query, hint ?? "絞り込み", 128, inner, euId);
+            changed = TextInputRaw(RawInputId(id), ref query, hint ?? "絞り込み", 128, inner, euId);
         }
 
         return WidgetResult.From(interaction, changed);
@@ -243,7 +271,7 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var id = label;
+        var id = RawInputId(label);
         var euId = ctx.GetId(label, out var display);
         var rect = AllocateLabeledRow(display, null, height, out var labelRect);
 

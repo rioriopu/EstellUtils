@@ -130,6 +130,8 @@ public sealed class GalleryWindow : EuWindow
     private float fpsSampleTimer;
     private bool useVirtualList = true;
     private int comboBodyIndex;
+    private string versionText = "1.0.0";
+    private int freeSlots = 5;
 
     /// <summary>ギャラリーを作る。</summary>
     public GalleryWindow()
@@ -837,6 +839,15 @@ public sealed class GalleryWindow : EuWindow
     /// <summary>一覧の中身を自分で描くドロップダウンの例。</summary>
     private void DrawComboBodyDemo()
     {
+        EUi.Separator("ラベル付きの入力欄");
+
+        // ラベルは EstellUtils が描く。ImGui 側へは表示を落とした識別子を渡すので、
+        // 同じ文字が二重に出ることはない
+        EUi.TextInput("必要な AutoDuty の版", ref this.versionText, "例: 1.2.3", 240f);
+        EUi.InputInt("残す空き枠", ref this.freeSlots, 1, 0, 30, SizeSpec.Px(160f));
+
+        EUi.Muted("ラベルが二重に描かれないことの確認です。", wrap: true);
+
         EUi.Separator("中身を自分で描くドロップダウン");
 
         var current = ComboBodyItems[this.comboBodyIndex];
