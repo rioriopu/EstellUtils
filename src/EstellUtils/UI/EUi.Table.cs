@@ -12,7 +12,11 @@ namespace EstellUtils.UI;
 /// <param name="Header">見出しに表示する文字列。</param>
 /// <param name="Width">列幅。<see cref="SizeSpec.Fill"/> で残り幅を分け合う。</param>
 /// <param name="Align">セルの中身の寄せ方。</param>
-public readonly record struct TableColumn(string Header, SizeSpec Width, Align Align = Align.Start);
+/// <param name="Wrap">
+/// この列の文字を折り返すか。true にすると、行の高さが中身に合わせて伸びる。
+/// </param>
+public readonly record struct TableColumn(
+    string Header, SizeSpec Width, Align Align = Align.Start, bool Wrap = false);
 
 /// <summary>
 /// 表。
@@ -112,7 +116,13 @@ public static partial class EUi
         // セルが寄せ方を引けるよう、この行の列定義を控えておく
         RememberTableColumns(columns);
 
-        var rowHeight = height ?? Metrics.WidgetHeight;
+        // 折り返す列があると、中身を描くまで必要な高さが分からない。
+        // 前のフレームで測った高さを使い、描き終えてから次回ぶんを覚える
+        var rowId = ctx.GetId("##euTableRow").Child(index);
+        var measured = ctx.Store.GetRef(rowId).MeasuredHeight;
+
+        var rowHeight = height
+            ?? (measured > 0f ? measured : Metrics.WidgetHeight);
         var available = ctx.Layout.AvailableRect;
         var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
 
@@ -129,7 +139,19 @@ public static partial class EUi
             LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f),
             widths[..columns.Length], false, default, Align.Center, rowHeight);
 
-        return new TableRowHandle(rowRect);
+        return new TableRowHandle(rowRect, rowId, height is null && HasWrapColumn(columns));
+    }
+
+    /// <summary>折り返す列が含まれているか。</summary>
+    private static bool HasWrapColumn(ReadOnlySpan<TableColumn> columns)
+    {
+        for (var i = 0; i < columns.Length; i++)
+        {
+            if (columns[i].Wrap)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -160,6 +182,85 @@ public static partial class EUi
     /// <summary>控えた列定義から、寄せ方を引く。</summary>
     private static Align ColumnAlignAt(int index)
         => index >= 0 && index < tableColumnCount ? tableColumns[index].Align : Align.Start;
+
+    /// <summary>
+    /// 現在の列を 1 つ消費し、その中へ横並びのレイアウトを開く。
+    /// </summary>
+    /// <param name="spacing">中身の要素間の空き。</param>
+    /// <param name="align">中身を縦方向のどこへ置くか。</param>
+    /// <param name="padding">セルの内側の余白。省略すると文字のセルと同じ左右余白。</param>
+    /// <remarks>
+    /// <para>
+    /// 列を宣言した行では、ウィジェットを 1 つ置くごとに次の列へ進みます。
+    /// 「文字 + ボタン」のように 1 つのセルへ複数を置きたい場合は、これで囲んでください。
+    /// </para>
+    /// <code>
+    /// using (EUi.TableRow(columns, i))
+    /// {
+    ///     EUi.TableCell(item.Name);
+    ///
+    ///     using (EUi.Cell())
+    ///     {
+    ///         EUi.Label(item.State);
+    ///
+    ///         if (EUi.Button("再開"))
+    ///             Resume(item);
+    ///     }
+    /// }
+    /// </code>
+    /// <para>
+    /// 中で置くものの数が行ごとに変わっても、消費する列は 1 つのままです。
+    /// 表の外でも使えますが、その場合は残り幅を 1 つ分として取ります。
+    /// </para>
+    /// </remarks>
+    public static LayoutHandle Cell(
+        float? spacing = null, Align align = Align.Center, EdgeInsets? padding = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var scope = ctx.Layout.Current;
+        var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
+
+        // 列が宣言されていれば、ここで列幅が使われる
+        var rect = ctx.Allocate(SizeSpec.Fill, height);
+
+        var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f);
+        var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, rect, gap, default, false, inset, align, height);
+
+        // 領域は上で確保済みなので、閉じるときに二重で消費しない
+        return new LayoutHandle(ctx.Layout, commitToParent: false);
+    }
+
+    /// <summary>
+    /// 現在の列を 1 つ消費し、その中へ縦積みのレイアウトを開く。
+    /// </summary>
+    /// <param name="spacing">中身の要素間の空き。</param>
+    /// <param name="padding">セルの内側の余白。</param>
+    /// <remarks>
+    /// 名前の下に補足を添える、といった 2 段のセルに使う。
+    /// 行の高さは <c>TableRow</c> へ渡した高さのままなので、
+    /// 2 段ぶんの高さを指定しておくこと。
+    /// </remarks>
+    public static LayoutHandle CellStack(float? spacing = null, EdgeInsets? padding = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var scope = ctx.Layout.Current;
+        var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
+        var rect = ctx.Allocate(SizeSpec.Fill, height);
+
+        var gap = new Vector2(0f, spacing ?? Metrics.SpacingXs);
+        var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
+
+        ctx.Layout.Push(LayoutKind.Vertical, rect, gap, default, false, inset);
+
+        return new LayoutHandle(ctx.Layout, commitToParent: false);
+    }
 
     /// <summary>表のセルへ文字列を表示する。</summary>
     /// <param name="text">表示する文字列。</param>
@@ -199,8 +300,15 @@ public static partial class EUi
 public readonly struct TableRowHandle : IDisposable
 {
     private readonly Rect rowRect;
+    private readonly EuId id;
+    private readonly bool autoHeight;
 
-    internal TableRowHandle(Rect rowRect) => this.rowRect = rowRect;
+    internal TableRowHandle(Rect rowRect, EuId id = default, bool autoHeight = false)
+    {
+        this.rowRect = rowRect;
+        this.id = id;
+        this.autoHeight = autoHeight;
+    }
 
     /// <summary>行の矩形。行全体のクリック判定などに使う。</summary>
     public Rect Rect => this.rowRect;
@@ -209,9 +317,18 @@ public readonly struct TableRowHandle : IDisposable
     public void Dispose()
     {
         var ctx = UiContext.Current;
+        var consumed = ctx.Layout.Current?.ConsumedSize ?? Vector2.Zero;
 
         // 行の高さは固定なので、レイアウトの実測ではなく行矩形の分を消費させる
         ctx.Layout.Pop(commitToParent: false);
         ctx.Allocate(this.rowRect.Size);
+
+        if (!this.autoHeight)
+            return;
+
+        // 折り返す列があるときは、実際に使った高さを次のフレームへ持ち越す。
+        // 内容が変わった直後の 1 フレームだけずれるが、次で揃う
+        ref var state = ref ctx.Store.GetRef(this.id);
+        state.MeasuredHeight = MathF.Max(EUi.Metrics.WidgetHeight, consumed.Y);
     }
 }

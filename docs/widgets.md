@@ -112,6 +112,7 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 | API | 説明 |
 |---|---|
 | `EUi.Button(label, style, width, disabled)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
+| `EUi.SmallButton(label, style, width, disabled)` | 行の中へ小さく収める。`ImGui.SmallButton` の置き換え |
 | `EUi.ButtonAt(id, rect, label, style, disabled)` | 矩形を指定して描く。高さも自由 |
 | `EUi.ButtonWidth(label)` | ラベルに合わせた幅。行を自分で配るときに |
 | `EUi.IconButton(icon, id, style, disabled)` | FontAwesome の文字を渡す正方形ボタン |
@@ -178,8 +179,41 @@ using (EUi.Field("ジョブバー"))                 // ラベルは Field 側�
 | `EUi.SegmentedControl(id, ref index, options, width)` | 排他選択をひと続きで見せる |
 | `EUi.KeyBind(label, ref binding, width)` | キー割り当て。修飾キーに対応 |
 
+**第 1 引数はどのウィジェットでもラベル兼識別子です。**
+`##` より前が画面に出て、全体が識別子になります（ImGui と同じ扱い）。
+ラベルは本体の右へ添えられ、`width` はどれも「本体の幅」を指します。
+
+```csharp
+EUi.SliderFloat("音量", ref volume, 0f, 1f);
+EUi.TextInput("保存先", ref path);           // 同じ並び。ラベルは右へ
+EUi.TextInput("##path", ref path);           // ラベルを出さない
+```
+
+左にラベルを置きたい場合は `EUi.Field` で囲みます。
+
+```csharp
+using (EUi.Field("保存先"))
+    EUi.TextInput("##path", ref path);
+```
+
 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれません。
 そうした値は `InputInt` / `InputFloat` で直接打ち込みます。
+
+### 入力が確定したとき
+
+`Changed` は 1 文字打つたびに立ちます。ファイルパスや URL のように、
+確定してから処理したい欄は `Committed` を見てください。
+
+```csharp
+if (EUi.TextInput("保存先", ref path).Committed)
+    this.config.Save();
+```
+
+焦点が外れたとき、または Enter を押したときに、実際に書き換わっていれば立ちます
+（ImGui の `IsItemDeactivatedAfterEdit()` と同じ意味）。
+
+`Deactivated` は**マウスのボタンを離したこと**なので、入力欄の確定には使えません。
+スライダーのドラッグ終了を拾うのはこちらです。
 
 `ColorEdit` は `Vector4` と `uint`(0xAABBGGRR) の両方に対応します。
 
@@ -491,6 +525,21 @@ var vector = EuColor.ToVector(packed);
 | `EUi.Region(bounds, padding, spacing)` | 明示した矩形の中へ配置する |
 | `EUi.Sized(width, height, padding)` | 大きさを固定した領域の中へ配置する |
 | `EUi.Scroll(id, height, spacing)` | はみ出すとスクロールする領域 |
+| `EUi.Scroll(id, SizeSpec, reserveBelow, spacing)` | 高さを配分で決める版 |
+
+**`SizeSpec.Fill` は残り高さを全部使います。** そのあとに置いたものは場所が無くなって出ません。
+即時モードでは「後ろに何が来るか」を先に知れないため、下に置くものがあるなら
+`reserveBelow` でその分を伝えてください。
+
+```csharp
+using (EUi.Scroll("list", SizeSpec.Fill, reserveBelow: EUi.LineHeight + EUi.Metrics.ItemSpacing.Y))
+{
+    foreach (var item in items)
+        EUi.Selectable(item.Name, item == selected);
+}
+
+EUi.Muted($"{hidden} 件は表示していません");   // 送り領域の下に出る
+```
 | `EUi.Spacing(amount)` / `EUi.NewLine()` | 空きを入れる / 次の行へ |
 | `EUi.Reserve(size)` | 領域だけ確保して矩形を得る（独自描画用） |
 
@@ -667,6 +716,49 @@ using (EUi.Scroll("rows", 240f))          // 行だけ送る
 ```csharp
 EUi.TableHeader(columns, reserveScrollbar: true);
 ```
+
+### セルに複数のものを置く
+
+列を宣言した行では、ウィジェットを 1 つ置くごとに次の列へ進みます。
+1 つのセルへ複数を置きたい場合は `EUi.Cell()` で囲みます。
+
+```csharp
+using (EUi.TableRow(columns, i))
+{
+    EUi.TableCell(item.Name);
+
+    using (EUi.Cell())              // 列を 1 つ消費し、中で横に並べる
+    {
+        EUi.Label(item.State);
+
+        if (EUi.SmallButton("再開"))
+            Resume(item);
+    }
+}
+```
+
+**中で置くものの数が行ごとに変わっても、消費する列は 1 つのままです。**
+条件によってボタンが出たり出なかったりする行でも、列がずれません。
+
+名前の下に補足を添えるような 2 段のセルには `EUi.CellStack()` を使います
+（行の高さは `TableRow` へ渡した分のままなので、2 段ぶんを指定してください）。
+
+### 折り返す列
+
+`TableColumn` の `Wrap` を true にすると、**行の高さが中身に合わせて伸びます**。
+
+```csharp
+private static readonly TableColumn[] Columns =
+[
+    new("名前", 120f),
+    new("説明", SizeSpec.Fill, Wrap: true),
+];
+```
+
+高さを自分で逆算する必要はありません。内容が変わった直後の 1 フレームだけ高さがずれ、
+次のフレームで揃います（前フレームの実測を使うため）。
+
+`TableRow` へ `height` を明示した場合は、そちらが優先されます。
 
 ## 独自ウィジェットを書く
 

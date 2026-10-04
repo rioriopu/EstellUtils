@@ -39,8 +39,33 @@ public readonly record struct WidgetResult
     /// <summary>このフレームで操作が始まったか。</summary>
     public bool Activated { get; init; }
 
-    /// <summary>このフレームで操作が終わったか。ドラッグ終了時にだけ保存したい場合に使う。</summary>
+    /// <summary>
+    /// このフレームで操作が終わったか。ドラッグ終了時にだけ保存したい場合に使う。
+    /// </summary>
+    /// <remarks>
+    /// マウスのボタンを離したことを指す。文字入力の「編集が終わった」ではないので、
+    /// 入力欄の確定を拾うには <see cref="Committed"/> を使う。
+    /// </remarks>
     public bool Deactivated { get; init; }
+
+    /// <summary>
+    /// 入力の編集が終わり、値が変わったか。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 焦点が外れたとき、または Enter を押したときに、実際に書き換わっていれば立つ。
+    /// ImGui の <c>IsItemDeactivatedAfterEdit()</c> と同じ意味。
+    /// </para>
+    /// <para>
+    /// ファイルパスや URL のように、1 文字ごとに処理すると困る欄で使う。
+    /// <c>Changed</c> は打つたびに立つので、そのまま保存や検証に繋ぐと無駄が多い。
+    /// </para>
+    /// <code>
+    /// if (EUi.TextInput("保存先", ref path).Committed)
+    ///     this.config.Save();
+    /// </code>
+    /// </remarks>
+    public bool Committed { get; init; }
 
     /// <summary>ダブルクリックされたか。</summary>
     public bool DoubleClicked { get; init; }

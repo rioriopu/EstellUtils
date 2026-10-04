@@ -24,19 +24,28 @@ public static partial class EUi
     /// <summary>
     /// 1 行のテキスト入力。
     /// </summary>
-    /// <param name="id">識別子。<c>##</c> 始まりにするとラベルは表示されない。</param>
+    /// <param name="label">
+    /// ラベル兼識別子。<c>##</c> より前が画面に出て、全体が識別子になる。
+    /// <c>"##name"</c> のようにするとラベルは表示されない。
+    /// </param>
     /// <param name="value">対象の文字列。</param>
     /// <param name="hint">空のときに薄く表示する案内文。</param>
     /// <param name="maxLength">最大文字数。</param>
-    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="width">入力欄の幅。省略するとラベルの分を残した残り幅。</param>
     /// <param name="disabled">無効にするか。</param>
     /// <remarks>
+    /// <para>
     /// 枠・地・フォーカスリングは自前で描くが、文字の編集そのもの
     /// (カーソル移動・選択・クリップボード・日本語入力の変換) は ImGui の入力欄へ委ねている。
     /// IME 対応を独自に実装するのは現実的でないため、ここだけは意図的に ImGui を使う。
+    /// </para>
+    /// <para>
+    /// 1 文字ごとに <c>Changed</c> が立つ。確定したときだけ処理したい場合は
+    /// <c>Committed</c> を見る。
+    /// </para>
     /// </remarks>
     public static WidgetResult TextInput(
-        string id, ref string value, string? hint = null,
+        string label, ref string value, string? hint = null,
         int maxLength = 256, SizeSpec? width = null, bool disabled = false)
     {
         var ctx = UiContext.Current;
@@ -44,9 +53,10 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
+        var id = label;
+        var euId = ctx.GetId(label, out var display);
         var height = Metrics.WidgetHeight;
-        var rect = ctx.Allocate(width ?? SizeSpec.Fill, height);
+        var rect = AllocateLabeledRow(display, width, height, out var labelRect);
 
         var interaction = Interaction.Behavior(
             rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
@@ -57,6 +67,7 @@ public static partial class EUi
         var visual = WidgetVisual.From(interaction) with { Rect = rect, Focused = focused };
 
         WidgetPainter.DrawInputFrame(visual);
+        DrawTrailingLabel(labelRect, display, disabled);
 
         if (disabled)
         {
@@ -67,9 +78,9 @@ public static partial class EUi
 
         // ImGui の入力欄を枠の内側へ、背景・枠なしで重ねる
         var inner = rect.Shrink(Metrics.WidgetPadding);
-        var changed = TextInputRaw(id, ref value, hint, maxLength, inner, euId);
+        var changed = TextInputRaw(id, ref value, hint, maxLength, inner, euId, out var committed);
 
-        return WidgetResult.From(interaction, changed);
+        return WidgetResult.From(interaction, changed) with { Committed = committed };
     }
 
     /// <summary>
@@ -82,6 +93,12 @@ public static partial class EUi
     /// </remarks>
     private static bool TextInputRaw(
         string id, ref string value, string? hint, int maxLength, Rect inner, EuId euId)
+        => TextInputRaw(id, ref value, hint, maxLength, inner, euId, out _);
+
+    /// <summary>編集の確定も受け取る版。</summary>
+    private static bool TextInputRaw(
+        string id, ref string value, string? hint, int maxLength, Rect inner, EuId euId,
+        out bool committed)
     {
         var ctx = UiContext.Current;
 
@@ -102,6 +119,10 @@ public static partial class EUi
             changed = ImGui.InputTextWithHint(id, hint, ref value, maxLength);
 
         var active = ImGui.IsItemActive();
+
+        // 焦点が外れた、または Enter が押された時点で、実際に書き換わっていたか。
+        // Changed は 1 文字ごとに立つので、確定の合図にはこちらを使う
+        committed = ImGui.IsItemDeactivatedAfterEdit();
 
         ImGui.PopStyleVar(2);
         ImGui.PopStyleColor(5);
@@ -147,8 +168,8 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
-        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+        var euId = ctx.GetId(id, out var display);
+        var rect = AllocateLabeledRow(display, width, Metrics.WidgetHeight, out var labelRect);
 
         var interaction = Interaction.Behavior(
             rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
@@ -156,6 +177,8 @@ public static partial class EUi
         var focused = ctx.FocusedId == euId;
         WidgetPainter.DrawInputFrame(
             WidgetVisual.From(interaction) with { Rect = rect, Focused = focused });
+
+        DrawTrailingLabel(labelRect, display, disabled);
 
         var inner = rect.Shrink(Metrics.WidgetPadding);
         var iconWidth = MathF.Ceiling(TextPainter.LineHeight);
@@ -340,7 +363,7 @@ public static partial class EUi
 
         // 列の間には隙間が入る。その分を引かずに幅を決めると、
         // 右端のボタンが行からはみ出して枠を突き抜ける
-        var totalWidth = width?.Resolve(AvailableWidth) ?? AvailableWidth;
+        var totalWidth = width?.Resolve(NextItemWidth) ?? NextItemWidth;
         var fieldWidth = MathF.Max(
             Metrics.WidgetMinWidth,
             totalWidth - (buttonWidth * 2f) - ColumnSpacing(columnCount));
@@ -351,6 +374,9 @@ public static partial class EUi
         {
             result = TextInput("##value", ref text, null, 32, SizeSpec.Fill, disabled);
 
+            // 増減ボタンは押した時点で確定とみなす
+
+
             if (!withStepper)
                 return result;
 
@@ -359,6 +385,9 @@ public static partial class EUi
 
             if (Button("+##up", ButtonStyle.Normal, SizeSpec.Fill, disabled))
                 stepped = 1;
+
+            if (stepped != 0)
+                result = result with { Committed = true };
         }
 
         return result;
@@ -409,14 +438,15 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
-        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+        var euId = ctx.GetId(id, out var display);
+        var rect = AllocateLabeledRow(display, width, Metrics.WidgetHeight, out var labelRect);
 
         var interaction = Interaction.Behavior(
             rect, euId, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
         var visual = WidgetVisual.From(interaction) with { Rect = rect };
         WidgetPainter.DrawInputFrame(visual);
+        DrawTrailingLabel(labelRect, display, disabled);
 
         // 現在の選択内容とシェブロン
         var arrowRect = rect.CutRight(rect.Height, out var labelArea);

@@ -210,7 +210,9 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        var width = AvailableWidth;
+        // 列を宣言した行では、行の残り幅ではなく列幅で測る。
+        // 行の残り幅で測ると、途中の列に置いたときに行を突き抜ける
+        var width = NextItemWidth;
         var size = TextPainter.Measure(text, width);
         var rect = ctx.Allocate(new Vector2(width, size.Y));
 
@@ -250,7 +252,7 @@ public static partial class EUi
         var lineHeight = TextPainter.LineHeight;
         var iconWidth = lineHeight + Metrics.SpacingSm;
 
-        var width = AvailableWidth;
+        var width = NextItemWidth;
         var textWidth = MathF.Max(1f, width - NoteAccentBarWidth - (pad * 2f) - iconWidth);
         var textHeight = MathF.Max(TextPainter.Measure(text, textWidth).Y, lineHeight);
 
@@ -367,7 +369,7 @@ public static partial class EUi
         ctx.EnsureFrame();
 
         var indent = Metrics.SpacingMd;
-        var width = MathF.Max(0f, AvailableWidth - indent);
+        var width = MathF.Max(0f, NextItemWidth - indent);
         var size = TextPainter.Measure(text, width);
         var rect = ctx.Allocate(new Vector2(AvailableWidth, size.Y));
 

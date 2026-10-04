@@ -53,7 +53,8 @@ public static partial class EUi
             return default;
 
         var lineHeight = TextPainter.LineHeight;
-        var available = AvailableWidth;
+        // 列を宣言した行では列幅で折り返す。行の残り幅だと途中の列で突き抜ける
+        var available = NextItemWidth;
         var spacing = 0f;
 
         // 何行になるかを先に数えて、必要な高さを確保する

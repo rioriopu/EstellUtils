@@ -62,6 +62,20 @@ public sealed class GalleryWindow : EuWindow
         "トライヨラ",
     ];
 
+    private static readonly TableColumn[] CellDemoColumns =
+    [
+        new("プラグイン", SizeSpec.Fill),
+        new("状態", 180f),
+    ];
+
+    private static readonly (string Name, bool Running)[] CellDemoRows =
+    [
+        ("vnavmesh", true),
+        ("AutoDuty", false),
+        ("Lifestream", true),
+        ("Artisan", false),
+    ];
+
     private static readonly string[] StressValues = ["12", "48", "105", "7", "230", "64", "19", "88"];
 
     private readonly DemoConfig config;
@@ -391,6 +405,8 @@ public sealed class GalleryWindow : EuWindow
 
         if (matched == 0)
             EUi.Muted("(一致するものがありません)");
+
+        this.DrawCellDemo();
 
         EUi.Separator("推移");
 
@@ -803,6 +819,36 @@ public sealed class GalleryWindow : EuWindow
 
         EUi.Muted($"保存が実行された回数: {this.config.SaveCount}");
         EUi.Muted("スライダーをドラッグ中は保存されず、マウスを離したときにまとめて保存されます。");
+    }
+
+    /// <summary>セルの中へ複数のものを置く例。</summary>
+    private void DrawCellDemo()
+    {
+        EUi.Separator("セルに複数のものを置く");
+
+        EUi.TableHeader(CellDemoColumns);
+
+        for (var i = 0; i < CellDemoRows.Length; i++)
+        {
+            using var rowId = EUi.PushId(i);
+            var row = CellDemoRows[i];
+
+            using (EUi.TableRow(CellDemoColumns, i))
+            {
+                EUi.TableCell(row.Name);
+
+                // 列を 1 つだけ消費する。中の数が行ごとに変わっても列はずれない
+                using (EUi.Cell())
+                {
+                    EUi.StatusDot(row.Running, row.Running ? "動作中" : "停止中");
+
+                    if (!row.Running && EUi.SmallButton("再開"))
+                        EUi.Toast($"{row.Name} を再開しました。", NoteKind.Success);
+                }
+            }
+        }
+
+        EUi.Muted("「停止中」の行だけボタンが増えますが、列はずれません。", wrap: true);
     }
 
     /// <summary>負荷確認用の 1 行。仮想化の有無で同じものを描く。</summary>

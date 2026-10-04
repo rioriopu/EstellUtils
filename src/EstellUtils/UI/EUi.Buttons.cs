@@ -25,9 +25,13 @@ public static partial class EUi
     /// <param name="style">見た目の種類。</param>
     /// <param name="width">幅。省略するとラベルに合わせる。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="height">
+    /// 高さ。省略するとテーマの標準の高さ。
+    /// 行の中へ小さく収めたい場合は <c>EUi.Metrics.SmallWidgetHeight</c> を渡す。
+    /// </param>
     public static WidgetResult Button(
         ReadOnlySpan<char> label, ButtonStyle style = ButtonStyle.Normal,
-        SizeSpec? width = null, bool disabled = false)
+        SizeSpec? width = null, bool disabled = false, float? height = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -37,14 +41,31 @@ public static partial class EUi
         var id = ctx.GetId(label, out var display);
         var textSize = TextPainter.Measure(display);
 
-        var height = MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical);
-        var rect = ctx.Allocate(width ?? SizeSpec.Px(ButtonWidth(display)), height);
+        var resolvedHeight = height
+            ?? MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical);
+
+        var rect = ctx.Allocate(width ?? SizeSpec.Px(ButtonWidth(display)), resolvedHeight);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
         WidgetPainter.DrawButton(WidgetVisual.From(interaction), display, style);
 
         return WidgetResult.From(interaction);
     }
+
+    /// <summary>
+    /// 行の中へ小さく収めるボタン。<c>ImGui.SmallButton</c> の置き換え。
+    /// </summary>
+    /// <param name="label">表示するラベル。</param>
+    /// <param name="style">見た目の種類。</param>
+    /// <param name="width">幅。省略するとラベルに合わせる。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <remarks>
+    /// 高さだけが違う <see cref="Button"/> です。文字の行に混ぜても段が広がりません。
+    /// </remarks>
+    public static WidgetResult SmallButton(
+        ReadOnlySpan<char> label, ButtonStyle style = ButtonStyle.Normal,
+        SizeSpec? width = null, bool disabled = false)
+        => Button(label, style, width, disabled, Metrics.SmallWidgetHeight);
 
     /// <summary>
     /// ラベルに合わせたボタンの幅。<see cref="Button"/> が幅を省略したときに使うものと同じ。
@@ -310,8 +331,10 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var euId = ctx.GetId(id);
-        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+        var euId = ctx.GetId(id, out var display);
+        var rect = AllocateLabeledRow(display, width, Metrics.WidgetHeight, out var labelRect);
+
+        DrawTrailingLabel(labelRect, display, disabled);
 
         if (options.Length == 0)
             return new WidgetResult { Id = euId, Rect = rect };

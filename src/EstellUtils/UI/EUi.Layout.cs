@@ -235,6 +235,47 @@ public static partial class EUi
     public static ScrollHandle Scroll(ReadOnlySpan<char> id, float height, float? spacing = null)
         => ScrollArea.Begin(id, height, spacing);
 
+    /// <summary>
+    /// 高さの指定方法を選んでスクロール領域を開く。
+    /// </summary>
+    /// <param name="id">スクロール位置を保持するための識別子。</param>
+    /// <param name="height">
+    /// 領域の高さ。<see cref="SizeSpec.Fill"/> で残り高さいっぱい。
+    /// </param>
+    /// <param name="reserveBelow">
+    /// 下に空けておく高さ。送り領域のあとに何かを置く場合に、その分を渡す。
+    /// </param>
+    /// <param name="spacing">内容の要素間の空き。</param>
+    /// <remarks>
+    /// <para>
+    /// <b><see cref="SizeSpec.Fill"/> は残り高さを全部使います。</b>
+    /// そのあとに置いたものは場所が無くなって出ません。
+    /// 即時モードでは「後ろに何が来るか」を先に知れないため、
+    /// 下に置くものがある場合は <paramref name="reserveBelow"/> でその分を伝えてください。
+    /// </para>
+    /// <code>
+    /// // 一覧の下に 1 行の注記を置く
+    /// using (EUi.Scroll("list", SizeSpec.Fill, reserveBelow: EUi.LineHeight + EUi.Metrics.ItemSpacing.Y))
+    /// {
+    ///     foreach (var item in items)
+    ///         EUi.Selectable(item.Name, item == selected);
+    /// }
+    ///
+    /// EUi.Muted($"{hidden} 件は表示していません");
+    /// </code>
+    /// </remarks>
+    public static ScrollHandle Scroll(
+        ReadOnlySpan<char> id, SizeSpec height, float? reserveBelow = null, float? spacing = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var available = MathF.Max(0f, AvailableHeight - (reserveBelow ?? 0f));
+        var resolved = MathF.Max(0f, height.Resolve(available));
+
+        return ScrollArea.Begin(id, resolved, spacing);
+    }
+
     /// <summary>空きを入れる。省略するとテーマの標準の空き。</summary>
     public static void Spacing(float? amount = null)
     {

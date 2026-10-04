@@ -54,6 +54,9 @@ public sealed class ThemeMetrics
     /// <summary>カード内側の余白。</summary>
     public EdgeInsets CardPadding { get; set; } = EdgeInsets.All(8f);
 
+    /// <summary>行の中へ小さく収めるウィジェットの高さ。</summary>
+    public float SmallWidgetHeight { get; set; } = 18f;
+
     /// <summary>字下げ 1 段分の幅。</summary>
     public float IndentWidth { get; set; } = 18f;
 
@@ -179,6 +182,7 @@ public sealed class ThemeMetrics
         m.CardRounding *= scale;
         m.CardPadding *= scale;
         m.IndentWidth *= scale;
+        m.SmallWidgetHeight *= scale;
         m.SectionSpacing *= scale;
 
         m.SpacingXs *= scale;

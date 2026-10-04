@@ -70,8 +70,8 @@ public static partial class EUi
         // キー状態を読む手段がなければ、触れないことを見せる
         disabled |= IsDisabled || keyState is null;
 
-        var id = ctx.GetId(label, out _);
-        var rect = ctx.Allocate(width ?? SizeSpec.Fill, Metrics.WidgetHeight);
+        var id = ctx.GetId(label, out var display);
+        var rect = AllocateLabeledRow(display, width, Metrics.WidgetHeight, out var labelRect);
 
         var interaction = Interaction.Behavior(
             rect, id,
@@ -120,6 +120,7 @@ public static partial class EUi
         };
 
         WidgetPainter.DrawInputFrame(visual);
+        DrawTrailingLabel(labelRect, display, disabled);
 
         var inner = rect.Shrink(Metrics.WidgetPadding);
 
