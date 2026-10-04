@@ -30,6 +30,8 @@ EUi.Button("削除", ButtonStyle.Danger)
 | `Hovered` / `Held` | マウスが乗っている / 押下中 |
 | `Activated` / `Deactivated` | 操作が始まった / 終わった |
 | `DoubleClicked` / `RightClicked` | ダブルクリック / 右クリック |
+| `Focused` | キーボードの焦点が当たっているか |
+| `Committed` | 入力の編集が終わり、値が変わったか |
 | `Rect` | ウィジェットが占める矩形 |
 
 ドラッグ終了時にだけ保存したい場合は `Deactivated` を使います。
@@ -261,6 +263,18 @@ if (EUi.Selectable(vendor.Name, i == index, color: locked ? EUi.Colors.TextDisab
     else
         Pick(vendor);
 }
+```
+
+### 打ち込んでいる最中かどうか
+
+全角数字の正規化のように、入力中は表示用の控えを持ち、離れたら整えたい場合は
+`Focused` を見ます。
+
+```csharp
+var result = EUi.TextInput("座標", ref this.editing);
+
+if (!result.Focused)
+    this.editing = Normalize(this.value);   // 打ち終わったら整える
 ```
 
 ### 入力が確定したとき

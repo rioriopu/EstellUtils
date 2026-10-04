@@ -76,6 +76,21 @@ public readonly record struct WidgetResult
     /// <summary>無効状態か。</summary>
     public bool Disabled { get; init; }
 
+    /// <summary>
+    /// キーボードの焦点が当たっているか。
+    /// </summary>
+    /// <remarks>
+    /// 「いま打ち込んでいる欄か」の判定に使う。入力中は表示用の控えを別に持ち、
+    /// 離れたら正規化した値へ戻す、といった作りで必要になる。
+    /// <code>
+    /// var result = EUi.TextInput("座標", ref this.editing);
+    ///
+    /// if (!result.Focused)
+    ///     this.editing = Normalize(this.value);   // 打ち終わったら整える
+    /// </code>
+    /// </remarks>
+    public bool Focused { get; init; }
+
     /// <summary>ホバーが続いている秒数。</summary>
     public float HoveredDuration { get; init; }
 
@@ -126,5 +141,9 @@ public readonly record struct WidgetResult
             RightClicked = interaction.RightClicked,
             Disabled = interaction.Disabled,
             HoveredDuration = interaction.HoveredDuration,
+
+            // 焦点はウィジェットごとに持たず、文脈が覚えている。
+            // ここで引いておけば、呼び出し側が UiContext を直に触らずに済む
+            Focused = !interaction.Id.IsNone && UiContext.Current.FocusedId == interaction.Id,
         };
 }
