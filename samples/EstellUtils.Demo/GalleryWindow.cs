@@ -843,7 +843,7 @@ public sealed class GalleryWindow : EuWindow
 
         // ラベルは EstellUtils が描く。ImGui 側へは表示を落とした識別子を渡すので、
         // 同じ文字が二重に出ることはない
-        EUi.TextInput("必要な AutoDuty の版", ref this.versionText, "例: 1.2.3", 240f);
+        EUi.TextInput("必要な AutoDuty の版", ref this.versionText, "例: 1.2.3", 64, SizeSpec.Px(240f));
         EUi.InputInt("残す空き枠", ref this.freeSlots, 1, 0, 30, SizeSpec.Px(160f));
 
         EUi.Muted("ラベルが二重に描かれないことの確認です。", wrap: true);
