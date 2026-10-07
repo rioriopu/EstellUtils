@@ -45,13 +45,19 @@ public static partial class EUi
         var euId = ctx.GetId(id);
 
         // 状態の参照は描画の前後で分ける。描画の途中で Store が育つと ref が無効になる
-        var selected = Math.Clamp(ctx.Store.GetRef(euId).SelectedIndex, 0, labels.Length - 1);
+        // 選んだタブは利用者の意図なので、別のタブを見ている間も覚えておく
+        ref var before = ref ctx.Store.GetPersistentRef(euId);
+
+        // 覚えているのは「どのタブか」。番号だけだと、条件でタブが増減したときに
+        // 同じ番号にある別のタブへ移ってしまう
+        var selected = ResolveSelected(before, labels);
         ApplyPendingLabel(euId, ref selected, labels);
 
         var result = DrawTabBar(ctx, euId, ref selected, labels);
 
-        ref var after = ref ctx.Store.GetRef(euId);
+        ref var after = ref ctx.Store.GetPersistentRef(euId);
         after.SelectedIndex = selected;
+        after.SelectedKey = TabKey(euId, labels, selected);
         after.SelectionRequested = false;
 
         return result;
@@ -86,7 +92,7 @@ public static partial class EUi
 
         // SelectTab で外から要求があればそちらを採る。
         // 書き戻すだけだと、要求が次のフレームで上書きされて消えてしまう
-        ref var state = ref ctx.Store.GetRef(euId);
+        ref var state = ref ctx.Store.GetPersistentRef(euId);
 
         if (state.SelectionRequested)
         {
@@ -99,7 +105,10 @@ public static partial class EUi
 
         var result = DrawTabBar(ctx, euId, ref selected, labels);
 
-        ctx.Store.GetRef(euId).SelectedIndex = selected;
+        ref var after = ref ctx.Store.GetPersistentRef(euId);
+        after.SelectedIndex = selected;
+        after.SelectedKey = TabKey(euId, labels, selected);
+
         return result;
     }
 
@@ -146,6 +155,36 @@ public static partial class EUi
         ctx.EnsureFrame();
 
         PendingTabLabels[ctx.GetId(id)] = label.ToString();
+    }
+
+    /// <summary>
+    /// 覚えている選択から、今の並びでの添字を決める。
+    /// </summary>
+    /// <remarks>
+    /// まず「どのタブか」で探す。見つからなければ番号へ落とす。
+    /// 条件でタブが増減しても、選んでいたタブに居続けられる。
+    /// </remarks>
+    private static int ResolveSelected(in WidgetState state, ReadOnlySpan<string> labels)
+    {
+        if (state.SelectedKey != 0UL)
+        {
+            for (var i = 0; i < labels.Length; i++)
+            {
+                if (EuId.FromLabel(labels[i], 0UL, out _).Value == state.SelectedKey)
+                    return i;
+            }
+        }
+
+        return Math.Clamp(state.SelectedIndex, 0, labels.Length - 1);
+    }
+
+    /// <summary>タブを見分けるための鍵。ラベルから作る。</summary>
+    private static ulong TabKey(EuId euId, ReadOnlySpan<string> labels, int index)
+    {
+        if (index < 0 || index >= labels.Length)
+            return 0UL;
+
+        return EuId.FromLabel(labels[index], 0UL, out _).Value;
     }
 
     /// <summary>ラベルでの選択要求があれば、添字へ直して取り込む。</summary>

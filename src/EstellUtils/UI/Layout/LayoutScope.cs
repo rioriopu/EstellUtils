@@ -99,8 +99,35 @@ public sealed class LayoutScope
         }
     }
 
-    /// <summary>次の要素に使える残り高さ。</summary>
-    public float RemainingHeight => MathF.Max(0f, this.Bounds.Max.Y - this.Cursor.Y);
+    /// <summary>
+    /// 次の要素に使える残り高さ。
+    /// </summary>
+    /// <remarks>
+    /// 送り領域の中身は、下端を遠くへ置いて「いくらでも積める」状態にしてある。
+    /// その値をそのまま返すと、残り高さが 100 万 px になって
+    /// <c>SizeSpec.Fill</c> の高さが現実離れする。見えている範囲を上限にする。
+    /// </remarks>
+    public float RemainingHeight
+    {
+        get
+        {
+            var remaining = MathF.Max(0f, this.Bounds.Max.Y - this.Cursor.Y);
+
+            if (this.FillHeight <= 0f)
+                return remaining;
+
+            var used = MathF.Max(0f, this.Cursor.Y - this.Bounds.Min.Y);
+            return MathF.Min(remaining, MathF.Max(0f, this.FillHeight - used));
+        }
+    }
+
+    /// <summary>
+    /// 高さを配分するときの上限。0 なら <see cref="Bounds"/> の下端まで使う。
+    /// </summary>
+    /// <remarks>
+    /// 送り領域が「見えている高さ」を入れる。中身を積める範囲とは別に持つ。
+    /// </remarks>
+    public float FillHeight { get; private set; }
 
     /// <summary>外側から見たときの余白。<see cref="Bounds"/> はこれを差し引いた領域になる。</summary>
     public EdgeInsets Padding { get; private set; }
@@ -128,23 +155,31 @@ public sealed class LayoutScope
     /// </summary>
     public Rect PeekAvailable()
     {
-        if (this.ItemCount == 0)
-            return new Rect(this.Cursor, this.Bounds.Max);
+        var next = this.ItemCount == 0
+            ? this.Cursor
+            : this.Kind == LayoutKind.Vertical
+                ? new Vector2(this.Bounds.Min.X, this.Cursor.Y + this.Spacing.Y)
+                : new Vector2(this.Cursor.X + this.Spacing.X, this.Cursor.Y);
 
-        var next = this.Kind == LayoutKind.Vertical
-            ? new Vector2(this.Bounds.Min.X, this.Cursor.Y + this.Spacing.Y)
-            : new Vector2(this.Cursor.X + this.Spacing.X, this.Cursor.Y);
+        var max = this.Bounds.Max;
 
-        return new Rect(next, Vector2.Max(next, this.Bounds.Max));
+        // 送り領域の中では、下端は「いくらでも積める」位置にある。
+        // 使える高さとしては、見えている範囲を返す
+        if (this.FillHeight > 0f)
+            max = new Vector2(max.X, this.Bounds.Min.Y + this.FillHeight);
+
+        return new Rect(next, Vector2.Max(next, max));
     }
 
     /// <summary>スコープを初期化する (プールから再利用するため公開している)。</summary>
     public void Reset(
         LayoutKind kind, Rect bounds, Vector2 spacing, ReadOnlySpan<SizeSpec> columns, bool wrap,
-        EdgeInsets padding = default, Align crossAlign = Align.Start, float rowHeight = 0f)
+        EdgeInsets padding = default, Align crossAlign = Align.Start, float rowHeight = 0f,
+        float fillHeight = 0f)
     {
         this.CrossAlign = crossAlign;
         this.RowHeight = rowHeight;
+        this.FillHeight = fillHeight;
 
         this.Padding = padding;
         bounds = bounds.Shrink(padding);

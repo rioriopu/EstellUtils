@@ -230,15 +230,15 @@ public static class Interaction
         // ホバーが始まった時刻を控えて、継続時間を出す (ツールチップの遅延に使う)
         if (hovered)
         {
-            if (state.Custom1 <= 0f)
-                state.Custom1 = ctx.Time;
+            if (state.HoverStartedAt <= 0f)
+                state.HoverStartedAt = ctx.Time;
         }
         else
         {
-            state.Custom1 = 0f;
+            state.HoverStartedAt = 0f;
         }
 
-        var hoveredDuration = hovered && state.Custom1 > 0f ? ctx.Time - state.Custom1 : 0f;
+        var hoveredDuration = hovered && state.HoverStartedAt > 0f ? ctx.Time - state.HoverStartedAt : 0f;
 
         // 後から EUi.Tip() を呼べるよう、直前のウィジェットとして控えておく
         ctx.SetLastItem(rect, hoveredDuration);
@@ -287,11 +287,11 @@ public static class Interaction
         if (elapsed < RepeatDelay)
             return false;
 
-        // 前回発火からの経過を Custom0 に積んでおく
-        var sinceLast = ctx.Time - state.Custom0;
-        if (state.Custom0 <= state.ActivatedAt || sinceLast >= RepeatRate)
+        // 前回発火からの経過を見る
+        var sinceLast = ctx.Time - state.LastRepeatAt;
+        if (state.LastRepeatAt <= state.ActivatedAt || sinceLast >= RepeatRate)
         {
-            state.Custom0 = ctx.Time;
+            state.LastRepeatAt = ctx.Time;
             return true;
         }
 

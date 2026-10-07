@@ -111,16 +111,17 @@ public static partial class EUi
     private static bool DrawColorPicker(EuId id, ref Vector4 color, bool showAlpha)
     {
         var ctx = UiContext.Current;
-        ref var state = ref ctx.Store.GetRef(id);
+        // 色見本の ID をそのまま使うと、入力判定の欄と取り合いになる
+        ref var state = ref ctx.Store.GetRef(id.Child("hue"));
 
         var packed = EuColor.FromVector(color);
         var (hue, saturation, value) = EuColor.ToHsv(packed);
 
         // 彩度 0 や明度 0 では色相が失われるので、直前の色相を覚えておく
         if (saturation <= 0.0001f || value <= 0.0001f)
-            hue = state.Custom1;
+            hue = state.Custom0;
         else
-            state.Custom1 = hue;
+            state.Custom0 = hue;
 
         var alpha = color.W;
         var changed = false;
@@ -161,7 +162,7 @@ public static partial class EUi
         if (hueInteraction.Held)
         {
             hue = Math.Clamp((ctx.Input.MousePos.X - hueRect.Min.X) / MathF.Max(1f, hueRect.Width), 0f, 1f);
-            state.Custom1 = hue;
+            state.Custom0 = hue;
             changed = true;
         }
 

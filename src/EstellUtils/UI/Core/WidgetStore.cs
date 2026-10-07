@@ -45,7 +45,9 @@ public struct WidgetState
     /// <summary>前フレームに計測した内容サイズ (高さ)。</summary>
     public float MeasuredHeight;
 
-    /// <summary>ウィジェット固有の汎用スロット。</summary>
+    /// <summary>
+    /// 利用者が自由に使える枠。ライブラリは書き換えない。
+    /// </summary>
     public float Custom0;
 
     /// <summary>ウィジェット固有の汎用スロット。</summary>
@@ -61,6 +63,32 @@ public struct WidgetState
     /// 選択がコードから要求されたか。タブバーが次に描かれるとき、これを見て採用する。
     /// </summary>
     public bool SelectionRequested;
+
+    /// <summary>
+    /// 選んだタブの識別子。番号だけだと、条件でタブが増減したときに別のタブへ移ってしまう。
+    /// </summary>
+    public ulong SelectedKey;
+
+    /// <summary>
+    /// ホバーが始まった時刻。入力判定が使う。
+    /// </summary>
+    /// <remarks>
+    /// 以前は <see cref="Custom1"/> を使っていたが、あれは利用者が自由に使える枠なので、
+    /// 独自ウィジェットの値を毎フレーム潰していた。
+    /// </remarks>
+    public float HoverStartedAt;
+
+    /// <summary>オートリピートが最後に発火した時刻。入力判定が使う。</summary>
+    public float LastRepeatAt;
+
+    /// <summary>
+    /// 利用者の意図を表す状態を持っているか。
+    /// </summary>
+    /// <remarks>
+    /// 畳んだ・このタブを選んだ・ここまで送った、といった意図は、
+    /// しばらく描かれなくても覚えておく。ホバー量のような一時的な値とは区別する。
+    /// </remarks>
+    public bool Persistent;
 
     /// <summary>初期化済みか。既定値の投入を 1 度だけ行うために使う。</summary>
     public bool Initialized;
@@ -107,6 +135,21 @@ public sealed class WidgetStore
     {
         ref var state = ref CollectionsMarshal.GetValueRefOrAddDefault(this.states, id.Value, out _);
         state.LastFrame = this.currentFrame;
+        return ref state;
+    }
+
+    /// <summary>
+    /// この状態を掃除の対象から外す。
+    /// </summary>
+    /// <remarks>
+    /// 畳み方・選んだタブ・送り位置のように、利用者が決めたものに使う。
+    /// 一度印を付ければ、しばらく描かれなくても消えない。
+    /// </remarks>
+    public ref WidgetState GetPersistentRef(EuId id)
+    {
+        ref var state = ref this.GetRef(id);
+        state.Persistent = true;
+
         return ref state;
     }
 
@@ -177,6 +220,11 @@ public sealed class WidgetStore
 
         foreach (var pair in this.states)
         {
+            // 利用者が決めた状態は捨てない。別のタブを見ている間や、
+            // 親を畳んでいる間に、畳み方や送り位置が勝手に戻ってしまう
+            if (pair.Value.Persistent)
+                continue;
+
             if (this.currentFrame - pair.Value.LastFrame > StaleFrameThreshold)
                 this.removalBuffer.Add(pair.Key);
         }

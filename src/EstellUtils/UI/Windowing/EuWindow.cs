@@ -365,6 +365,14 @@ public abstract class EuWindow
 
         this.PreDraw();
 
+        // 畳めない窓が畳まれたままだと、利用者には戻す手段が無い。
+        // ImGui も NoCollapse のときは畳みを解除する
+        if (!this.Collapsible && this.IsCollapsed)
+        {
+            this.IsCollapsed = false;
+            this.MarkStateDirty();
+        }
+
         if (!this.placed)
             this.CenterOnScreen();
 

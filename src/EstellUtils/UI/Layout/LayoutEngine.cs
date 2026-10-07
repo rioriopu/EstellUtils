@@ -51,10 +51,10 @@ public sealed class LayoutEngine
     public LayoutScope Push(
         LayoutKind kind, Rect bounds, Vector2 spacing,
         ReadOnlySpan<SizeSpec> columns = default, bool wrap = false, EdgeInsets padding = default,
-        Align crossAlign = Align.Start, float rowHeight = 0f)
+        Align crossAlign = Align.Start, float rowHeight = 0f, float fillHeight = 0f)
     {
         var scope = this.pool.Count > 0 ? this.pool.Pop() : new LayoutScope();
-        scope.Reset(kind, bounds, spacing, columns, wrap, padding, crossAlign, rowHeight);
+        scope.Reset(kind, bounds, spacing, columns, wrap, padding, crossAlign, rowHeight, fillHeight);
         this.active.Add(scope);
         return scope;
     }

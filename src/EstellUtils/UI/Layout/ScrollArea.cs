@@ -37,7 +37,8 @@ public static class ScrollArea
         var euId = ctx.GetId(id);
         var rect = ctx.Allocate(SizeSpec.Fill, height);
 
-        ref var state = ref ctx.Store.GetRef(euId);
+        // 送り位置は利用者の意図なので、描かれない時間が続いても覚えておく
+        ref var state = ref ctx.Store.GetPersistentRef(euId);
 
         var contentHeight = state.MeasuredHeight;
         var maxScroll = MathF.Max(0f, contentHeight - rect.Height);
@@ -63,7 +64,12 @@ public static class ScrollArea
             new Vector2(rect.Max.X - contentInset, rect.Min.Y - state.Scroll + 1_000_000f));
 
         var gap = new Vector2(0f, spacing ?? theme.Metrics.ItemSpacing.Y);
-        ctx.Layout.Push(LayoutKind.Vertical, contentBounds, gap);
+
+        // 中身はいくらでも積めるが、高さの配分 (SizeSpec.Fill) は見えている分を上限にする。
+        // 渡さないと、残り高さが 100 万 px として配られてしまう
+        ctx.Layout.Push(
+            LayoutKind.Vertical, contentBounds, gap,
+            default, false, default, Align.Start, 0f, rect.Height);
 
         return new ScrollHandle(euId, rect, barWidth, maxScroll, clip);
     }

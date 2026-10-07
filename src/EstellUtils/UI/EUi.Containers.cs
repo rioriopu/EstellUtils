@@ -85,7 +85,8 @@ public static partial class EUi
 
         var (sectionId, display) = ResolveSectionId(ctx, label, id);
         var idAlias = sectionId;
-        ref var state = ref ctx.Store.GetRef(idAlias);
+        // 畳み方は利用者の意図なので、しばらく描かれなくても覚えておく
+        ref var state = ref ctx.Store.GetPersistentRef(idAlias);
 
         // 初回だけ既定の開閉状態を入れる
         if (!state.Initialized)
@@ -169,7 +170,7 @@ public static partial class EUi
         ctx.EnsureFrame();
 
         var (sectionId, _) = ResolveSectionId(ctx, label, id);
-        ref var state = ref ctx.Store.GetRef(sectionId);
+        ref var state = ref ctx.Store.GetPersistentRef(sectionId);
 
         // 呼び出し側の値を正として、内部の状態へ写してから通常の処理に乗せる
         if (!state.Initialized)
