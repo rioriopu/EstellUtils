@@ -60,7 +60,9 @@ public static partial class EUi
         var border = EuColor.Lerp(Colors.WidgetBorder, Colors.WidgetBorderHover, interaction.HoverAmount);
         Painter.RectOutline(rect, border, Metrics.WidgetBorderWidth, Metrics.WidgetRounding);
 
-        var popupId = id + "##euColorPopup";
+        // ImGui の ID スタックは EUi.PushId を見ないので、EstellUtils の ID を通す。
+        // 通さないと、一覧の全行が同じポップアップを共有してしまう
+        var popupId = ResolvePopupId(id + "##euColorPopup");
 
         if (interaction.Clicked && !disabled && !ImGui.IsPopupOpen(popupId))
             ImGui.OpenPopup(popupId);

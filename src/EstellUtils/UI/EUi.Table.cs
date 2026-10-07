@@ -144,6 +144,24 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// セルの高さを決める。
+    /// </summary>
+    /// <remarks>
+    /// 行の高さは、表の行なら <c>TableRow</c> が宣言した高さになる。
+    /// 表の外 (Row / HStack) では、親の残り高さを拾うと送り領域の 100 万 px まで
+    /// 伸びてしまうので、標準のウィジェット高さに落とす。
+    /// </remarks>
+    private static float ResolveCellHeight(LayoutScope? scope, float? height)
+    {
+        if (height is { } explicitHeight)
+            return explicitHeight;
+
+        return scope is { Kind: LayoutKind.Horizontal, RowHeight: > 0f }
+            ? scope.RowHeight
+            : Metrics.WidgetHeight;
+    }
+
+    /// <summary>
     /// 送り領域が、つまみのために内容の右端から削る幅。
     /// </summary>
     /// <remarks>
@@ -178,6 +196,9 @@ public static partial class EUi
     /// <param name="spacing">中身の要素間の空き。</param>
     /// <param name="align">中身を縦方向のどこへ置くか。</param>
     /// <param name="padding">セルの内側の余白。省略すると文字のセルと同じ左右余白。</param>
+    /// <param name="height">
+    /// セルの高さ。省略すると、表の行では行の高さ、表の外では標準のウィジェット高さ。
+    /// </param>
     /// <remarks>
     /// <para>
     /// 列を宣言した行では、ウィジェットを 1 つ置くごとに次の列へ進みます。
@@ -199,26 +220,28 @@ public static partial class EUi
     /// </code>
     /// <para>
     /// 中で置くものの数が行ごとに変わっても、消費する列は 1 つのままです。
-    /// 表の外でも使えますが、その場合は残り幅を 1 つ分として取ります。
+    /// 表の外 (<c>EUi.Row</c> など) でも使えます。その場合の高さは標準のウィジェット高さで、
+    /// <paramref name="height"/> で変えられます。
     /// </para>
     /// </remarks>
     public static CellHandle Cell(
-        float? spacing = null, Align align = Align.Center, EdgeInsets? padding = null)
+        float? spacing = null, Align align = Align.Center, EdgeInsets? padding = null,
+        float? height = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var scope = ctx.Layout.Current;
-        var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
+        var resolvedHeight = ResolveCellHeight(scope, height);
 
         // 列が宣言されていれば、ここで列幅が使われる
-        var rect = ctx.Allocate(SizeSpec.Fill, height);
+        var rect = ctx.Allocate(SizeSpec.Fill, resolvedHeight);
 
         var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f);
         var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
 
         ctx.Layout.Push(
-            LayoutKind.Horizontal, rect, gap, default, false, inset, align, height);
+            LayoutKind.Horizontal, rect, gap, default, false, inset, align, resolvedHeight);
 
         // 領域は上で確保済み。閉じるときは、はみ出した高さだけを行へ伝える
         return new CellHandle(scope, rect);
@@ -229,19 +252,23 @@ public static partial class EUi
     /// </summary>
     /// <param name="spacing">中身の要素間の空き。</param>
     /// <param name="padding">セルの内側の余白。</param>
+    /// <param name="height">
+    /// セルの高さ。省略すると、表の行では行の高さ、表の外では標準のウィジェット高さ。
+    /// </param>
     /// <remarks>
     /// 名前の下に補足を添える、といった 2 段のセルに使う。
     /// 行の高さは <c>TableRow</c> へ渡した高さのままなので、
     /// 2 段ぶんの高さを指定しておくこと。
     /// </remarks>
-    public static CellHandle CellStack(float? spacing = null, EdgeInsets? padding = null)
+    public static CellHandle CellStack(
+        float? spacing = null, EdgeInsets? padding = null, float? height = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var scope = ctx.Layout.Current;
-        var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
-        var rect = ctx.Allocate(SizeSpec.Fill, height);
+        var resolvedHeight = ResolveCellHeight(scope, height);
+        var rect = ctx.Allocate(SizeSpec.Fill, resolvedHeight);
 
         var gap = new Vector2(0f, spacing ?? Metrics.SpacingXs);
         var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
@@ -264,7 +291,7 @@ public static partial class EUi
         ctx.EnsureFrame();
 
         var scope = ctx.Layout.Current;
-        var height = scope?.Bounds.Height ?? Metrics.WidgetHeight;
+        var height = ResolveCellHeight(scope, null);
 
         // 寄せ方を省略したら、列定義の指定に従う
         var resolvedAlign = align ?? ColumnAlignAt(scope?.ColumnIndex ?? 0);

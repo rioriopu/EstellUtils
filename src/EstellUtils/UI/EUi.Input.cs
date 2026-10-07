@@ -22,29 +22,34 @@ public static partial class EUi
     private const int ComboVisibleItems = 10;
 
     /// <summary>ImGui の入力欄へ渡す識別子。毎フレーム組み立てないよう控えておく。</summary>
-    private static readonly System.Collections.Generic.Dictionary<string, string> RawInputIds =
-        new(StringComparer.Ordinal);
+    private static readonly System.Collections.Generic.Dictionary<EuId, string> RawInputIds = new();
 
     /// <summary>
-    /// ImGui の入力欄へ渡す識別子を作る。
+    /// ImGui の入力欄へ渡す識別子を、EstellUtils の ID から作る。
     /// </summary>
     /// <remarks>
     /// <para>
     /// ImGui は <c>##</c> より前を自前で欄の右へ描く。EstellUtils も同じ文字を
-    /// 描くので、そのまま渡すとラベルが二重になって潰れる。
+    /// 描くので、ラベルをそのまま渡すと二重になって潰れる。
     /// </para>
     /// <para>
-    /// <c>###</c> を前置すると、以降すべてが識別子になり表示は行われない。
-    /// 元のラベル全体が識別子に入るので、一意性はそのまま保たれる。
+    /// さらに ImGui の ID スタックは <c>EUi.PushId</c> の影響を受けないため、
+    /// ラベルだけから作ると一覧の全行や、同じ窓の数値欄どうしが同じ ID になる。
+    /// ImGui は編集中の状態をひとつしか持たないので、ID が重なった欄は
+    /// 互いの文字を書き戻し合い、別の設定値まで同じ値に変わってしまう。
+    /// </para>
+    /// <para>
+    /// EstellUtils の ID は親の階層を含むので、そこから作れば衝突しない。
+    /// ポップアップが <c>ResolvePopupId</c> で行っているのと同じ考え方。
     /// </para>
     /// </remarks>
-    private static string RawInputId(string label)
+    private static string RawInputId(EuId euId)
     {
-        if (RawInputIds.TryGetValue(label, out var cached))
+        if (RawInputIds.TryGetValue(euId, out var cached))
             return cached;
 
-        var built = "###" + label;
-        RawInputIds[label] = built;
+        var built = "###euInput" + euId.Value.ToString("X16", CultureInfo.InvariantCulture);
+        RawInputIds[euId] = built;
 
         return built;
     }
@@ -81,8 +86,8 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var id = RawInputId(label);
         var euId = ctx.GetId(label, out var display);
+        var id = RawInputId(euId);
         var height = Metrics.WidgetHeight;
         var rect = AllocateLabeledRow(display, width, height, out var labelRect);
 
@@ -254,7 +259,7 @@ public static partial class EUi
         }
         else if (!changed)
         {
-            changed = TextInputRaw(RawInputId(id), ref query, hint ?? "絞り込み", 128, inner, euId);
+            changed = TextInputRaw(RawInputId(euId), ref query, hint ?? "絞り込み", 128, inner, euId);
         }
 
         return WidgetResult.From(interaction, changed);
@@ -271,8 +276,8 @@ public static partial class EUi
 
         disabled |= IsDisabled;
 
-        var id = RawInputId(label);
         var euId = ctx.GetId(label, out var display);
+        var id = RawInputId(euId);
         var rect = AllocateLabeledRow(display, null, height, out var labelRect);
 
         var interaction = Interaction.Behavior(
