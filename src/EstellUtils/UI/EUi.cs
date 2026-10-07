@@ -150,6 +150,26 @@ public static partial class EUi
     /// <summary>一時的に別テーマを適用するスコープを開く。</summary>
     public static ThemeScope PushTheme(Theme theme) => ThemeManager.Push(theme);
 
+    /// <summary>
+    /// 今のテーマから 1 色だけ差し替える。<c>using</c> で元へ戻る。
+    /// </summary>
+    /// <param name="role">差し替える色。</param>
+    /// <param name="color">新しい色。</param>
+    /// <remarks>
+    /// 派生テーマを作り置きしなくても、その場で 1 色だけ変えられる。
+    /// 土台は常に今のテーマなので、ウィンドウ単位のテーマの中でも効く。
+    /// <code>
+    /// using (EUi.PushColor(ThemeColor.TextHeading, EUi.Colors.Danger))
+    ///     EUi.Section("⚠ 注意事項", defaultOpen: false);
+    /// </code>
+    /// </remarks>
+    public static ThemeScope PushColor(ThemeColor role, uint color)
+        => ThemeManager.PushColor(role, color);
+
+    /// <summary>複数の色をまとめて差し替える。</summary>
+    public static ThemeScope PushColors(ReadOnlySpan<(ThemeColor Role, uint Color)> overrides)
+        => ThemeManager.PushColors(overrides);
+
     /// <summary>フォントを適用するスコープを開く。</summary>
     public static FontScope PushFont(FontRole role) => Fonts.Push(role);
 
@@ -209,7 +229,7 @@ public static partial class EUi
     /// </summary>
     /// <remarks>
     /// 戻り値へ <c>.Tip()</c> をつなげられない場面 (戻り値を返さない自前のラッパーや、
-    /// <c>using</c> を返す <see cref="Section(ReadOnlySpan{char}, bool, bool, ReadOnlySpan{char})"/> のあと) で使う。
+    /// <c>using</c> を返す <see cref="Section(ReadOnlySpan{char}, bool, bool, ReadOnlySpan{char}, uint?)"/> のあと) で使う。
     /// <code>
     /// using (var s = EUi.Section("試験機能"))
     /// {

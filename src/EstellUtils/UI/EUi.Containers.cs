@@ -76,9 +76,10 @@ public static partial class EUi
     /// 同じ見出しを複数箇所で使う場合に指定する
     /// (<c>"詳細設定##basic"</c> のように見出しへ埋め込むのと同じ意味)。
     /// </param>
+    /// <param name="headerColor">見出しの色。省略するとテーマの見出し色。</param>
     public static SectionHandle Section(
         ReadOnlySpan<char> label, bool collapsible = true, bool defaultOpen = true,
-        ReadOnlySpan<char> id = default)
+        ReadOnlySpan<char> id = default, uint? headerColor = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -123,7 +124,12 @@ public static partial class EUi
 
         var eased = Easing.Apply(EaseKind.OutCubic, state.OpenAmount);
 
-        var visual = WidgetVisual.From(interaction, state.Open, eased) with { Rect = headerRect };
+        var visual = WidgetVisual.From(interaction, state.Open, eased) with
+        {
+            Rect = headerRect,
+            Tint = headerColor,
+        };
+
         WidgetPainter.DrawSectionHeader(visual, display, collapsible);
 
         var isOpen = state.Open || state.OpenAmount > 0.001f;
@@ -159,12 +165,13 @@ public static partial class EUi
     /// <param name="open">開いているか。クリックで書き換わる。</param>
     /// <param name="collapsible">クリックで折りたためるか。</param>
     /// <param name="id">開閉状態を覚えるための識別子。省略すると見出しから作る。</param>
+    /// <param name="headerColor">見出しの色。省略するとテーマの見出し色。</param>
     /// <remarks>
     /// 開閉の状態を設定へ保存したい場合や、コードから開け閉めしたい場合に使う。
     /// </remarks>
     public static SectionHandle Section(
         ReadOnlySpan<char> label, ref bool open, bool collapsible = true,
-        ReadOnlySpan<char> id = default)
+        ReadOnlySpan<char> id = default, uint? headerColor = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -181,7 +188,7 @@ public static partial class EUi
 
         state.Open = open;
 
-        var handle = Section(label, collapsible, open, id);
+        var handle = Section(label, collapsible, open, id, headerColor);
         open = handle.IsOpen;
 
         return handle;
@@ -193,9 +200,9 @@ public static partial class EUi
     /// </summary>
     public static void Section(
         ReadOnlySpan<char> label, Action body, bool collapsible = true, bool defaultOpen = true,
-        ReadOnlySpan<char> id = default)
+        ReadOnlySpan<char> id = default, uint? headerColor = null)
     {
-        using var section = Section(label, collapsible, defaultOpen, id);
+        using var section = Section(label, collapsible, defaultOpen, id, headerColor);
 
         if (section.IsVisible)
             body();

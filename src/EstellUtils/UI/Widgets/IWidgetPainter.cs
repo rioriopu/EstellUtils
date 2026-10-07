@@ -38,6 +38,12 @@ public enum ButtonStyle
     /// <summary>破壊的な操作。</summary>
     Danger,
 
+    /// <summary>うまくいく方向の操作。開始・適用など。</summary>
+    Success,
+
+    /// <summary>注意を促す操作。</summary>
+    Warning,
+
     /// <summary>枠と地を持たない。ホバー時だけ薄く反応する。</summary>
     Ghost,
 
@@ -77,6 +83,14 @@ public readonly record struct WidgetVisual
 
     /// <summary>キーボードフォーカスを持っているか。</summary>
     public bool Focused { get; init; }
+
+    /// <summary>
+    /// 文字や印に使う色。省略するとテーマの既定色。
+    /// </summary>
+    /// <remarks>
+    /// 見出しだけ色を変えたい、といった一点だけの指定に使う。
+    /// </remarks>
+    public uint? Tint { get; init; }
 
     /// <summary>入力結果から作る。</summary>
     public static WidgetVisual From(in InteractionResult interaction, bool on = false, float onAmount = 0f, float value = 0f)

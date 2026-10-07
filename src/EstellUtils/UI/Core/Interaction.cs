@@ -132,8 +132,13 @@ public static class Interaction
                      Render.Painter.IsInsideClip(input.MousePos);
 
         // 他のウィジェットを操作中ならホバーさせない (ドラッグ中に別のボタンが光らないように)
+        // 操作用のホバー。無効なら立てない
         var hovered = !disabled && inRect && ctx.IsWindowHovered &&
                       (ctx.ActiveId.IsNone || isActive);
+
+        // 説明を出すためのホバー。無効でも乗っていれば立てる。
+        // 「なぜ押せないのか」を伝える機会まで失われてしまうため
+        var tipHover = inRect && ctx.IsWindowHovered && (ctx.ActiveId.IsNone || isActive);
 
         if (hovered)
         {
@@ -228,7 +233,7 @@ public static class Interaction
         }
 
         // ホバーが始まった時刻を控えて、継続時間を出す (ツールチップの遅延に使う)
-        if (hovered)
+        if (tipHover)
         {
             if (state.HoverStartedAt <= 0f)
                 state.HoverStartedAt = ctx.Time;
@@ -238,7 +243,7 @@ public static class Interaction
             state.HoverStartedAt = 0f;
         }
 
-        var hoveredDuration = hovered && state.HoverStartedAt > 0f ? ctx.Time - state.HoverStartedAt : 0f;
+        var hoveredDuration = tipHover && state.HoverStartedAt > 0f ? ctx.Time - state.HoverStartedAt : 0f;
 
         // 後から EUi.Tip() を呼べるよう、直前のウィジェットとして控えておく
         ctx.SetLastItem(rect, hoveredDuration);

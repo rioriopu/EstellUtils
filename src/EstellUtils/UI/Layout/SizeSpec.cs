@@ -36,6 +36,25 @@ public readonly record struct SizeSpec(SizeMode Mode, float Value)
     /// <summary>ピクセル指定。</summary>
     public static SizeSpec Px(float pixels) => new(SizeMode.Fixed, pixels);
 
+    /// <summary>
+    /// 拡大率に追従する固定幅。<c>px × テーマの拡大率</c> になる。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Px"/> は生のピクセルなので、拡大率を上げても文字だけが大きくなり、
+    /// 固定幅の列が文字に追い越される。寸法を文字と一緒に広げたい場合はこちらを使う。
+    /// </remarks>
+    public static SizeSpec Scaled(float pixels)
+        => new(SizeMode.Fixed, pixels * Theming.ThemeManager.Current.Scale);
+
+    /// <summary>
+    /// 文字の大きさを基準にした幅。<c>em × 現在のフォントの大きさ</c> になる。
+    /// </summary>
+    /// <remarks>
+    /// 「おおよそ何文字ぶん」で決めたい列に使う。フォントを変えても比率が保たれる。
+    /// </remarks>
+    public static SizeSpec Em(float em)
+        => new(SizeMode.Fixed, em * Render.TextPainter.FontSize);
+
     /// <summary>親に対する比率 (0〜1) 指定。</summary>
     public static SizeSpec Ratio(float ratio) => new(SizeMode.Ratio, Math.Clamp(ratio, 0f, 1f));
 

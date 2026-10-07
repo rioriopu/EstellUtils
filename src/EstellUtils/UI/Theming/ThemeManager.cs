@@ -34,6 +34,53 @@ public static class ThemeManager
     /// <summary>
     /// 一時的に別のテーマを適用する。<c>using</c> で抜けると元へ戻る。
     /// </summary>
+    /// <summary>1 色だけ差し替えるために使い回すテーマ。積む深さごとに 1 つ持つ。</summary>
+    private static readonly List<Theme> ColorOverlays = new(4);
+
+    /// <summary>
+    /// 今のテーマから 1 色だけ差し替えて積む。
+    /// </summary>
+    /// <param name="role">差し替える色。</param>
+    /// <param name="color">新しい色。</param>
+    /// <remarks>
+    /// <para>
+    /// 丸ごとテーマを派生させると毎回 10 個ほど確保することになる。
+    /// ここでは積む深さごとにテーマを使い回し、色だけを写すので、
+    /// 2 回目以降は確保が起きない。
+    /// </para>
+    /// <para>
+    /// 土台は常に今のテーマなので、ウィンドウ単位のテーマの中でも正しく効く。
+    /// 寸法・動き・描画担当は今のテーマのものをそのまま共有する。
+    /// </para>
+    /// </remarks>
+    public static ThemeScope PushColor(ThemeColor role, uint color)
+        => PushColors(stackalloc (ThemeColor Role, uint Color)[] { (role, color) });
+
+    /// <summary>複数の色をまとめて差し替えて積む。</summary>
+    /// <param name="overrides">差し替える色の並び。</param>
+    public static ThemeScope PushColors(ReadOnlySpan<(ThemeColor Role, uint Color)> overrides)
+    {
+        var current = Current;
+        var depth = Stack.Count;
+
+        while (ColorOverlays.Count <= depth)
+            ColorOverlays.Add(current.Clone());
+
+        var overlay = ColorOverlays[depth];
+
+        // 寸法や動きは今のテーマのものを使う。色だけを写して差し替える
+        overlay.Name = current.Name;
+        overlay.SetMetrics(current.Metrics);
+        overlay.Motion.CopyFrom(current.Motion);
+        overlay.Painter = current.Painter;
+        overlay.Colors.CopyFrom(current.Colors);
+
+        foreach (var (role, color) in overrides)
+            overlay.Colors[role] = color;
+
+        return Push(overlay);
+    }
+
     public static ThemeScope Push(Theme theme)
     {
         ArgumentNullException.ThrowIfNull(theme);

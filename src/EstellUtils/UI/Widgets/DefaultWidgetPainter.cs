@@ -116,6 +116,18 @@ public class DefaultWidgetPainter : IWidgetPainter
                 bottom = EuColor.Darken(top, 0.22f);
                 break;
 
+            case ButtonStyle.Success:
+                top = EuColor.Lerp(Colors.Success, EuColor.Lighten(Colors.Success, 0.15f), visual.Hover);
+                top = EuColor.Lerp(top, EuColor.Darken(Colors.Success, 0.15f), visual.Press);
+                bottom = EuColor.Darken(top, 0.25f);
+                break;
+
+            case ButtonStyle.Warning:
+                top = EuColor.Lerp(Colors.Warning, EuColor.Lighten(Colors.Warning, 0.15f), visual.Hover);
+                top = EuColor.Lerp(top, EuColor.Darken(Colors.Warning, 0.15f), visual.Press);
+                bottom = EuColor.Darken(top, 0.25f);
+                break;
+
             case ButtonStyle.Danger:
                 top = EuColor.Lerp(Colors.Danger, EuColor.Lighten(Colors.Danger, 0.15f), visual.Hover);
                 top = EuColor.Lerp(top, EuColor.Darken(Colors.Danger, 0.15f), visual.Press);
@@ -153,6 +165,8 @@ public class DefaultWidgetPainter : IWidgetPainter
         {
             ButtonStyle.Primary => Colors.TextOnAccent,
             ButtonStyle.Danger => Colors.TextOnAccent,
+            ButtonStyle.Success => Colors.TextOnAccent,
+            ButtonStyle.Warning => Colors.TextOnAccent,
             ButtonStyle.Link => EuColor.Lerp(Colors.TextLink, EuColor.Lighten(Colors.TextLink, 0.3f), visual.Hover),
             _ => Colors.Text,
         };
@@ -381,7 +395,8 @@ public class DefaultWidgetPainter : IWidgetPainter
             Painter.Chevron(arrowRect, angle, arrowColor, 1.8f);
         }
 
-        var color = EuColor.Lerp(Colors.TextHeading, Colors.Accent, visual.Hover * 0.5f);
+        var baseColor = visual.Tint ?? Colors.TextHeading;
+        var color = EuColor.Lerp(baseColor, Colors.Accent, visual.Hover * 0.5f);
         TextPainter.TextIn(textRect, color, label, Align.Start, Align.Center);
 
         // 見出しの右側へ余った幅いっぱいに細い線を引く

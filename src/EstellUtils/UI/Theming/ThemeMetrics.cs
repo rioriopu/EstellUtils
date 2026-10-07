@@ -1,3 +1,5 @@
+using System;
+
 using System.Numerics;
 
 using EstellUtils.UI.Core;
@@ -263,4 +265,19 @@ public sealed class ThemeMotion
 
     /// <summary>この設定セットの複製を作る。</summary>
     public ThemeMotion Clone() => (ThemeMotion)this.MemberwiseClone();
+
+    /// <summary>別の設定から値を写す。確保を伴わない。</summary>
+    public void CopyFrom(ThemeMotion source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        this.Enabled = source.Enabled;
+        this.HoverSpeed = source.HoverSpeed;
+        this.PressSpeed = source.PressSpeed;
+        this.OpenSpeed = source.OpenSpeed;
+        this.CollapseDuration = source.CollapseDuration;
+        this.WindowResizeDuration = source.WindowResizeDuration;
+        this.ScrollSpeed = source.ScrollSpeed;
+        this.ToastSpeed = source.ToastSpeed;
+    }
 }

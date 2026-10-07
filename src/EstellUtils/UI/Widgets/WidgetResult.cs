@@ -109,9 +109,13 @@ public readonly record struct WidgetResult
     /// <summary>
     /// 直前のウィジェットにツールチップを付ける。ホバーが一定時間続くと表示される。
     /// </summary>
+    /// <remarks>
+    /// 無効にしたウィジェットにも出る。「なぜ押せないのか」を伝えられないと、
+    /// 利用者には理由を知る手段が無くなるため。
+    /// </remarks>
     public WidgetResult Tip(ReadOnlySpan<char> text)
     {
-        if (this.Hovered && !text.IsEmpty)
+        if (this.HoveredDuration > 0f && !text.IsEmpty)
             Tooltip.Show(text, this.HoveredDuration);
 
         return this;

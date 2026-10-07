@@ -1,3 +1,5 @@
+using System;
+
 namespace EstellUtils.UI.Theming;
 
 /// <summary>
@@ -185,4 +187,25 @@ public sealed class ThemeColors
 
     /// <summary>この色セットの複製を作る。</summary>
     public ThemeColors Clone() => (ThemeColors)this.MemberwiseClone();
+
+    /// <summary>
+    /// 別の色一式から値を写す。確保を伴わない。
+    /// </summary>
+    /// <remarks>
+    /// 1 色だけ差し替えたいときに、丸ごと複製せずに済ませるために使う。
+    /// </remarks>
+    public void CopyFrom(ThemeColors source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        foreach (var role in ThemeColorRoles.All)
+            this[role] = source[role];
+    }
+
+    /// <summary>役割で色を読み書きする。</summary>
+    public uint this[ThemeColor role]
+    {
+        get => ThemeColorRoles.Get(this, role);
+        set => ThemeColorRoles.Set(this, role, value);
+    }
 }
