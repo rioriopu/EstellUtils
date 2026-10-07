@@ -35,6 +35,22 @@ public static class ColumnLayout
     /// </remarks>
     public static void Resolve(
         ReadOnlySpan<SizeSpec> columns, float totalWidth, float spacing, Span<float> widths)
+        => Resolve(columns, totalWidth, spacing, widths, default);
+
+    /// <summary>
+    /// 列幅を配分する。<see cref="SizeMode.Auto"/> の列には実測幅を使う。
+    /// </summary>
+    /// <param name="columns">列の指定。</param>
+    /// <param name="totalWidth">行全体に使える幅。</param>
+    /// <param name="spacing">列と列の間の隙間。</param>
+    /// <param name="widths">結果を書き込む先。</param>
+    /// <param name="autoWidths">
+    /// <see cref="SizeMode.Auto"/> の列に使う幅。前のフレームに測った値を渡す。
+    /// 空なら 0 幅になる。
+    /// </param>
+    public static void Resolve(
+        ReadOnlySpan<SizeSpec> columns, float totalWidth, float spacing, Span<float> widths,
+        ReadOnlySpan<float> autoWidths)
     {
         var count = columns.Length;
 
@@ -67,8 +83,9 @@ public static class ColumnLayout
                     break;
 
                 case SizeMode.Auto:
-                    // 内容サイズはこの時点では不明。ラベル列は LabelColumn で別途揃える
-                    widths[i] = 0f;
+                    // 前のフレームに測った内容幅を使う。初回は 0 で、次のフレームから揃う
+                    widths[i] = i < autoWidths.Length ? MathF.Max(0f, autoWidths[i]) : 0f;
+                    used += widths[i];
                     break;
 
                 default:
@@ -86,7 +103,7 @@ public static class ColumnLayout
 
             for (var i = 0; i < count; i++)
             {
-                if (columns[i].Mode is SizeMode.Fixed or SizeMode.Ratio)
+                if (columns[i].Mode is SizeMode.Fixed or SizeMode.Ratio or SizeMode.Auto)
                     widths[i] *= scale;
             }
 

@@ -48,16 +48,18 @@ public static partial class EUi
 
         var lineHeight = TextPainter.LineHeight;
 
-        // 画面の外に出ている行は、計測すらせず領域だけ確保して終える。
-        // 長い一覧をスクロールさせたときの負荷はこれでほぼ消える
-        if (!IsRowVisible(ctx, lineHeight))
-            return new WidgetResult { Rect = ctx.Allocate(SizeSpec.Fill, lineHeight) };
-
+        // 大きさは見える・見えないに関わらず同じにする。計測はキャッシュされるので、
+        // 画面外で省いても大して得をしない。むしろ幅が変わると、行がクリップの境を
+        // またいだ瞬間に折り返しが変わって、下の内容が上下に跳ねる
         var size = TextPainter.Measure(text);
 
         // 列が宣言された行の中では、ここで渡した幅より列幅が優先される
         var width = align == Align.Start ? SizeSpec.Px(size.X) : SizeSpec.Fill;
         var rect = ctx.Allocate(width, MathF.Max(size.Y, lineHeight));
+
+        // 画面の外に出ている行は、位置だけ進めて描画を省く
+        if (!Painter.IsVisible(rect))
+            return MakeTextResult(ctx, rect);
 
         // 確保できた幅に収まらなければ切られる。1px の丸め差では立てない
         var truncated = size.X > rect.Width + 1f;

@@ -133,17 +133,43 @@ public static partial class EUi
     /// <param name="align">高さの違う要素を縦方向のどこへ置くか。</param>
     /// <param name="columns">左から順の列幅指定。</param>
     public static LayoutHandle Row(Align align, params ReadOnlySpan<SizeSpec> columns)
+        => Row(default, align, columns);
+
+    /// <summary>
+    /// 識別子を与えて、列幅を宣言した横並びを開く。
+    /// </summary>
+    /// <param name="id">
+    /// 内容に合わせる列 (<see cref="SizeSpec.Auto"/>) の幅を覚えるための識別子。
+    /// </param>
+    /// <param name="align">高さの違う要素を縦方向のどこへ置くか。</param>
+    /// <param name="columns">左から順の列幅指定。</param>
+    /// <remarks>
+    /// <see cref="SizeSpec.Auto"/> の列は、前のフレームに測った内容幅になる。
+    /// 初回だけ 0 幅で、次のフレームから揃う。
+    /// 識別子を省略すると覚える先が無いので、Auto の列は 0 幅のままになる。
+    /// </remarks>
+    public static LayoutHandle Row(
+        ReadOnlySpan<char> id, Align align, params ReadOnlySpan<SizeSpec> columns)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var gap = new Vector2(Metrics.ItemSpacing.X, Metrics.ItemSpacing.Y);
 
-        ctx.Layout.Push(
+        var scope = ctx.Layout.Push(
             LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns, false,
             default, align, Metrics.WidgetHeight);
 
-        return new LayoutHandle(ctx.Layout);
+        if (!scope.HasAutoColumn || id.IsEmpty)
+            return new LayoutHandle(ctx.Layout);
+
+        // 内容に合わせる列は、前のフレームに測った幅を使う
+        var rowId = ctx.GetId(id);
+        var stored = ctx.Store.GetOrCreate(rowId, static () => new float[MaxColumns]);
+
+        scope.SetAutoWidths(stored);
+
+        return new LayoutHandle(ctx.Layout, true, rowId);
     }
 
     /// <summary>

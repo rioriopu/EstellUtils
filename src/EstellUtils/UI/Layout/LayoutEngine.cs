@@ -113,6 +113,7 @@ public readonly struct LayoutHandle : IDisposable
 {
     private readonly LayoutEngine? engine;
     private readonly bool commitToParent;
+    private readonly Core.EuId autoWidthId;
 
     /// <summary>スコープを閉じるハンドルを作る。</summary>
     /// <param name="engine">対象のレイアウトエンジン。</param>
@@ -121,12 +122,33 @@ public readonly struct LayoutHandle : IDisposable
     /// 領域を先に確保してから開いたスコープ (<c>Region</c> / <c>Sized</c> など) では
     /// false にしないと、同じ領域を二重に消費してしまう。
     /// </param>
-    internal LayoutHandle(LayoutEngine engine, bool commitToParent = true)
+    /// <param name="autoWidthId">
+    /// 内容に合わせる列の幅を覚える先。指定すると、閉じるときに実測を書き戻す。
+    /// </param>
+    internal LayoutHandle(
+        LayoutEngine engine, bool commitToParent = true, Core.EuId autoWidthId = default)
     {
         this.engine = engine;
         this.commitToParent = commitToParent;
+        this.autoWidthId = autoWidthId;
     }
 
     /// <inheritdoc/>
-    public void Dispose() => this.engine?.Pop(this.commitToParent);
+    public void Dispose()
+    {
+        if (this.engine is null)
+            return;
+
+        // 内容に合わせる列は、このフレームに測った幅を次のフレームへ渡す
+        if (!this.autoWidthId.IsNone && this.engine.Current is { HasAutoColumn: true } scope)
+        {
+            var store = Core.UiContext.Current.Store;
+            var buffer = store.GetOrCreate(this.autoWidthId, static () => new float[64]);
+            var measured = scope.MeasuredColumnWidths;
+
+            measured[..Math.Min(measured.Length, buffer.Length)].CopyTo(buffer);
+        }
+
+        this.engine.Pop(this.commitToParent);
+    }
 }

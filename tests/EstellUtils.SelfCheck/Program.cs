@@ -401,6 +401,30 @@ internal static class Program
             ExpectFits(widths, Total, Spacing, "均等割りが行に収まっていない");
         }
 
+        // 内容に合わせる列は、渡された実測幅を使う
+        {
+            const float Total = 300f;
+
+            Span<float> widths = stackalloc float[2];
+            ColumnLayout.Resolve(
+                [SizeSpec.Auto, SizeSpec.Fill], Total, Spacing, widths, [50f]);
+
+            Expect(widths[0] == 50f, $"Auto 列が実測幅になっていない: {widths[0]}");
+            Expect(
+                MathF.Abs(widths[1] - (Total - 50f - Spacing)) < 0.01f,
+                $"Auto 列の残りが Fill へ渡っていない: {widths[1]}");
+
+            ExpectFits(widths, Total, Spacing, "Auto 列を含む行が収まっていない");
+        }
+
+        // 実測幅を渡さなければ 0 幅のまま (従来どおり)
+        {
+            Span<float> widths = stackalloc float[2];
+            ColumnLayout.Resolve([SizeSpec.Auto, SizeSpec.Fill], 300f, Spacing, widths);
+
+            Expect(widths[0] == 0f, "実測が無いのに Auto 列へ幅が入っている");
+        }
+
         // 比率の合計が 1 を超えても、行の外へは出ない
         {
             const float Total = 300f;

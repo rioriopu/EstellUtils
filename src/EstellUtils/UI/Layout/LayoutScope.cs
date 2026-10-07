@@ -35,7 +35,10 @@ public sealed class LayoutScope
 {
     private SizeSpec[] columnBuffer = Array.Empty<SizeSpec>();
     private float[] columnWidths = Array.Empty<float>();
+    private float[] autoWidths = Array.Empty<float>();
+    private float[] measuredWidths = Array.Empty<float>();
     private int columnCount;
+    private bool hasAutoColumn;
 
     /// <summary>並べ方。</summary>
     public LayoutKind Kind { get; private set; }
@@ -204,6 +207,17 @@ public sealed class LayoutScope
             columns.CopyTo(this.columnBuffer);
         }
 
+        this.hasAutoColumn = false;
+
+        for (var i = 0; i < this.columnCount; i++)
+        {
+            if (this.columnBuffer[i].Mode == SizeMode.Auto)
+            {
+                this.hasAutoColumn = true;
+                break;
+            }
+        }
+
         this.ResolveColumns();
     }
 
@@ -222,12 +236,43 @@ public sealed class LayoutScope
         if (this.columnWidths.Length < count)
             this.columnWidths = new float[count];
 
+        if (this.autoWidths.Length < count)
+            this.autoWidths = new float[Math.Max(8, count * 2)];
+
+        if (this.measuredWidths.Length < count)
+            this.measuredWidths = new float[Math.Max(8, count * 2)];
+
+        this.measuredWidths.AsSpan(0, count).Clear();
+
         ColumnLayout.Resolve(
             this.columnBuffer.AsSpan(0, count),
             this.Bounds.Width,
             this.Spacing.X,
-            this.columnWidths.AsSpan(0, count));
+            this.columnWidths.AsSpan(0, count),
+            this.autoWidths.AsSpan(0, count));
     }
+
+    /// <summary>
+    /// 内容に合わせる列のために、前のフレームに測った幅を受け取る。
+    /// </summary>
+    internal void SetAutoWidths(ReadOnlySpan<float> widths)
+    {
+        if (this.columnCount == 0 || !this.hasAutoColumn)
+            return;
+
+        if (this.autoWidths.Length < this.columnCount)
+            this.autoWidths = new float[Math.Max(8, this.columnCount * 2)];
+
+        widths[..Math.Min(widths.Length, this.columnCount)].CopyTo(this.autoWidths);
+        this.ResolveColumns();
+    }
+
+    /// <summary>このフレームに各列が使った幅。内容に合わせる列の次フレーム用。</summary>
+    internal ReadOnlySpan<float> MeasuredColumnWidths
+        => this.measuredWidths.AsSpan(0, this.columnCount);
+
+    /// <summary>内容に合わせる列を含むか。</summary>
+    internal bool HasAutoColumn => this.hasAutoColumn;
 
     /// <summary>指定サイズの領域を確保する。</summary>
     public Rect Allocate(Vector2 size)
@@ -274,13 +319,17 @@ public sealed class LayoutScope
 
     private Rect AllocateHorizontal(Vector2 size)
     {
-        // 列を宣言した行では、要素の希望幅より列幅を優先する。
-        // Vector2 で大きさを渡すウィジェット (折り返しテキストなど) が
-        // 列を無視して行からはみ出すのを防ぐ
+        var columnWidth = 0f;
+
+        // 列を宣言した行では、列ぶんだけカーソルを進める。
+        // ただし大きさを直接渡す部品 (札・アイコン・画像) は、内容どおりの形で
+        // 描きたいので、返す矩形は希望した幅までに留める。
+        // 列幅に合わせて引き伸ばすと、札が横長の帯になってしまう
         if (this.columnCount > 0)
         {
             var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
-            size = new Vector2(this.columnWidths[index], size.Y);
+            columnWidth = this.columnWidths[index];
+            size = new Vector2(MathF.Min(size.X, columnWidth), size.Y);
         }
 
         if (this.ItemCount > 0)
@@ -309,8 +358,20 @@ public sealed class LayoutScope
 
         var rect = Rect.FromSize(new Vector2(this.Cursor.X, this.Cursor.Y + offset), size);
 
+        // 内容に合わせる列のために、実際に使った幅を覚えておく
+        if (this.columnCount > 0)
+        {
+            var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
+
+            if (index < this.measuredWidths.Length)
+                this.measuredWidths[index] = MathF.Max(this.measuredWidths[index], size.X);
+        }
+
+        // カーソルは列ぶん進める。中身が列より狭くても、次の要素は次の列から始まる
+        var advance = columnWidth > 0f ? MathF.Max(columnWidth, size.X) : size.X;
+
         // カーソルの縦位置は行の上端のままにしておく (次の要素も同じ行へ並ぶ)
-        this.Cursor = new Vector2(rect.Max.X, this.Cursor.Y);
+        this.Cursor = new Vector2(rect.Min.X + advance, this.Cursor.Y);
         this.LineHeight = MathF.Max(this.LineHeight, baseline);
         this.ColumnIndex++;
 
