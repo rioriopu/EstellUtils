@@ -14,7 +14,7 @@ namespace EstellUtils.UI.Widgets;
 /// </summary>
 /// <remarks>
 /// ImGui のツールチップウィンドウを使うとテーマの見た目が適用できないため、
-/// 位置決めと描画をすべて自前で行う。画面端でははみ出さないように折り返す。
+/// 位置決めと描画をすべて自前で行う。テーマの TooltipMaxWidth で折り返し、画面端では位置をずらす。
 /// </remarks>
 public static class Tooltip
 {

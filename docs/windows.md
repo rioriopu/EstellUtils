@@ -217,7 +217,23 @@ EUi.Windows.Add(this.window, mainUi: true, configUi: true);
 | `ExtraFlags` | ImGui の箱へ足すフラグ。既定の装飾なし設定に追加される |
 | `IsCollapsed` | タイトルバーだけに畳まれているか。コードから畳むこともできる |
 | `AutoScroll` | `Draw()` を送り領域で包むか (既定 true)。移行の途中は false にすることがある |
+| `AutoSize` | 中身に合わせて大きさを決める (`None` / `Height` / `Both`) |
+| `LastContentSize` | 前のフレームに測った中身の大きさ |
 
 `AutoScroll` が true のとき、`Draw()` は EstellUtils の送り領域の内側で呼ばれます。
 中身がまだ生 ImGui で独自の送りを持つ場合、つまみが 2 本並ぶことがあります。
 `EUi.RawImGui()` で囲めば ImGui 側の領域が残り高さを埋めるので、外側の送りは動きません。
+
+## 中身に合わせて大きさを決める
+
+状態によって幅が変わる小さな常駐窓には `AutoSize` を使います。
+
+```csharp
+this.AutoSize = WindowAutoSize.Both;   // None / Height / Both
+```
+
+前のフレームに測った中身の大きさを `Size` へ反映し、`MinSize` / `MaxSize` で丸めます。
+有効な間は**送り領域とリサイズグリップを出しません**（送ると大きさが決まらないため）。
+
+`SizeSpec.Fill` で幅を取る部品があると、そこで幅が決まって縮まなくなります。
+内容どおりの幅にしたい場合は `EUi.Label` のように内容幅で取る部品を使ってください。

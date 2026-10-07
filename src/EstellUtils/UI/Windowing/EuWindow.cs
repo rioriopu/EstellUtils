@@ -45,6 +45,9 @@ public abstract class EuWindow
 
     /// <summary>次に描かれるとき手前へ出すか。</summary>
     private bool wantsFocus;
+
+    /// <summary>前のフレームに測った中身の大きさ。</summary>
+    private Vector2 measuredContent;
     private bool placed;
     private bool resizing;
     private Vector2 animatedSize;
@@ -317,6 +320,25 @@ public abstract class EuWindow
 
     /// <summary>ウィンドウを 1 フレーム分描く。ウィンドウ管理から呼ばれる。</summary>
     /// <summary>
+    /// 中身に合わせて大きさを決めるか。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 前のフレームに測った中身の大きさを <see cref="Size"/> へ反映する。
+    /// 状態によって幅が変わる小さな常駐窓に使う。
+    /// </para>
+    /// <para>
+    /// 有効な間は送り領域とリサイズグリップを出さない。
+    /// また <see cref="SizeSpec.Fill"/> で幅を取る部品があると、
+    /// そこで幅が決まってしまって縮まなくなる (ImGui の -1 幅と同じ性質)。
+    /// </para>
+    /// </remarks>
+    public WindowAutoSize AutoSize { get; set; } = WindowAutoSize.None;
+
+    /// <summary>前のフレームに測った中身の大きさ。余白は含まない。</summary>
+    public Vector2 LastContentSize => this.measuredContent;
+
+    /// <summary>
     /// 次に描かれるとき、このウィンドウを手前へ出す。
     /// </summary>
     /// <remarks>
@@ -459,6 +481,21 @@ public abstract class EuWindow
         if (this.IsCollapsed && this.HasTitleBar)
             return new Vector2(this.Size.X, this.TitleBarHeight());
 
+        if (this.AutoSize != WindowAutoSize.None && this.measuredContent != Vector2.Zero)
+        {
+            var padding = this.Padding ?? EUi.Metrics.WindowPadding;
+
+            var wanted = new Vector2(
+                this.measuredContent.X + padding.TotalHorizontal,
+                this.measuredContent.Y + padding.TotalVertical + this.TitleBarHeight());
+
+            var size = new Vector2(
+                this.AutoSize == WindowAutoSize.Both ? wanted.X : this.Size.X,
+                wanted.Y);
+
+            return Vector2.Clamp(size, this.MinSize, this.MaxSize);
+        }
+
         return this.Size;
     }
 
@@ -538,7 +575,7 @@ public abstract class EuWindow
         var contentHeight = windowRect.Height - titleHeight;
         var showContent = contentHeight > 4f;
 
-        if (this.Resizable && !this.Locked && !this.IsCollapsed)
+        if (this.Resizable && !this.Locked && !this.IsCollapsed && this.AutoSize == WindowAutoSize.None)
         {
             // グリップも右下の縁にあるので、同じくクリップを広げて描く
             using var gripClip = Painter.ClipFullScreen();
@@ -555,7 +592,8 @@ public abstract class EuWindow
             // 大きさが変わっている最中は、中身がはみ出さないよう切り取る
             using var clip = Painter.Clip(contentRect);
 
-            if (this.AutoScroll)
+            // 中身に合わせる窓では送らない。送ると大きさが決まらなくなる
+            if (this.AutoScroll && this.AutoSize == WindowAutoSize.None)
             {
                 using (EUi.Region(contentRect, padding))
                 using (ScrollArea.Begin("##euWindowScroll", contentRect.Height - padding.TotalVertical))
@@ -568,6 +606,9 @@ public abstract class EuWindow
                 using (EUi.Region(contentRect, padding))
                 {
                     this.Draw();
+
+                    // 次のフレームの大きさを決めるために、中身を測っておく
+                    this.measuredContent = EUi.Context.Layout.Current?.ConsumedSize ?? Vector2.Zero;
                 }
             }
         }

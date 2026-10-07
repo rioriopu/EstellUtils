@@ -69,6 +69,15 @@ public struct WidgetState
     /// </summary>
     public ulong SelectedKey;
 
+    /// <summary>横方向の送り量。</summary>
+    public float ScrollX;
+
+    /// <summary>横方向の送りの目標値。</summary>
+    public float ScrollXTarget;
+
+    /// <summary>横方向に測った内容の幅。</summary>
+    public float MeasuredContentWidth;
+
     /// <summary>
     /// ホバーが始まった時刻。入力判定が使う。
     /// </summary>

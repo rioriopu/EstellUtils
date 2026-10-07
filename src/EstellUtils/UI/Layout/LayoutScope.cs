@@ -299,6 +299,12 @@ public sealed class LayoutScope
         {
             var available = this.Kind == LayoutKind.Vertical ? this.Bounds.Width : this.RemainingWidth;
             resolved = width.Resolve(available);
+
+            // 縦積みでは、使える幅を超えた固定幅も頭打ちにする。
+            // 超えたままにすると、文字が領域の端で黙って切られ、
+            // 省略記号もツールチップも出ないまま読めなくなる
+            if (this.Kind == LayoutKind.Vertical)
+                resolved = MathF.Min(resolved, available);
         }
 
         return this.Allocate(new Vector2(resolved, height));

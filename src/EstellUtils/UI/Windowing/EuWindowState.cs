@@ -81,3 +81,18 @@ public sealed class EuWindowLayout
         return state;
     }
 }
+
+/// <summary>
+/// ウィンドウの大きさを中身に合わせるか。
+/// </summary>
+public enum WindowAutoSize
+{
+    /// <summary>合わせない。大きさは <c>Size</c> のまま。</summary>
+    None,
+
+    /// <summary>高さだけ中身に合わせる。幅は <c>Size</c> のまま。</summary>
+    Height,
+
+    /// <summary>幅も高さも中身に合わせる。</summary>
+    Both,
+}

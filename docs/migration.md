@@ -337,3 +337,45 @@ public override void Draw()
 - `ImGui.SameLine()` は EstellUtils のウィジェットには効きません。`EUi.HStack()` を使ってください
 - ラベルの `##` / `###` の扱いは ImGui と同じです。既存のラベルをそのまま使えます
 - `EUi.SyncFromImGui()` は、スコープを使わずカーソルだけ取り込みたい場合の低レベル版です
+
+## Dalamud の Window の中で使う
+
+`EuWindow` へ移さず、Dalamud 標準の `Window.Draw()` の中で EstellUtils を使うこともできます。
+ただし次の 3 点に注意してください。
+
+### 窓ごとに ID を分ける
+
+EstellUtils の ID には窓の名前が入りません。同じラベルのウィジェットを
+複数の窓に置くと、ホバーや押下の状態を共有してしまいます。
+
+```csharp
+public override void Draw()
+{
+    using var id = EUi.PushId("statusWindow");   // 窓ごとに分ける
+    ...
+}
+```
+
+### NoMove を付ける
+
+EstellUtils の部品は ImGui に項目として登録されません。ImGui は
+「何も無い場所のクリック」とみなして窓を動かし始めるため、
+スライダーをドラッグすると窓ごと動きます。`ImGuiWindowFlags.NoMove` を付けてください。
+
+### 自動リサイズの窓では Fill 幅を使わない
+
+`SizeSpec.Fill` は「残り幅いっぱい」なので、`AlwaysAutoResize` の窓では
+そこで幅が決まってしまって縮まなくなります（ImGui の `SetNextItemWidth(-1)` と同じ性質）。
+`EUi.Label` のように内容幅で取る部品は縮みます。
+
+なお、**中身に合わせて大きさが変わる窓なら `EuWindow.AutoSize` が使えます**。
+こちらなら上の 3 点を気にする必要はありません。
+
+```csharp
+this.AutoSize = WindowAutoSize.Both;   // 幅も高さも中身に合わせる
+```
+
+### フォントの準備待ち
+
+`EUi.Fonts.IsTextReady` で待てます（任意）。詳しくは
+[導入 — 起動直後の描画について](getting-started.md) を参照してください。

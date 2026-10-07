@@ -145,6 +145,18 @@ using (EUi.Field("ジョブバー"))                 // ラベルは Field 側�
 | `EUi.SliderFloat(label, ref value, min, max, width, suffix, disabled, decimals)` | 小数スライダー。ドラッグ中に Shift で微調整 |
 | `EUi.ProgressBar(fraction, overlay, width, height)` | 進捗バー。文字を省略すると百分率 |
 
+**`max` より後ろの引数は名前付きで渡してください。**
+`SliderFloat` は `decimals` が最後にあり、`SizeSpec` は数値から暗黙変換されるため、
+`EUi.SliderFloat("x", ref v, 0f, 1f, 3)` と書くと **3 は桁数ではなく幅 3px** になります。
+エラーにならないので気づけません。
+
+```csharp
+EUi.SliderFloat("明るさ", ref v, 0f, 0.2f, decimals: 3);   // 名前付きで渡す
+```
+
+`InputInt` / `InputFloat` / `DragFloat` の 3 番目は `step` / `speed` です（ImGui と同じ並び）。
+`EUi.InputInt("X", ref x, 0, 7680)` は `step=0` / `min=7680` になります。
+
 スライダーは「バー / 値 / ラベル」の 3 つを横に並べます。
 値をバーへ重ねると、つまみが数字にかぶって読めなくなるため、欄を分けています。
 
@@ -554,6 +566,16 @@ using (var s = EUi.Section("試験機能"))
 }
 ```
 
+### ツールチップの折り返し
+
+Tip は `Metrics.TooltipMaxWidth`（既定 360、拡大率に連動）で**常に自動折り返しします**。
+
+`ImGui.SetTooltip` 向けに文の途中へ入れていた改行は外してください。
+残したままだと「自動改行 → 数文字だけの行 → 手動改行」となって短い行が挟まります。
+改行は段落の区切りにだけ残すのが読みやすくなります。
+
+折り返し幅はテーマ単位です。変えるには `Derive` / `SetMetrics` で `TooltipMaxWidth` を書き換えます。
+
 ## 文字の大きさを測る
 
 | API | 説明 |
@@ -714,6 +736,35 @@ using (EUi.HStack())
     EUi.TextColored("動作中", color);
 }
 ```
+
+### ツールチップの付け先
+
+`EUi.Tip` が見る「直前のウィジェット」には、**ボタンなどの操作系だけでなく文字も含まれます**。
+`HStack` を閉じても塊としては記録されないので、最後に置いた要素に付きます。
+
+```csharp
+using (EUi.HStack())
+{
+    EUi.Button("ON にする");
+    EUi.Label("停止中");
+}
+
+EUi.Tip("説明");          // ← 「停止中」の文字にだけ付く
+```
+
+塊全体に付けたい場合は `EUi.Group` で囲みます（`ImGui.BeginGroup` に当たるもの）。
+
+```csharp
+using (EUi.Group("state", horizontal: true))
+{
+    EUi.Button("ON にする");
+    EUi.Label("停止中");
+}
+
+EUi.Tip("押すと有効になります");   // 塊のどこでも出る
+```
+
+または、戻り値へ直接つなぐ方法もあります（`EUi.Button("...").Tip("...")`）。
 
 ### 右へ寄せる
 

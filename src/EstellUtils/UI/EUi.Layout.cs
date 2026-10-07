@@ -372,6 +372,52 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 中身をひとまとまりとして扱うスコープを開く。
+    /// </summary>
+    /// <param name="id">ホバーの継続時間を覚えるための識別子。</param>
+    /// <param name="horizontal">横に並べるか。false なら縦積み。</param>
+    /// <param name="spacing">要素間の空き。</param>
+    /// <remarks>
+    /// <para>
+    /// 閉じるときに、使った範囲を「直前のウィジェット」として記録します。
+    /// そのあとの <see cref="Tip"/> は、塊のどこへマウスを乗せても出ます。
+    /// </para>
+    /// <para>
+    /// これが無いと、<c>EUi.Tip</c> は最後に置いた要素 (文字を含む) にだけ付きます。
+    /// <c>ImGui.BeginGroup</c> / <c>EndGroup</c> に当たるものです。
+    /// </para>
+    /// <code>
+    /// using (EUi.Group("state", horizontal: true))
+    /// {
+    ///     EUi.Button("ON にする");
+    ///     EUi.Label("停止中");
+    /// }
+    ///
+    /// EUi.Tip("押すと有効になります");   // 塊全体に付く
+    /// </code>
+    /// </remarks>
+    public static GroupHandle Group(
+        ReadOnlySpan<char> id, bool horizontal = false, float? spacing = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var euId = ctx.GetId(id);
+
+        var gap = horizontal
+            ? new Vector2(spacing ?? Metrics.ItemSpacing.X, Metrics.ItemSpacing.Y)
+            : new Vector2(0f, spacing ?? Metrics.ItemSpacing.Y);
+
+        ctx.Layout.Push(
+            horizontal ? LayoutKind.Horizontal : LayoutKind.Vertical,
+            ctx.Layout.AvailableRect, gap, default, false, default,
+            horizontal ? Align.Center : Align.Start,
+            horizontal ? Metrics.WidgetHeight : 0f);
+
+        return new GroupHandle(euId);
+    }
+
+    /// <summary>
     /// 横並びのとき、次の行へ移る。
     /// </summary>
     /// <remarks>
@@ -454,5 +500,39 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
         return ctx.Allocate(width, height);
+    }
+}
+
+/// <summary>
+/// <c>using</c> で塊のスコープを閉じるハンドル。
+/// </summary>
+/// <remarks>
+/// 閉じるときに、使った範囲を「直前のウィジェット」として記録する。
+/// </remarks>
+public readonly struct GroupHandle : IDisposable
+{
+    private readonly EuId id;
+
+    internal GroupHandle(EuId id) => this.id = id;
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        var ctx = UiContext.Current;
+        var scope = ctx.Layout.Current;
+
+        if (scope is null)
+            return;
+
+        var bounds = scope.ItemCount > 0
+            ? scope.ContentBounds
+            : Rect.FromSize(scope.Bounds.Min, Vector2.Zero);
+
+        ctx.Layout.Pop();
+
+        // 塊全体を直前のウィジェットとして記録する。
+        // 継続時間は専用の ID で覚えるので、中の要素と取り合いにならない
+        var duration = ctx.TrackHover(bounds, this.id);
+        ctx.SetLastItem(bounds, duration);
     }
 }

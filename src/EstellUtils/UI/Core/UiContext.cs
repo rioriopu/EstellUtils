@@ -189,6 +189,31 @@ public sealed class UiContext
     /// <remarks>
     /// ホバーは同時に 1 箇所しか起きないため、直近の矩形だけを覚えておけば足りる。
     /// </remarks>
+    /// <summary>
+    /// 識別子つきでホバーの継続時間を測る。
+    /// </summary>
+    /// <remarks>
+    /// 矩形だけで覚える版は直近の 1 つしか持たないので、
+    /// 入れ子になった要素と交互に呼ぶと時間がその都度 0 に戻る。
+    /// 塊のように、子と同時に測りたい場合はこちらを使う。
+    /// </remarks>
+    public float TrackHover(Rect rect, EuId id)
+    {
+        if (!this.Input.HasMousePos || !rect.Contains(this.Input.MousePos) ||
+            !this.IsWindowHovered || !Render.Painter.IsInsideClip(this.Input.MousePos))
+        {
+            this.Store.GetRef(id).HoverStartedAt = 0f;
+            return 0f;
+        }
+
+        ref var state = ref this.Store.GetRef(id);
+
+        if (state.HoverStartedAt <= 0f)
+            state.HoverStartedAt = this.Time;
+
+        return this.Time - state.HoverStartedAt;
+    }
+
     public float TrackHover(Rect rect)
     {
         if (!this.Input.HasMousePos || !rect.Contains(this.Input.MousePos) || !this.IsWindowHovered)
