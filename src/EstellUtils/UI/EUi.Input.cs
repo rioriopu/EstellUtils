@@ -368,8 +368,15 @@ public static partial class EUi
     /// 高さ。省略するとテーマの標準の高さ。表の中へ小さく収めたい場合に指定する。
     /// </param>
     /// <remarks>
+    /// <para>
     /// 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれない。
     /// そうした値はこちらで直接打ち込む。
+    /// </para>
+    /// <para>
+    /// <c>Changed</c> は 1 文字ごとに立つ (「15」と打つと 1 と 15 で 2 回)。
+    /// 重い処理へ繋ぐ場合は <c>Committed</c> (焦点が外れたか Enter) か
+    /// <c>Submitted</c> (Enter のみ) を見る。
+    /// </para>
     /// </remarks>
     public static WidgetResult InputInt(
         string label, ref int value, int step = 1,

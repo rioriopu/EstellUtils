@@ -115,10 +115,12 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 |---|---|
 | `EUi.Button(label, style, width, disabled)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
 | `EUi.SmallButton(label, style, width, disabled)` | 行の中へ小さく収める。`ImGui.SmallButton` の置き換え |
+| `ButtonStyle.Prominent` | 最も押してほしい操作。大きめの文字と明るい枠 |
 | `EUi.ButtonAt(id, rect, label, style, disabled)` | 矩形を指定して描く。高さも自由 |
 | `EUi.ButtonWidth(label)` | ラベルに合わせた幅。行を自分で配るときに |
 | `EUi.IconButton(icon, id, style, disabled)` | FontAwesome の文字を渡す正方形ボタン |
-| `EUi.Checkbox(label, ref value, disabled)` | ラベル部分もクリックできる |
+| `EUi.Checkbox(label, ref value, disabled, size)` | ラベル部分もクリックできる |
+| `EUi.Checkbox(label, ref bool? value, …)` | 三状態。`null` は「一部だけ ON」で横棒になる |
 | `EUi.Toggle(label, ref value, disabled)` | トグルスイッチ |
 | `EUi.Radio(label, selected, disabled)` | 単体のラジオボタン |
 | `EUi.RadioGroup(id, ref index, labels, horizontal)` | 選択肢から 1 つ選ぶ |
@@ -185,6 +187,9 @@ EUi.SliderFloat("明るさ", ref v, 0f, 0.2f, decimals: 3);   // 名前付きで
 | `EUi.ListBox(label, ref index, items, height, disabled)` | スクロールする一覧 |
 | `EUi.ComboBody(label, preview, width, listHeight, disabled)` | 一覧の中身を自分で描くドロップダウン |
 | `EUi.SelectableRow(id, selected, height, disabled)` | 中身を自分で描く選択行 |
+| `EUi.SortableTableHeader(id, columns, ref sort, …)` | 押して並べ替えられる見出し |
+| `EUi.SkipCell()` | セルを 1 つ飛ばす |
+| `EUi.Place(width, height, horizontal, …)` | 場所を取ってから中へ並べる |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
 | `EUi.InputInt(label, ref value, step, min, max, width)` | 整数の直接入力。増減ボタン付き |
 | `EUi.InputFloat(label, ref value, step, min, max, width)` | 小数の直接入力 |
@@ -244,6 +249,11 @@ using (var list = EUi.ComboBody("監視する通貨##cur", current.Name, width: 
 
 **選んだら `Close()` を呼んでください。** 呼ばないと開いたままになります。
 
+`list.Header` で閉じているときの欄の結果が取れるので、欄そのものに
+ツールチップや右クリックのメニューを付けられます。
+`list.JustOpened` は開いたフレームだけ true になるので、絞り込みの欄を空にする、
+といった初期化に使えます。
+
 行の中へ複数のものを並べたい場合は `SelectableRow` を使います。
 
 ```csharp
@@ -276,6 +286,20 @@ if (EUi.Selectable(vendor.Name, i == index, color: locked ? EUi.Colors.TextDisab
         Pick(vendor);
 }
 ```
+
+### Enter だけを拾う
+
+`Committed` は**焦点が外れたときにも立ちます**。「取り消し」ボタンを押して外れた場合も
+確定として扱われるので、Enter だけを拾いたい場合は `Submitted` を見てください。
+
+```csharp
+var result = EUi.TextInput("名前", ref this.editing, autoFocus: true);
+
+if (result.Submitted) Apply();     // Enter のときだけ
+if (EUi.Button("やめる")) Cancel();
+```
+
+`autoFocus: true` にすると、初めて描かれたときに焦点が当たります（小窓を開いてすぐ打てます）。
 
 ### 打ち込んでいる最中かどうか
 
@@ -415,6 +439,20 @@ if (EUi.Confirm("confirmReset", "設定の初期化",
     ResetAll();
 }
 ```
+
+**開く場所と描く場所で ID の階層が違う場合は `EUi.RequestPopup` を使ってください。**
+`OpenPopup` は呼んだ場所の階層で識別子を決めるので、一覧のループの中で開き、
+ループの外で描くと噛み合いません。
+
+```csharp
+foreach (var item in items)
+    if (EUi.Button("名前を変える")) EUi.RequestPopup("rename");   // ループの中
+
+using (var p = EUi.Popup("rename", new Vector2(280f, 120f)))      // ループの外
+    ...
+```
+
+項目の多い一覧を入れる場合は `scroll: true` を渡すと、中身が送り領域で包まれます。
 
 確認ダイアログは外側をクリックしても閉じません。Esc で取り消しになります。
 背後を暗く覆いたい場合は `dimBackground: true` を渡します（既定は覆いません）。
@@ -846,6 +884,37 @@ using (EUi.Scroll("rows", 240f))          // 行だけ送る
 EUi.TableHeader(columns, reserveScrollbar: true);
 ```
 
+### 行全体を押せるようにする
+
+`hoverable: true` にすると、行に乗せたとき薄く光り、`Result` から入力を受け取れます。
+右クリックのメニューはこれをそのまま渡せます。
+
+```csharp
+using (var row = EUi.TableRow(Columns, i, hoverable: true))
+{
+    EUi.TableCell(item.Name);
+    EUi.SkipCell();                      // 列を 1 つ飛ばす
+}
+
+switch (EUi.ContextMenu("rowMenu", row.Result, "コピー", "削除"))
+{
+    case 0: Copy(item); break;
+    case 1: Delete(item); break;
+}
+```
+
+縞を外したい行には `striped: false` を渡します（追加用の行や一括操作の行など）。
+
+### 並べ替えられる見出し
+
+```csharp
+if (EUi.SortableTableHeader("items", Columns, ref this.sort))
+    this.ApplySort();
+```
+
+押した列が昇順・降順で切り替わり、印（▲▼）が付きます。同じ列をもう一度押すと向きが反転します。
+`TableSort` は単純なプロパティだけなので、設定へそのまま保存できます。
+
 ### セルに複数のものを置く
 
 列を宣言した行では、ウィジェットを 1 つ置くごとに次の列へ進みます。
@@ -960,6 +1029,20 @@ public static bool Rating(ReadOnlySpan<char> id, ref int value, int max = 5)
 - `Visual` — ホバー・押下・無効の遷移量。**既存の見た目を借りることもできます**
   （`EUi.WidgetPainter.DrawButton(w.Visual, "文字", ButtonStyle.Primary)` のように）
 - `Result` — 入力の結果。そのまま `return` して呼び出し側へ返せます
+
+### 列の中での大きさの扱い
+
+列を宣言した行の中では、**大きさの渡し方で振る舞いが変わります**。
+
+| 渡し方 | 列の中での扱い | 使う部品 |
+|---|---|---|
+| `SizeSpec` + 高さ | 列の幅に引き伸ばされる | Button / Label / 入力欄 |
+| `Vector2`（大きさそのもの） | 希望した大きさのまま置かれる | Badge / IconButton / Image |
+
+`EUi.Custom(id, SizeSpec, height)` は前者、`EUi.Custom(id, Vector2)` は後者を通ります。
+四角い部品を作るなら `Vector2` 版を使えば、列の中でも形が崩れません。
+
+カーソルはどちらの場合も列ぶん進むので、列がずれることはありません。
 
 ### 状態を覚える
 

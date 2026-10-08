@@ -216,7 +216,7 @@ EUi.Windows.Add(this.window, mainUi: true, configUi: true);
 |---|---|
 | `ExtraFlags` | ImGui の箱へ足すフラグ。既定の装飾なし設定に追加される |
 | `IsCollapsed` | タイトルバーだけに畳まれているか。コードから畳むこともできる |
-| `AutoScroll` | `Draw()` を送り領域で包むか (既定 true)。移行の途中は false にすることがある |
+| `AutoScroll` | `Draw()` を送り領域で包むか (既定 true)。**表を置く窓では false にする** |
 | `AutoSize` | 中身に合わせて大きさを決める (`None` / `Height` / `Both`) |
 | `LastContentSize` | 前のフレームに測った中身の大きさ |
 
@@ -237,3 +237,18 @@ this.AutoSize = WindowAutoSize.Both;   // None / Height / Both
 
 `SizeSpec.Fill` で幅を取る部品があると、そこで幅が決まって縮まなくなります。
 内容どおりの幅にしたい場合は `EUi.Label` のように内容幅で取る部品を使ってください。
+
+## 表を置く窓では AutoScroll を切る
+
+`AutoScroll`（既定 true）は `Draw()` を送り領域で包みます。送り領域の中身は
+「いくらでも積める」状態なので、**表の高さが決まりません**。
+
+表や一覧を置く窓では、窓の側の送りを切って、表ごとに `EUi.Scroll` や
+`EUi.VirtualList` で送ってください。
+
+```csharp
+public ConfigWindow() : base("設定")
+{
+    this.AutoScroll = false;   // 表を置くので窓の送りは使わない
+}
+```

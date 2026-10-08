@@ -48,14 +48,26 @@ public static partial class EUi
         var textSize = TextPainter.Measure(display);
 
         var resolvedHeight = height
-            ?? MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical);
+            ?? (style == ButtonStyle.Prominent
+                ? Metrics.WidgetHeight * 1.35f
+                : MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical));
 
         var rect = ctx.Allocate(width ?? SizeSpec.Px(ButtonWidth(display)), resolvedHeight);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
 
         var visual = WidgetVisual.From(interaction) with { TextAlign = textAlign };
-        WidgetPainter.DrawButton(visual, display, style);
+
+        // 最も押してほしいボタンは文字も大きくする
+        if (style == ButtonStyle.Prominent)
+        {
+            using var font = PushFont(FontRole.Large);
+            WidgetPainter.DrawButton(visual, display, style);
+        }
+        else
+        {
+            WidgetPainter.DrawButton(visual, display, style);
+        }
 
         return WidgetResult.From(interaction);
     }

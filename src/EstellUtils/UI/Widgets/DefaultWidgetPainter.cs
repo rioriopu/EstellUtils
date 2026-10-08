@@ -81,6 +81,26 @@ public class DefaultWidgetPainter : IWidgetPainter
         var rounding = Metrics.WidgetRounding;
         var body = visual.Rect.Offset(0f, sink).Shrink(visual.Press * 0.5f);
 
+        // 最も押してほしいボタンは、地の色だけでなく明るい枠でも見分けられるようにする。
+        // 暗いテーマでは、色の違いだけだと押せるものだと伝わりにくい
+        if (style == ButtonStyle.Prominent)
+        {
+            var (top, bottom, _) = this.ResolveButtonColors(visual, style);
+            Painter.RectGradientV(body, top, bottom, rounding);
+
+            if (visual.Press > 0.01f)
+            {
+                Painter.InnerShadow(
+                    body, EuColor.WithAlpha(EuColor.Black, 0.40f * visual.Press), 3f, rounding);
+            }
+
+            var glow = EuColor.WithAlpha(
+                EuColor.Lighten(Colors.TextOnAccent, 0.1f), 0.55f + (visual.Hover * 0.45f));
+
+            Painter.RectOutline(body, glow, MathF.Max(1.5f, Metrics.WidgetBorderWidth + 0.5f), rounding);
+            return;
+        }
+
         switch (style)
         {
             case ButtonStyle.Ghost:
@@ -144,6 +164,12 @@ public class DefaultWidgetPainter : IWidgetPainter
                 bottom = EuColor.Darken(top, 0.22f);
                 break;
 
+            case ButtonStyle.Prominent:
+                top = EuColor.Lerp(Colors.Accent, Colors.AccentHover, visual.Hover);
+                top = EuColor.Lerp(top, Colors.AccentActive, visual.Press);
+                bottom = EuColor.Darken(top, 0.25f);
+                break;
+
             case ButtonStyle.Success:
                 top = EuColor.Lerp(Colors.Success, EuColor.Lighten(Colors.Success, 0.15f), visual.Hover);
                 top = EuColor.Lerp(top, EuColor.Darken(Colors.Success, 0.15f), visual.Press);
@@ -195,6 +221,7 @@ public class DefaultWidgetPainter : IWidgetPainter
             ButtonStyle.Danger => Colors.TextOnAccent,
             ButtonStyle.Success => Colors.TextOnAccent,
             ButtonStyle.Warning => Colors.TextOnAccent,
+            ButtonStyle.Prominent => Colors.TextOnAccent,
             ButtonStyle.Link => EuColor.Lerp(Colors.TextLink, EuColor.Lighten(Colors.TextLink, 0.3f), visual.Hover),
             _ => Colors.Text,
         };

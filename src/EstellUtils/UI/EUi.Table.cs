@@ -305,6 +305,116 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 押して並べ替えられる見出し行を描く。
+    /// </summary>
+    /// <param name="id">並べ替えの状態を覚えるための識別子。</param>
+    /// <param name="columns">列定義。</param>
+    /// <param name="sort">現在の並べ替え。押すと書き換わる。</param>
+    /// <param name="height">見出し行の高さ。</param>
+    /// <param name="reserveScrollbar">送りのつまみの分だけ右端を空けるか。</param>
+    /// <returns>このフレームで並べ替えが変わったら true。</returns>
+    /// <remarks>
+    /// <para>
+    /// 押した列が昇順・降順で切り替わり、印 (▲▼) が付きます。
+    /// 同じ列をもう一度押すと向きが反転します。
+    /// </para>
+    /// <code>
+    /// if (EUi.SortableTableHeader("items", Columns, ref this.sort))
+    ///     this.ApplySort();
+    /// </code>
+    /// </remarks>
+    public static bool SortableTableHeader(
+        ReadOnlySpan<char> id, ReadOnlySpan<TableColumn> columns, ref TableSort sort,
+        float? height = null, bool reserveScrollbar = false)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        if (columns.Length == 0)
+            return false;
+
+        RememberTableColumns(columns);
+
+        var euId = ctx.GetId(id);
+        var rowHeight = height ?? Metrics.WidgetHeight;
+        var available = ctx.Layout.AvailableRect;
+        var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
+
+        if (reserveScrollbar)
+            rowRect = rowRect.WithWidth(MathF.Max(0f, rowRect.Width - ScrollbarInset()));
+
+        Span<SizeSpec> widths = stackalloc SizeSpec[columns.Length];
+
+        for (var i = 0; i < columns.Length; i++)
+            widths[i] = columns[i].Width;
+
+        ctx.Layout.Push(
+            LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f), widths,
+            false, default, Align.Center, rowHeight);
+
+        var changed = false;
+
+        for (var i = 0; i < columns.Length; i++)
+        {
+            var column = columns[i];
+            var cellRect = ctx.Allocate(column.Width, rowHeight);
+
+            // 見出しの無い列は押せないままにする
+            if (string.IsNullOrEmpty(column.Header))
+                continue;
+
+            var interaction = Interaction.Behavior(cellRect, euId.Child(i));
+
+            if (interaction.Clicked)
+            {
+                // 同じ列をもう一度押したら向きを反転する
+                sort = sort.Column == i
+                    ? sort with { Descending = !sort.Descending }
+                    : new TableSort(i, false);
+
+                changed = true;
+            }
+
+            if (interaction.HoverAmount > 0.01f)
+            {
+                Painter.Rect(
+                    cellRect,
+                    EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.5f),
+                    Metrics.WidgetRounding);
+            }
+
+            var active = sort.Column == i;
+            var textRect = cellRect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
+
+            // 並べ替え中の列には向きの印を添える
+            if (active)
+            {
+                var markArea = textRect.CutRight(Metrics.IconSize, out textRect);
+
+                Painter.Chevron(
+                    markArea,
+                    sort.Descending ? Direction.Down : Direction.Up,
+                    Colors.Accent,
+                    1.6f);
+            }
+
+            TextPainter.TextIn(
+                textRect,
+                active ? Colors.TextHeading : EuColor.Lerp(Colors.TextHeading, Colors.Accent, interaction.HoverAmount * 0.5f),
+                column.Header,
+                column.Align,
+                Align.Center);
+        }
+
+        ctx.Layout.Pop(commitToParent: false);
+        ctx.Allocate(rowRect.Size);
+
+        Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
+
+        return changed;
+    }
+
+    /// <summary>
     /// セルを 1 つ飛ばす。列を消費するだけで何も描かない。
     /// </summary>
     /// <remarks>
@@ -449,4 +559,21 @@ public readonly struct TableRowHandle : IDisposable
         ref var state = ref ctx.Store.GetRef(this.id);
         state.MeasuredHeight = MathF.Max(EUi.Metrics.WidgetHeight, consumed.Y);
     }
+}
+
+/// <summary>
+/// 表の並べ替えの状態。
+/// </summary>
+/// <param name="Column">並べ替えに使う列の添字。-1 なら並べ替えなし。</param>
+/// <param name="Descending">降順か。</param>
+/// <remarks>
+/// 単純なプロパティだけなので、設定へそのまま持たせて保存できる。
+/// </remarks>
+public readonly record struct TableSort(int Column = -1, bool Descending = false)
+{
+    /// <summary>並べ替えなし。</summary>
+    public static TableSort None => new();
+
+    /// <summary>並べ替えが指定されているか。</summary>
+    public bool IsSet => this.Column >= 0;
 }

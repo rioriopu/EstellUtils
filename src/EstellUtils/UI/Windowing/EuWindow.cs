@@ -632,6 +632,29 @@ public abstract class EuWindow
         if (!isDragging && !ctx.HotId.IsNone)
             return;
 
+        // 生の ImGui のウィジェットが反応している場所でも掴ませない。
+        //
+        // ctx.HotId は EstellUtils のウィジェットしか立てない。
+        // RawImGui の中に置いた生の ImGui は、押されても HotId が空のままなので
+        // 上の判定をすり抜け、この余白ドラッグが反応してしまう。
+        //
+        // そして下で ImGui.SetWindowFocus を呼ぶ。ウィンドウへ焦点を移すと
+        // ImGui は開いているポップアップを閉じるため、プルダウンの項目を
+        // 押しても、押された瞬間に一覧が閉じて選べない。
+        if (!isDragging && (ImGui.IsAnyItemHovered() || ImGui.IsAnyItemActive()))
+            return;
+
+        // ポップアップが開いている間も掴ませない。
+        //
+        // 項目と項目の隙間や、一覧の余白を押したときは IsAnyItemHovered が
+        // 偽になる。そこで掴むと、やはり焦点が移って一覧が閉じる。
+        // 一覧を開いているあいだ、ウィンドウを動かしたい場面は無い。
+        if (!isDragging &&
+            ImGui.IsPopupOpen(string.Empty, ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel))
+        {
+            return;
+        }
+
         // タイトルバーは専用の処理があるので除く
         var area = this.HasTitleBar
             ? new Rect(new Vector2(windowRect.Min.X, titleRect.Max.Y), windowRect.Max)

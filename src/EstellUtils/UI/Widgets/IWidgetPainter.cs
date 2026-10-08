@@ -44,6 +44,11 @@ public enum ButtonStyle
     /// <summary>注意を促す操作。</summary>
     Warning,
 
+    /// <summary>
+    /// 画面の中で最も押してほしい操作。大きめの文字と明るい枠で目立たせる。
+    /// </summary>
+    Prominent,
+
     /// <summary>枠と地を持たない。ホバー時だけ薄く反応する。</summary>
     Ghost,
 
