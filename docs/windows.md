@@ -172,6 +172,21 @@ EUi.Windows.BindLayout(this.config.WindowLayout, this.config.Save);
 保存処理は**動かし終えた・大きさを変え終えた時点で 1 度だけ**呼ばれます。
 ドラッグ中に毎フレーム書き出すことはありません。
 
+### System.Text.Json で保存する場合
+
+`EuWindowLayout` は単純なプロパティだけなので Newtonsoft.Json ならそのまま通りますが、
+**System.Text.Json では `IncludeFields = true` が要ります。**
+`Vector2` の X・Y がプロパティではなくフィールドなので、既定のままだと
+位置と大きさが `{}` として書き出され、復元したとき 0 になります。
+
+```csharp
+private static readonly JsonSerializerOptions JsonOptions = new()
+{
+    IncludeFields = true,          // Vector2 の X・Y を落とさない
+    WriteIndented = true,
+};
+```
+
 ウィンドウごとに別の入れ物を使いたい場合は、直接割り当てられます。
 
 ```csharp

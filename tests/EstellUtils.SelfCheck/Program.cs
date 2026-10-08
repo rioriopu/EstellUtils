@@ -39,6 +39,7 @@ internal static class Program
         CheckCrossAlign();
         CheckColumnLayout();
         CheckTabWrapping();
+        CheckDropdownPlacement();
 
         if (Failures.Count == 0)
         {
@@ -472,6 +473,85 @@ internal static class Program
         wide.Fill(500f);
 
         Expect(EUi.CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
+    }
+
+    /// <summary>
+    /// ドロップダウンの置き場所の検証。
+    /// </summary>
+    /// <remarks>
+    /// 欄の真下に置くだけだと、画面の下のほうで高い一覧を開いたときに画面の外へ出る。
+    /// 「読めない」形で表に出るうえ、実機でしか気づけないので機械的に確かめる。
+    /// </remarks>
+    private static void CheckDropdownPlacement()
+    {
+        var min = new Vector2(0f, 0f);
+        var max = new Vector2(1920f, 1080f);
+
+        // 画面の真ん中にある欄。下に入るのでそのまま下へ
+        {
+            var field = Rect.FromSize(100f, 400f, 200f, 24f);
+            var size = new Vector2(200f, 300f);
+            var pos = PopupPlacement.Dropdown(field, ref size, min, max);
+
+            Expect(pos.Y > field.Max.Y, "下に入るのに下へ開いていない");
+            Expect(size.Y == 300f, "下に入るのに高さが縮んでいる");
+            Expect(pos.Y + size.Y <= max.Y + 0.01f, "下へ開いて画面の外へ出ている");
+        }
+
+        // 画面の下にある欄。下に入らないので上へ
+        {
+            var field = Rect.FromSize(100f, 1000f, 200f, 24f);
+            var size = new Vector2(200f, 520f);
+            var pos = PopupPlacement.Dropdown(field, ref size, min, max);
+
+            Expect(size.Y == 520f, "上に入るのに高さが縮んでいる");
+            Expect(pos.Y + size.Y <= field.Min.Y, "欄の上へ開いていない");
+            Expect(pos.Y >= min.Y - 0.01f, "上へ開いて画面の外へ出ている");
+        }
+
+        // 上下どちらにも入らない。はみ出す代わりに縮める
+        {
+            var field = Rect.FromSize(100f, 500f, 200f, 24f);
+            var size = new Vector2(200f, 900f);
+            var pos = PopupPlacement.Dropdown(field, ref size, min, max);
+
+            Expect(size.Y < 900f, "入りきらないのに縮んでいない");
+            Expect(pos.Y >= min.Y - 0.01f, "縮めたのに上へはみ出している");
+            Expect(pos.Y + size.Y <= max.Y + 0.01f, "縮めたのに下へはみ出している");
+        }
+
+        // 右端にある幅の広い一覧。左へずらして収める
+        {
+            var field = Rect.FromSize(1850f, 100f, 60f, 24f);
+            var size = new Vector2(400f, 200f);
+            var pos = PopupPlacement.Dropdown(field, ref size, min, max);
+
+            Expect(pos.X + size.X <= max.X + 0.01f, "右へはみ出している");
+            Expect(pos.X >= min.X - 0.01f, "左へはみ出している");
+        }
+
+        // 作業領域の原点が 0 でない場合も、その中へ収める
+        {
+            var offsetMin = new Vector2(200f, 150f);
+            var offsetMax = new Vector2(1000f, 700f);
+            var field = Rect.FromSize(900f, 650f, 80f, 24f);
+            var size = new Vector2(300f, 400f);
+            var pos = PopupPlacement.Dropdown(field, ref size, offsetMin, offsetMax);
+
+            Expect(pos.X >= offsetMin.X - 0.01f, "作業領域の左より外に置いている");
+            Expect(pos.X + size.X <= offsetMax.X + 0.01f, "作業領域の右より外に置いている");
+            Expect(pos.Y >= offsetMin.Y - 0.01f, "作業領域の上より外に置いている");
+            Expect(pos.Y + size.Y <= offsetMax.Y + 0.01f, "作業領域の下より外に置いている");
+        }
+
+        // 高さの下限は守る。室が無くても潰さない
+        {
+            var field = Rect.FromSize(100f, 1070f, 200f, 10f);
+            var size = new Vector2(200f, 300f);
+            PopupPlacement.Dropdown(field, ref size, min, max, minHeight: 28f);
+
+            Expect(size.Y >= 28f, "下限を下回って潰れている");
+        }
     }
 
     private static void Expect(bool condition, string message)

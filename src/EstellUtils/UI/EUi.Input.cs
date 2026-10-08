@@ -548,13 +548,16 @@ public static partial class EUi
     /// <param name="items">選択肢。</param>
     /// <param name="width">幅。省略すると残り幅いっぱい。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="listWidth">
+    /// 開いたときの一覧の幅。省略すると欄と同じ幅。項目の文が長くて切れる場合に使う。
+    /// </param>
     /// <remarks>
     /// 一覧の重なり順と「外側をクリックで閉じる」挙動だけ ImGui のポップアップに任せ、
     /// 中身の描画と項目の選択判定はすべて自前で行う。
     /// </remarks>
     public static WidgetResult Combo(
         string id, ref int selectedIndex, ReadOnlySpan<string> items,
-        SizeSpec? width = null, bool disabled = false)
+        SizeSpec? width = null, bool disabled = false, float? listWidth = null)
     {
         var current = selectedIndex >= 0 && selectedIndex < items.Length
             ? items[selectedIndex]
@@ -566,7 +569,7 @@ public static partial class EUi
         var euId = UiContext.Current.GetId(id);
         var changed = false;
 
-        using (var list = ComboBody(id, current, width, itemHeight * visibleCount, disabled))
+        using (var list = ComboBody(id, current, width, itemHeight * visibleCount, disabled, listWidth))
         {
             if (list.IsOpen)
             {
@@ -597,6 +600,10 @@ public static partial class EUi
     /// <param name="width">欄の幅。省略するとラベルの分を残した残り幅。</param>
     /// <param name="listHeight">開いたときの一覧の高さ。省略すると 10 項目ぶん。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="listWidth">
+    /// 開いたときの一覧の幅。省略すると欄と同じ幅。項目の文が長くて切れる場合に、
+    /// 欄より広い幅を渡す。
+    /// </param>
     /// <remarks>
     /// <para>
     /// <c>ImGui.BeginCombo</c> に当たるもの。見出しを差し込む・項目ごとに色を変える・
@@ -627,10 +634,14 @@ public static partial class EUi
     /// 一覧の中は縦に積まれ、はみ出すと送りが付く。
     /// 選んだら <c>Close()</c> を呼ぶこと。呼ばないと開いたままになる。
     /// </para>
+    /// <para>
+    /// 一覧は欄の下に開くが、画面の下端に入らない場合は欄の上へ開く。
+    /// 上下どちらにも入りきらない場合は、画面の外へ出す代わりに高さを縮める。
+    /// </para>
     /// </remarks>
     public static ComboScope ComboBody(
         string label, ReadOnlySpan<char> preview, SizeSpec? width = null,
-        float? listHeight = null, bool disabled = false)
+        float? listHeight = null, bool disabled = false, float? listWidth = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -667,11 +678,19 @@ public static partial class EUi
             ImGui.OpenPopup(popupId);
 
         var popupPadding = Metrics.SpacingXs;
-        var bodyHeight = listHeight ?? (Metrics.WidgetHeight * ComboVisibleItems);
-        var popupHeight = bodyHeight + (popupPadding * 2f);
 
-        ImGui.SetNextWindowPos(new Vector2(rect.Min.X, rect.Max.Y + 2f));
-        ImGui.SetNextWindowSize(new Vector2(rect.Width, popupHeight));
+        // 一覧の幅は既定で欄に合わせる。項目の文が長い場合は listWidth で広げられる
+        var popupSize = new Vector2(
+            MathF.Max(listWidth ?? rect.Width, Metrics.WidgetMinWidth),
+            (listHeight ?? (Metrics.WidgetHeight * ComboVisibleItems)) + (popupPadding * 2f));
+
+        // 画面の下のほうで開くと一覧が画面外へ出るので、入らなければ欄の上へ開く。
+        // 上下どちらにも入りきらない場合は popupSize の高さが縮む
+        var popupPos = ResolveDropdown(rect, ref popupSize);
+        var bodyHeight = MathF.Max(0f, popupSize.Y - (popupPadding * 2f));
+
+        ImGui.SetNextWindowPos(popupPos);
+        ImGui.SetNextWindowSize(popupSize);
 
         if (!BeginPopupBox(popupId))
             return new ComboScope(WidgetResult.From(interaction));

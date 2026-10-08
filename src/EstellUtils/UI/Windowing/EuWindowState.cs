@@ -14,6 +14,11 @@ namespace EstellUtils.UI.Windowing;
 /// <para>
 /// 単純なプロパティだけで構成してあるので、Newtonsoft.Json でそのまま読み書きできる。
 /// </para>
+/// <para>
+/// System.Text.Json で保存する場合は <c>JsonSerializerOptions.IncludeFields = true</c> が要る。
+/// <see cref="Vector2"/> の X・Y がプロパティではなくフィールドなので、
+/// 既定のままだと位置と大きさが <c>{}</c> として書き出され、復元したとき 0 になる。
+/// </para>
 /// </remarks>
 public sealed class EuWindowState
 {

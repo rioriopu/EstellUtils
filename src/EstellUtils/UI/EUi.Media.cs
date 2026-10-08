@@ -132,17 +132,7 @@ public static partial class EUi
             rect, euId,
             disabled ? InteractionFlags.Disabled : InteractionFlags.AllowRightClick);
 
-        if (selected)
-        {
-            Painter.Rect(rect, Colors.Selection, Metrics.WidgetRounding);
-        }
-        else if (interaction.HoverAmount > 0.01f)
-        {
-            Painter.Rect(
-                rect,
-                EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.9f),
-                Metrics.WidgetRounding);
-        }
+        DrawSelectionSurface(rect, selected, interaction.HoverAmount);
 
         var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f);
 
@@ -201,17 +191,7 @@ public static partial class EUi
             rect, id,
             disabled ? InteractionFlags.Disabled : InteractionFlags.AllowRightClick);
 
-        if (selected)
-        {
-            Painter.Rect(rect, Colors.Selection, Metrics.WidgetRounding);
-        }
-        else if (interaction.HoverAmount > 0.01f)
-        {
-            Painter.Rect(
-                rect,
-                EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.9f),
-                Metrics.WidgetRounding);
-        }
+        DrawSelectionSurface(rect, selected, interaction.HoverAmount);
 
         // 指定があればそれを使う。無効なら必ず薄い色にする
         var textColor = disabled
@@ -229,6 +209,131 @@ public static partial class EUi
             result.Tip(display);
 
         return result;
+    }
+
+    /// <summary>
+    /// 名前の下に補足を添えた 2 段の選択行。
+    /// </summary>
+    /// <param name="label">1 段目に出す名前。</param>
+    /// <param name="detail">2 段目に出す補足。空なら 1 段だけになる。</param>
+    /// <param name="selected">選択中か。</param>
+    /// <param name="width">幅。省略すると残り幅いっぱい。</param>
+    /// <param name="height">高さ。省略すると 2 段ぶん。</param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <param name="color">名前の色。省略するとテーマの標準色。</param>
+    /// <param name="detailColor">補足の色。省略すると控えめな色。</param>
+    /// <remarks>
+    /// <para>
+    /// 「ダンジョン名の下に、選べない理由を小さく添える」といった一覧のための行。
+    /// <c>EUi.SelectableRow</c> の中に <c>VStack</c> を入れて組むこともできるが、
+    /// 行の高さを自分で計算することになるので、2 段で足りるならこちらを使う。
+    /// </para>
+    /// <code>
+    /// foreach (var d in duties)
+    /// {
+    ///     if (EUi.Selectable(d.Name, d.Reason, d == current,
+    ///                        color: d.Unlocked ? null : Colors.TextMuted).Clicked)
+    ///     {
+    ///         Pick(d);
+    ///     }
+    /// }
+    /// </code>
+    /// <para>
+    /// 入り切らない段には省略記号が付き、ツールチップで全文が出る。
+    /// </para>
+    /// </remarks>
+    public static WidgetResult Selectable(
+        ReadOnlySpan<char> label, ReadOnlySpan<char> detail, bool selected,
+        SizeSpec? width = null, float? height = null, bool disabled = false,
+        uint? color = null, uint? detailColor = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
+
+        var id = ctx.GetId(label, out var display);
+        var hasDetail = !detail.IsEmpty;
+        var rect = ctx.Allocate(width ?? SizeSpec.Fill, height ?? SelectableHeight(hasDetail));
+
+        var interaction = Interaction.Behavior(
+            rect, id,
+            disabled ? InteractionFlags.Disabled : InteractionFlags.AllowRightClick);
+
+        DrawSelectionSurface(rect, selected, interaction.HoverAmount);
+
+        var textColor = disabled
+            ? Colors.TextDisabled
+            : color ?? (selected ? Colors.TextHeading : Colors.Text);
+
+        var inner = rect.Shrink(EdgeInsets.Symmetric(Metrics.SpacingSm, Metrics.SpacingXs));
+
+        if (!hasDetail)
+        {
+            var truncatedOnly = TextPainter.Measure(display).X > inner.Width + 1f;
+            TextPainter.TextIn(inner, textColor, display, Align.Start, Align.Center);
+
+            var single = WidgetResult.From(interaction) with { Truncated = truncatedOnly };
+
+            if (truncatedOnly)
+                single.Tip(display);
+
+            return single;
+        }
+
+        // 1 段目を上から切り出し、残りを 2 段目に充てる。段の高さを両方とも
+        // 固定値で置くと、行の高さを指定されたときに下段が枠から溢れる
+        var lineHeight = TextPainter.LineHeight;
+        var nameArea = inner.CutTop(MathF.Min(lineHeight, inner.Height), out var detailArea);
+
+        var truncated =
+            TextPainter.Measure(display).X > nameArea.Width + 1f
+            || TextPainter.Measure(detail).X > detailArea.Width + 1f;
+
+        TextPainter.TextIn(nameArea, textColor, display, Align.Start, Align.Center);
+
+        if (detailArea.Height > 1f)
+        {
+            TextPainter.TextIn(
+                detailArea,
+                disabled ? Colors.TextDisabled : detailColor ?? Colors.TextMuted,
+                detail, Align.Start, Align.Center);
+        }
+
+        var result = WidgetResult.From(interaction) with { Truncated = truncated };
+
+        if (truncated)
+            result.Tip(display);
+
+        return result;
+    }
+
+    /// <summary>
+    /// 選択行の標準の高さ。
+    /// </summary>
+    /// <param name="withDetail">補足を添えた 2 段の行か。</param>
+    /// <remarks>
+    /// <c>ComboBody</c> の <c>listHeight</c> や、箱の高さを「○ 行ぶん」で決めるときに使う。
+    /// </remarks>
+    public static float SelectableHeight(bool withDetail = false)
+        => withDetail
+            ? MathF.Ceiling((TextPainter.LineHeight * 2f) + (Metrics.SpacingXs * 2f))
+            : Metrics.WidgetHeight;
+
+    /// <summary>選択行の地を描く。選択中なら塗り、乗っているだけなら薄く光らせる。</summary>
+    private static void DrawSelectionSurface(Rect rect, bool selected, float hoverAmount)
+    {
+        if (selected)
+        {
+            Painter.Rect(rect, Colors.Selection, Metrics.WidgetRounding);
+        }
+        else if (hoverAmount > 0.01f)
+        {
+            Painter.Rect(
+                rect,
+                EuColor.WithAlpha(Colors.SurfaceHover, hoverAmount * 0.9f),
+                Metrics.WidgetRounding);
+        }
     }
 }
 

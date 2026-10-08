@@ -187,7 +187,101 @@ public static partial class EUi
 
         // 中身がはみ出す一覧を入れる場合は、送りで包む
         var area = Scroll(id + "##euPopupScroll", rect.Height - inset.TotalVertical);
-        return new PopupScope(region, clip, rect, justOpened, area);
+        return new PopupScope(region, clip, rect, justOpened, false, area);
+    }
+
+    /// <summary>
+    /// 中身を自由に書けるモーダル。外側をクリックしても閉じない。
+    /// </summary>
+    /// <param name="id">識別子。<see cref="OpenPopup"/> / <see cref="RequestPopup"/> で開く。</param>
+    /// <param name="size">大きさ。</param>
+    /// <param name="padding">内側の余白。</param>
+    /// <param name="scroll">中身を送り領域で包むか。</param>
+    /// <param name="dimBackground">背後を暗く覆うか。既定は覆わない。</param>
+    /// <param name="closeOnEscape">Esc で閉じるか。</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Popup"/> との違いは「外側を押しても閉じない」ことだけで、
+    /// 中身の書き方は同じ。選択欄やスライダーを並べた設定用の小窓を、
+    /// 操作を終えるまで閉じないようにしたい場合に使う。
+    /// 文とボタン 2 つで足りるなら <see cref="Confirm"/> のほうが短く書ける。
+    /// </para>
+    /// <code>
+    /// if (EUi.Button("詳しい設定")) EUi.OpenPopup("tune");
+    ///
+    /// using (var m = EUi.Modal("tune", new Vector2(360f, 240f)))
+    /// {
+    ///     if (m.IsOpen)
+    ///     {
+    ///         EUi.Heading("詳しい設定");
+    ///         EUi.Combo("対象", ref this.target, Targets);
+    ///         EUi.Slider("しきい値", ref this.threshold, 0, 100);
+    ///
+    ///         if (EUi.Button("閉じる", ButtonStyle.Primary)) m.Close();
+    ///     }
+    /// }
+    /// </code>
+    /// <para>
+    /// 閉じる手段は自分で置くこと。<c>m.Close()</c> か <see cref="ClosePopup"/> を呼ぶ。
+    /// Esc で閉じたフレームは <c>m.CloseRequested</c> が立つので、
+    /// 下書きを捨てるなどの後始末はそこで行う。
+    /// </para>
+    /// </remarks>
+    public static PopupScope Modal(
+        string id, Vector2 size, EdgeInsets? padding = null, bool scroll = false,
+        bool dimBackground = false, bool closeOnEscape = true)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var popupId = ResolvePopupId(id);
+
+        ConsumePendingRequest(id, popupId);
+
+        if (!ImGui.IsPopupOpen(popupId))
+            return default;
+
+        ImGui.SetNextWindowPos(ResolveAnchor(ctx, PopupAnchor.ScreenCenter, size));
+        ImGui.SetNextWindowSize(size);
+
+        // 暗幕は ImGui が描く。既定では透明にして、手前に出ていることだけで伝える
+        if (!dimBackground)
+            ImGui.PushStyleColor(ImGuiCol.ModalWindowDimBg, 0u);
+
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+
+        var open = true;
+        var began = ImGui.BeginPopupModal(popupId, ref open, PopupWindowFlags);
+
+        ImGui.PopStyleVar();
+
+        if (!dimBackground)
+            ImGui.PopStyleColor();
+
+        if (!began)
+            return default;
+
+        var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
+
+        // 親ウィンドウのクリップを持ち込まない
+        var clip = Painter.ClipFullScreen();
+        DrawPopupSurface(rect, strong: true);
+
+        // 閉じる要求は中身を描く前に見ておく。中身へ渡して後始末させるため
+        var closeRequested = !open || (closeOnEscape && ctx.Input.IsKeyPressed(ImGuiKey.Escape));
+
+        if (closeRequested)
+            ImGui.CloseCurrentPopup();
+
+        var inset = padding ?? EdgeInsets.All(Metrics.CardPadding.Left);
+        var region = Region(rect, inset);
+        var justOpened = ImGui.IsWindowAppearing();
+
+        if (!scroll)
+            return new PopupScope(region, clip, rect, justOpened, closeRequested);
+
+        var area = Scroll(id + "##euModalScroll", rect.Height - inset.TotalVertical);
+        return new PopupScope(region, clip, rect, justOpened, closeRequested, area);
     }
 
     /// <summary>
@@ -333,6 +427,8 @@ public static partial class EUi
 
         var popupId = ResolvePopupId(id);
 
+        ConsumePendingRequest(id, popupId);
+
         if (!ImGui.IsPopupOpen(popupId))
             return ConfirmResult.None;
 
@@ -476,12 +572,26 @@ public static partial class EUi
         };
 
         // 画面の外へはみ出すと読めなくなるので、作業領域へ収める
-        var min = viewport.WorkPos;
-        var max = viewport.WorkPos + viewport.WorkSize;
+        return PopupPlacement.Clamp(
+            position, size, viewport.WorkPos, viewport.WorkPos + viewport.WorkSize);
+    }
 
-        return new Vector2(
-            Math.Clamp(position.X, min.X, MathF.Max(min.X, max.X - size.X)),
-            Math.Clamp(position.Y, min.Y, MathF.Max(min.Y, max.Y - size.Y)));
+    /// <summary>
+    /// 欄の下に開く一覧の位置を求める。下に入らなければ欄の上へ開く。
+    /// </summary>
+    /// <param name="anchor">基準にする欄の矩形。</param>
+    /// <param name="size">一覧の大きさ。入りきらない場合は高さを縮めて返す。</param>
+    /// <remarks>
+    /// ドロップダウンは欄に貼り付いて動くので、<see cref="ResolveAnchor"/> のように
+    /// 開いた時点で固定するわけにはいかない。毎フレーム求め直す。
+    /// </remarks>
+    private static Vector2 ResolveDropdown(Rect anchor, ref Vector2 size)
+    {
+        var viewport = ImGui.GetMainViewport();
+
+        return PopupPlacement.Dropdown(
+            anchor, ref size, viewport.WorkPos, viewport.WorkPos + viewport.WorkSize,
+            gap: 2f, minHeight: Metrics.WidgetHeight);
     }
 
     /// <summary>メニュー全体の大きさを求める。</summary>
@@ -670,7 +780,9 @@ public readonly struct PopupScope : IDisposable
     private readonly bool hasScroll;
     private readonly bool open;
 
-    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect, bool justOpened)
+    internal PopupScope(
+        LayoutHandle region, ClipScope clip, Rect rect, bool justOpened,
+        bool closeRequested = false)
     {
         this.region = region;
         this.clip = clip;
@@ -678,11 +790,13 @@ public readonly struct PopupScope : IDisposable
         this.hasScroll = false;
         this.Rect = rect;
         this.JustOpened = justOpened;
+        this.CloseRequested = closeRequested;
         this.open = true;
     }
 
     internal PopupScope(
-        LayoutHandle region, ClipScope clip, Rect rect, bool justOpened, ScrollHandle scroll)
+        LayoutHandle region, ClipScope clip, Rect rect, bool justOpened,
+        bool closeRequested, ScrollHandle scroll)
     {
         this.region = region;
         this.clip = clip;
@@ -690,6 +804,7 @@ public readonly struct PopupScope : IDisposable
         this.hasScroll = true;
         this.Rect = rect;
         this.JustOpened = justOpened;
+        this.CloseRequested = closeRequested;
         this.open = true;
     }
 
@@ -706,6 +821,18 @@ public readonly struct PopupScope : IDisposable
     /// 開くたびに入力欄を空にする、といった初期化に使う。
     /// </remarks>
     public bool JustOpened { get; }
+
+    /// <summary>
+    /// このフレームで閉じることが決まったか。<see cref="EUi.Modal"/> の Esc などで立つ。
+    /// </summary>
+    /// <remarks>
+    /// 中身はこのフレームもまだ描かれる。下書きを捨てる・値を書き戻すといった
+    /// 後始末をここで行う。
+    /// </remarks>
+    public bool CloseRequested { get; }
+
+    /// <summary>このポップアップを閉じる。</summary>
+    public void Close() => ImGui.CloseCurrentPopup();
 
     /// <inheritdoc/>
     public void Dispose()

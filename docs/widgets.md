@@ -77,6 +77,7 @@ EUi.Toast("見出しなしでも出せます。", NoteKind.Info);
 | `EUi.Bullet(text)` | 行頭に点を打つ箇条書き |
 | `EUi.LabelClipped(text, maxWidth, color, align)` | 幅を決めて 1 行表示。溢れたら省略し、全文をツールチップで見せる |
 | `EUi.Selectable(label, selected, width, height)` | 選択できる 1 行。一覧を自前で組むときに |
+| `EUi.Selectable(label, detail, selected, …)` | 名前の下に補足を添えた 2 段の行 |
 | `EUi.Image(texture, size, tint)` | 画像。アイテムアイコンなどの表示に |
 | `EUi.ImageButton(texture, id, size)` | 押せる画像 |
 | `EUi.Icon(icon, color)` | FontAwesome のアイコンを 1 つ |
@@ -255,6 +256,44 @@ using (var list = EUi.ComboBody("監視する通貨##cur", current.Name, width: 
 `list.JustOpened` は開いたフレームだけ true になるので、絞り込みの欄を空にする、
 といった初期化に使えます。
 
+#### 一覧を欄より広くする
+
+一覧の幅は既定で欄に合わせます。項目の文が長くて切れる場合は `listWidth` で広げられます
+（`EUi.Combo` にも同じ引数があります）。
+
+```csharp
+using (var list = EUi.ComboBody("行き先##duty", current.Name,
+                                width: 220f, listWidth: 460f))
+```
+
+一覧は欄の下に開きますが、**画面の下端に入らない場合は欄の上へ開きます。**
+上下どちらにも入りきらないときは、画面の外へ出す代わりに高さを縮めます。
+`listHeight` に大きな値を渡しても画面外へは出ません。
+
+### 名前の下に補足を添える
+
+`detail` を渡すと 2 段の行になります。「選べない理由」や所持数のような補足を、
+名前の下へ小さく置けます。行の高さは自動で 2 段ぶんになります。
+
+```csharp
+foreach (var d in duties)
+{
+    if (EUi.Selectable(d.Name, d.Reason, d == current,
+                       color: d.Unlocked ? null : EUi.Colors.TextMuted).Clicked)
+    {
+        Pick(d);
+    }
+}
+```
+
+箱の高さを「○ 行ぶん」で決めたい場合は `EUi.SelectableHeight(withDetail: true)` を使います。
+
+```csharp
+using (var list = EUi.ComboBody("行き先##duty", current.Name,
+                                listHeight: EUi.SelectableHeight(true) * 8f,
+                                listWidth: 460f))
+```
+
 行の中へ複数のものを並べたい場合は `SelectableRow` を使います。
 
 ```csharp
@@ -420,7 +459,8 @@ EUi.Sparkline("fps", this.fpsHistory, 40f, label: $"{fps:0} fps");
 |---|---|
 | `EUi.OpenPopup(id)` | ポップアップを開く |
 | `EUi.IsPopupOpen(id)` / `EUi.ClosePopup()` | 開閉の確認と、中からの明示的な閉じ |
-| `EUi.Popup(id, size, anchor, padding)` | 中身を自由に書けるポップアップ |
+| `EUi.Popup(id, size, anchor, padding)` | 中身を自由に書けるポップアップ。外側を押すと閉じる |
+| `EUi.Modal(id, size, padding, scroll)` | 中身を自由に書けるモーダル。外側を押しても閉じない |
 | `EUi.Menu(id, anchor, entries)` | メニュー。選ばれた項目の添字を返す |
 | `EUi.ContextMenu(id, target, entries)` | 右クリックで開くメニュー |
 | `EUi.Confirm(id, title, message, ok, cancel, danger)` | 確認ダイアログ |
@@ -468,6 +508,35 @@ using (var popup = EUi.Popup("add", new Vector2(300f, 220f)))
 
 確認ダイアログは外側をクリックしても閉じません。Esc で取り消しになります。
 背後を暗く覆いたい場合は `dimBackground: true` を渡します（既定は覆いません）。
+
+### 外側を押しても閉じない小窓
+
+`EUi.Popup` は外側をクリックすると閉じます。選択欄やスライダーを並べた設定用の小窓を
+「操作を終えるまで閉じない」ようにしたい場合は `EUi.Modal` を使ってください。
+文とボタン 2 つで足りるなら `EUi.Confirm` のほうが短く書けます。
+
+```csharp
+if (EUi.Button("詳しい設定")) EUi.OpenPopup("tune");
+
+using (var m = EUi.Modal("tune", new Vector2(360f, 240f)))
+{
+    if (m.IsOpen)
+    {
+        EUi.Heading("詳しい設定");
+        EUi.Combo("対象", ref this.target, Targets);
+        EUi.Slider("しきい値", ref this.threshold, 0, 100);
+
+        if (EUi.Button("閉じる", ButtonStyle.Primary)) m.Close();
+    }
+}
+```
+
+**閉じる手段は自分で置いてください。** `m.Close()` か `EUi.ClosePopup()` を呼びます。
+Esc で閉じたフレームは `m.CloseRequested` が立つので、下書きを捨てる・値を書き戻すといった
+後始末はそこで行います（そのフレームも中身は描かれます）。
+Esc で閉じたくない場合は `closeOnEscape: false` を渡します。
+
+背後を暗く覆いたい場合は `dimBackground: true`、中身がはみ出すなら `scroll: true` です。
 
 ### メニュー
 

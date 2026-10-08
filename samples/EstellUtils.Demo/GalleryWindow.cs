@@ -73,6 +73,17 @@ public sealed class GalleryWindow : EuWindow
         ("ギル", "その他", false),
     ];
 
+    /// <summary>2 段の選択行の見本。補足が空のものだけ選べる。</summary>
+    private static readonly (string Name, string Detail)[] DutyItems =
+    [
+        ("極ガルーダ討滅戦", string.Empty),
+        ("極イフリート討滅戦", string.Empty),
+        ("絶アレキサンダー討滅戦", "メインクエスト「漆黒の反逆者」をクリアすると解放されます"),
+        ("オーボンヌ修道院地下墳墓", string.Empty),
+        ("希望の園エデン零式:再生編4", "レベル 80 以上、かつ平均装備レベル 505 以上が必要です"),
+        ("異界孤城トゥラル・ゾーン", "メインクエスト「黄金のレガシー」を進める必要があります"),
+    ];
+
     private static readonly TableColumn[] CellDemoColumns =
     [
         new("プラグイン", SizeSpec.Fill),
@@ -130,6 +141,7 @@ public sealed class GalleryWindow : EuWindow
     private float fpsSampleTimer;
     private bool useVirtualList = true;
     private int comboBodyIndex;
+    private int dutyIndex;
     private string versionText = "1.0.0";
     private int freeSlots = 5;
 
@@ -527,6 +539,9 @@ public sealed class GalleryWindow : EuWindow
 
             if (EUi.Button("中身が自由なポップアップ"))
                 EUi.OpenPopup("demoFreePopup");
+
+            if (EUi.Button("閉じないモーダル"))
+                EUi.OpenPopup("demoModal");
         }
 
         switch (EUi.Confirm(
@@ -555,6 +570,29 @@ public sealed class GalleryWindow : EuWindow
 
                 if (EUi.Button("閉じる", ButtonStyle.Primary, SizeSpec.Fill))
                     EUi.ClosePopup();
+            }
+        }
+
+        // 外側を押しても閉じない小窓。閉じる手段は自分で置く
+        using (var modal = EUi.Modal("demoModal", new Vector2(360f, 230f)))
+        {
+            if (modal.IsOpen)
+            {
+                EUi.Heading("閉じないモーダル");
+                EUi.Paragraph("外側をクリックしても閉じません。Esc か下のボタンで閉じます。");
+                EUi.Combo("対象", ref this.comboIndex, ComboItems);
+                EUi.SliderInt("しきい値", ref this.sliderInt, 1, 10);
+
+                if (modal.CloseRequested)
+                    this.popupLog = "モーダルを Esc で閉じました。";
+
+                EUi.Spacing(EUi.Metrics.SpacingSm);
+
+                if (EUi.Button("決定", ButtonStyle.Primary, SizeSpec.Fill))
+                {
+                    this.popupLog = $"モーダルで しきい値 {this.sliderInt} を決めました。";
+                    modal.Close();
+                }
             }
         }
 
@@ -899,6 +937,37 @@ public sealed class GalleryWindow : EuWindow
         }
 
         EUi.Muted("種別の見出しを挟み、未解放のものは薄く見せています（押すと理由が出ます）。", wrap: true);
+
+        EUi.Separator("2 段の項目・欄より広い一覧");
+
+        var duty = DutyItems[this.dutyIndex];
+
+        // 欄は狭くても、一覧だけ広げられる。項目は名前の下に補足を添えた 2 段
+        using (var list = EUi.ComboBody(
+            "行き先##duty", duty.Name, SizeSpec.Px(200f),
+            EUi.SelectableHeight(true) * 5f, listWidth: 440f))
+        {
+            if (list.IsOpen)
+            {
+                for (var i = 0; i < DutyItems.Length; i++)
+                {
+                    var item = DutyItems[i];
+                    var color = item.Detail.Length > 0 ? EUi.Colors.TextDisabled : (uint?)null;
+
+                    if (EUi.Selectable(item.Name, item.Detail, i == this.dutyIndex, color: color).Clicked)
+                    {
+                        if (item.Detail.Length == 0)
+                            this.dutyIndex = i;
+
+                        list.Close();
+                    }
+                }
+            }
+        }
+
+        EUi.Muted(
+            "一覧の幅は listWidth で欄と別に決められます。画面の下端に入らなければ欄の上へ開きます。",
+            wrap: true);
     }
 
     /// <summary>セルの中へ複数のものを置く例。</summary>
