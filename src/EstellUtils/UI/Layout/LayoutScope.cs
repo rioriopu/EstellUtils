@@ -84,6 +84,18 @@ public sealed class LayoutScope
     public float RemainingWidth => MathF.Max(0f, this.Bounds.Max.X - this.Cursor.X);
 
     /// <summary>
+    /// 次の要素が実際に使える残り幅。要素間の空きを差し引く。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RemainingWidth"/> は空きを含んだままなので、2 つ目以降の要素へ
+    /// そのまま配ると空きの分だけ右へはみ出す。
+    /// </remarks>
+    private float RemainingWidthForNext
+        => this.ItemCount > 0
+            ? MathF.Max(0f, this.RemainingWidth - this.Spacing.X)
+            : this.RemainingWidth;
+
+    /// <summary>
     /// 次に確保される要素の幅。
     /// </summary>
     /// <remarks>
@@ -98,7 +110,9 @@ public sealed class LayoutScope
             if (this.Kind == LayoutKind.Horizontal && this.columnCount > 0)
                 return this.columnWidths[Math.Min(this.ColumnIndex, this.columnCount - 1)];
 
-            return this.Kind == LayoutKind.Vertical ? this.Bounds.Width : this.RemainingWidth;
+            return this.Kind == LayoutKind.Vertical
+                ? this.Bounds.Width
+                : this.RemainingWidthForNext;
         }
     }
 
@@ -297,13 +311,17 @@ public sealed class LayoutScope
         }
         else
         {
-            var available = this.Kind == LayoutKind.Vertical ? this.Bounds.Width : this.RemainingWidth;
+            var available = this.Kind == LayoutKind.Vertical
+                ? this.Bounds.Width
+                : this.RemainingWidthForNext;
+
             resolved = width.Resolve(available);
 
-            // 縦積みでは、使える幅を超えた固定幅も頭打ちにする。
-            // 超えたままにすると、文字が領域の端で黙って切られ、
-            // 省略記号もツールチップも出ないまま読めなくなる
-            if (this.Kind == LayoutKind.Vertical)
+            // 使える幅を超えた固定幅は頭打ちにする。超えたままにすると、
+            // 文字が領域の端で黙って切られ、省略記号もツールチップも出ないまま
+            // 読めなくなる。さらにセルの中では隣の列へ描き込んでしまう。
+            // 折り返す行だけは例外で、次の行で幅を取り直すので縮めない
+            if (this.Kind == LayoutKind.Vertical || !this.Wrap)
                 resolved = MathF.Min(resolved, available);
         }
 

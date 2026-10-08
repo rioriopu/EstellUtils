@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 
+using Dalamud.Bindings.ImGui;
+
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 using EstellUtils.UI.Render;
@@ -51,20 +53,40 @@ public static partial class EUi
     /// <param name="reserveScrollbar">
     /// 送りのつまみの分だけ、右端を空けておくか。
     /// </param>
+    /// <param name="id">
+    /// 列幅を変えられるようにする場合の識別子。<paramref name="resize"/> と一緒に渡す。
+    /// </param>
+    /// <param name="resize">
+    /// 利用者が変えた列幅の入れ物。渡すと見出しの境をつまんで幅を変えられる。
+    /// </param>
+    /// <param name="onResized">幅が変わったときに呼ぶ処理。設定の保存に使う。</param>
+    /// <returns>このフレームで列幅が変わったら true。</returns>
     /// <remarks>
+    /// <para>
     /// 見出しを送り領域の外に置いて固定する場合、<paramref name="reserveScrollbar"/> を
     /// true にする。送り領域はつまみが出ているとき内容の右端を削るため、
     /// 何もしないと見出しと行で列がずれる。しかもつまみは行数で出たり消えたりするので、
     /// 行が増えた瞬間に見出しだけズレる、という気づきにくい壊れ方をする。
+    /// </para>
+    /// <code>
+    /// var columns = this.config.MobColumns.Apply(BaseColumns);
+    ///
+    /// EUi.TableHeader(columns, id: "mobs", resize: this.config.MobColumns,
+    ///                 onResized: this.config.Save);
+    /// </code>
     /// </remarks>
-    public static void TableHeader(
-        ReadOnlySpan<TableColumn> columns, float? height = null, bool reserveScrollbar = false)
+    public static bool TableHeader(
+        ReadOnlySpan<TableColumn> columns, float? height = null, bool reserveScrollbar = false,
+        ReadOnlySpan<char> id = default, EuTableLayout? resize = null, Action? onResized = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         if (columns.Length == 0)
-            return;
+            return false;
+
+        if (id.IsEmpty)
+            id = "euTableHeader";
 
         var rowHeight = height ?? Metrics.WidgetHeight;
         var available = ctx.Layout.AvailableRect;
@@ -86,9 +108,13 @@ public static partial class EUi
             LayoutKind.Horizontal, rowRect, new Vector2(Metrics.ItemSpacing.X, 0f), widths,
             false, default, Align.Center, rowHeight);
 
+        Span<Rect> cells = stackalloc Rect[columns.Length];
+
         for (var i = 0; i < columns.Length; i++)
         {
             var cellRect = ctx.Allocate(columns[i].Width, rowHeight);
+            cells[i] = cellRect;
+
             TextPainter.TextIn(
                 cellRect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm)),
                 Colors.TextHeading, columns[i].Header, columns[i].Align, Align.Center);
@@ -98,7 +124,76 @@ public static partial class EUi
         ctx.Allocate(rowRect.Size);
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
+
+        if (resize is not null && DrawColumnResizers(ctx.GetId(id), cells, rowRect, resize))
+        {
+            onResized?.Invoke();
+            return true;
+        }
+
+        return false;
     }
+
+    /// <summary>
+    /// 見出しの境につまみを置き、ドラッグで列幅を変えられるようにする。
+    /// </summary>
+    /// <returns>このフレームで幅が変わったら true。</returns>
+    /// <remarks>
+    /// <para>
+    /// 右端の境は動かせない。動かすと表そのものの幅が変わってしまう。
+    /// つまみをダブルクリックすると、その列は宣言した幅へ戻る。
+    /// </para>
+    /// <para>
+    /// 列幅は押し始めた時点の幅を基準にする。毎フレームの差分を足していくと、
+    /// 下限で止まったあとに戻すとき、指とつまみの位置がずれていく。
+    /// </para>
+    /// </remarks>
+    private static bool DrawColumnResizers(
+        EuId id, ReadOnlySpan<Rect> cells, Rect rowRect, EuTableLayout layout)
+    {
+        var ctx = UiContext.Current;
+        var changed = false;
+        var half = ResizerHalfWidth;
+
+        for (var i = 0; i < cells.Length - 1; i++)
+        {
+            var x = cells[i].Max.X + (Metrics.ItemSpacing.X * 0.5f);
+            var grip = Rect.FromSize(
+                new Vector2(x - half, rowRect.Min.Y), new Vector2(half * 2f, rowRect.Height));
+
+            var handleId = id.Child("euColResize").Child(i);
+            var hit = Interaction.Behavior(grip, handleId);
+
+            ref var state = ref ctx.Store.GetRef(handleId);
+
+            if (hit.Pressed)
+                state.DragAnchorValue = cells[i].Width;
+
+            if (hit.DoubleClicked)
+            {
+                changed |= layout.Reset(i);
+            }
+            else if (hit.Held && hit.DragDelta.X != 0f)
+            {
+                changed |= layout.Set(
+                    i, MathF.Max(MinColumnWidth, state.DragAnchorValue + hit.DragDelta.X));
+            }
+
+            if (!hit.Hovered && !hit.Held)
+                continue;
+
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
+
+            Painter.VLine(
+                MathF.Round(x), rowRect.Min.Y + 2f, rowRect.Max.Y - 2f,
+                EuColor.WithAlpha(Colors.Accent, hit.Held ? 1f : 0.7f), 2f);
+        }
+
+        return changed;
+    }
+
+    /// <summary>つまんで変えられる列幅の下限。これ以上細くすると見出しも読めなくなる。</summary>
+    private const float MinColumnWidth = 32f;
 
     /// <summary>
     /// 表の 1 行を開く。中で <see cref="TableCell"/> か任意のウィジェットを列の数だけ並べる。
@@ -279,11 +374,32 @@ public static partial class EUi
         var gap = new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f);
         var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
 
+        // 左右だけ切り取る。中身が列に入りきらなかったとき、隣の列や
+        // 送りのつまみへ描き込むのを防ぐ
+        var clip = ClipCellWidth(rect);
+
         ctx.Layout.Push(
             LayoutKind.Horizontal, rect, gap, default, false, inset, align, resolvedHeight);
 
         // 領域は上で確保済み。閉じるときは、はみ出した高さだけを行へ伝える
-        return new CellHandle(scope, rect);
+        return new CellHandle(scope, rect, clip);
+    }
+
+    /// <summary>
+    /// セルの左右だけを切り取る。
+    /// </summary>
+    /// <remarks>
+    /// 上下は親の切り取りに任せる。セルより高い中身は行の高さを広げる仕組みがあるので、
+    /// 上下も切ると、広がる前の 1 フレームだけ中身が消えてしまう。
+    /// </remarks>
+    private static ClipScope ClipCellWidth(Rect rect)
+    {
+        const float Tall = 1 << 14;
+
+        return Painter.Clip(
+            Rect.FromSize(
+                new Vector2(rect.Min.X, rect.Min.Y - Tall),
+                new Vector2(rect.Width, Tall * 2f)));
     }
 
     /// <summary>
@@ -311,10 +427,11 @@ public static partial class EUi
 
         var gap = new Vector2(0f, spacing ?? Metrics.SpacingXs);
         var inset = padding ?? EdgeInsets.Horizontal(Metrics.SpacingSm);
+        var clip = ClipCellWidth(rect);
 
         ctx.Layout.Push(LayoutKind.Vertical, rect, gap, default, false, inset);
 
-        return new CellHandle(scope, rect);
+        return new CellHandle(scope, rect, clip);
     }
 
     /// <summary>
@@ -325,7 +442,11 @@ public static partial class EUi
     /// <param name="sort">現在の並べ替え。押すと書き換わる。</param>
     /// <param name="height">見出し行の高さ。</param>
     /// <param name="reserveScrollbar">送りのつまみの分だけ右端を空けるか。</param>
-    /// <returns>このフレームで並べ替えが変わったら true。</returns>
+    /// <param name="resize">
+    /// 利用者が変えた列幅の入れ物。渡すと見出しの境をつまんで幅を変えられる。
+    /// </param>
+    /// <param name="onResized">幅が変わったときに呼ぶ処理。設定の保存に使う。</param>
+    /// <returns>このフレームで並べ替え、または列幅が変わったら true。</returns>
     /// <remarks>
     /// <para>
     /// 押した列が昇順・降順で切り替わり、印 (▲▼) が付きます。
@@ -335,10 +456,15 @@ public static partial class EUi
     /// if (EUi.SortableTableHeader("items", Columns, ref this.sort))
     ///     this.ApplySort();
     /// </code>
+    /// <para>
+    /// <paramref name="resize"/> を渡した場合、境の近くは並べ替えではなく
+    /// 幅変えの当たり判定になります。並べ替えと幅変えの両方が効きます。
+    /// </para>
     /// </remarks>
     public static bool SortableTableHeader(
         ReadOnlySpan<char> id, ReadOnlySpan<TableColumn> columns, ref TableSort sort,
-        float? height = null, bool reserveScrollbar = false)
+        float? height = null, bool reserveScrollbar = false,
+        EuTableLayout? resize = null, Action? onResized = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -367,16 +493,23 @@ public static partial class EUi
 
         var changed = false;
 
+        Span<Rect> cells = stackalloc Rect[columns.Length];
+
         for (var i = 0; i < columns.Length; i++)
         {
             var column = columns[i];
             var cellRect = ctx.Allocate(column.Width, rowHeight);
+            cells[i] = cellRect;
 
             // 見出しの無い列は押せないままにする
             if (string.IsNullOrEmpty(column.Header))
                 continue;
 
-            var interaction = Interaction.Behavior(cellRect, euId.Child(i));
+            // 幅を変えられる表では、境のそばを並べ替えの当たり判定から外す。
+            // 重ねたままにすると、つまもうとして並べ替えが起きてしまう
+            var interaction = Interaction.Behavior(
+                resize is null ? cellRect : ShrinkForResizer(cellRect, i, columns.Length),
+                euId.Child(i));
 
             if (interaction.Clicked)
             {
@@ -424,8 +557,29 @@ public static partial class EUi
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
 
+        if (resize is not null && DrawColumnResizers(euId, cells, rowRect, resize))
+        {
+            onResized?.Invoke();
+            changed = true;
+        }
+
         return changed;
     }
+
+    /// <summary>
+    /// 幅変えのつまみと重なる分だけ、見出しの当たり判定を狭める。
+    /// </summary>
+    private static Rect ShrinkForResizer(Rect cell, int index, int count)
+    {
+        var half = ResizerHalfWidth;
+
+        return new Rect(
+            new Vector2(cell.Min.X + (index > 0 ? half : 0f), cell.Min.Y),
+            new Vector2(cell.Max.X - (index < count - 1 ? half : 0f), cell.Max.Y));
+    }
+
+    /// <summary>幅変えのつまみの、境からの当たり判定の広さ。</summary>
+    private static float ResizerHalfWidth => MathF.Max(3f, Metrics.ItemSpacing.X * 0.5f);
 
     /// <summary>
     /// セルを 1 つ飛ばす。列を消費するだけで何も描かない。
@@ -488,11 +642,13 @@ public readonly struct CellHandle : IDisposable
 {
     private readonly LayoutScope? parent;
     private readonly Rect rect;
+    private readonly ClipScope clip;
 
-    internal CellHandle(LayoutScope? parent, Rect rect)
+    internal CellHandle(LayoutScope? parent, Rect rect, ClipScope clip = default)
     {
         this.parent = parent;
         this.rect = rect;
+        this.clip = clip;
     }
 
     /// <summary>セルの矩形。</summary>
@@ -506,6 +662,7 @@ public readonly struct CellHandle : IDisposable
 
         // 領域は開くときに確保済みなので、外側へは申告しない
         ctx.Layout.Pop(commitToParent: false);
+        this.clip.Dispose();
 
         // 中身がはみ出した分だけ、行の使用範囲を広げる。
         // Allocate で申告すると列まで進んでしまうので、範囲だけを伝える

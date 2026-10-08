@@ -84,6 +84,27 @@ public sealed class GalleryWindow : EuWindow
         ("異界孤城トゥラル・ゾーン", "メインクエスト「黄金のレガシー」を進める必要があります"),
     ];
 
+    /// <summary>長い中身と列幅変えの見本。ドロップ品の列には下限を付けている。</summary>
+    private static readonly TableColumn[] MobColumns =
+    [
+        new("モブ", 120f),
+        new("ドロップ品", SizeSpec.Fill.AtLeast(180f)),
+        new("とらえる場所", 140f),
+    ];
+
+    private static readonly (string Name, string[] Drops, string Place)[] MobRows =
+    [
+        ("ダイアマイト",
+            ["ダイアマイトの鍵", "ダイアマイトの角", "硬化した土塊", "黒曜石の欠片"],
+            "20 フライングトラップ"),
+        ("ギガントード",
+            ["ギガントードの皮", "湿った苔"],
+            "12 低地ラノシア"),
+        ("青魔",
+            ["魔力を帯びた羽根", "青く輝く結晶", "ひび割れた魔石", "魔法の残滓", "古びた触媒"],
+            "31 ザナラーン高地"),
+    ];
+
     private static readonly TableColumn[] CellDemoColumns =
     [
         new("プラグイン", SizeSpec.Fill),
@@ -142,6 +163,10 @@ public sealed class GalleryWindow : EuWindow
     private bool useVirtualList = true;
     private int comboBodyIndex;
     private int dutyIndex;
+
+    /// <summary>つまんで変えた列幅。ふだんは設定クラスへ持たせる。</summary>
+    private readonly EuTableLayout mobColumns = new();
+    private string cellLog = string.Empty;
     private string versionText = "1.0.0";
     private int freeSlots = 5;
 
@@ -998,6 +1023,53 @@ public sealed class GalleryWindow : EuWindow
         }
 
         EUi.Muted("「停止中」の行だけボタンが増えますが、列はずれません。", wrap: true);
+
+        EUi.Separator("長い中身・つまんで変えられる列幅");
+
+        // 利用者が変えた幅を反映した列定義。見出しと行へ同じものを渡す
+        var columns = this.mobColumns.Apply(MobColumns);
+
+        EUi.TableHeader(
+            columns, id: "mobs", resize: this.mobColumns,
+            onResized: () => this.cellLog = "列幅を変えました。");
+
+        for (var i = 0; i < MobRows.Length; i++)
+        {
+            using var rowId = EUi.PushId(i);
+            var row = MobRows[i];
+
+            using (EUi.TableRow(columns, i))
+            {
+                EUi.TableCell(row.Name);
+
+                // 入る分だけ並べ、残りは「他 N」。全文はツールチップで出る
+                using (EUi.Cell())
+                    EUi.InlineList(row.Drops);
+
+                // 列に入りきらない固定幅の中身も、隣の列へは出ない
+                using (EUi.Cell())
+                {
+                    if (EUi.Button(row.Place, ButtonStyle.Link, textAlign: Align.Start))
+                        this.cellLog = $"{row.Place} へ向かいます。";
+                }
+            }
+        }
+
+        using (EUi.HStack())
+        {
+            if (EUi.SmallButton("列幅を戻す"))
+            {
+                this.mobColumns.Reset();
+                this.cellLog = "列幅を宣言どおりに戻しました。";
+            }
+
+            EUi.Muted(this.cellLog);
+        }
+
+        EUi.Muted(
+            "見出しの境をつまむと列幅が変わります（ダブルクリックでその列だけ戻ります）。" +
+            "ドロップ品の列は SizeSpec.Fill.AtLeast(180f) なので、窓を狭めても細くなりきりません。",
+            wrap: true);
     }
 
     /// <summary>負荷確認用の 1 行。仮想化の有無で同じものを描く。</summary>

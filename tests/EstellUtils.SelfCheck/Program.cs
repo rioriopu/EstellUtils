@@ -38,6 +38,7 @@ internal static class Program
         CheckEdgeSnap();
         CheckCrossAlign();
         CheckColumnLayout();
+        CheckColumnMinimums();
         CheckTabWrapping();
         CheckDropdownPlacement();
 
@@ -473,6 +474,65 @@ internal static class Program
         wide.Fill(500f);
 
         Expect(EUi.CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
+    }
+
+    /// <summary>
+    /// 列の下限幅の検証。
+    /// </summary>
+    /// <remarks>
+    /// 固定幅の列の合計が行の幅を超えると Fill の列が極端に細くなり、
+    /// 中身が隣の列へはみ出す原因になる。下限を付けた列が確保されること、
+    /// そのうえで合計が行の幅を超えないことを確かめる。
+    /// </remarks>
+    private static void CheckColumnMinimums()
+    {
+        const float Spacing = 8f;
+
+        // 固定幅 3 列 + Fill 1 列。固定幅だけでほぼ埋まっている
+        {
+            Span<float> widths = stackalloc float[4];
+
+            ColumnLayout.Resolve(
+                [160f, 160f, 160f, SizeSpec.Fill.AtLeast(200f)], 600f, Spacing, widths);
+
+            Expect(widths[3] >= 199.5f, "下限を付けた Fill の列が確保されていない");
+            ExpectFits(widths, 600f, Spacing, "下限を確保したら行からはみ出した");
+
+            // 代わりに固定幅の列が縮む
+            Expect(widths[0] < 160f, "下限のために固定幅の列が縮んでいない");
+        }
+
+        // 余裕があるときは何も起きない
+        {
+            Span<float> widths = stackalloc float[2];
+            ColumnLayout.Resolve([100f, SizeSpec.Fill.AtLeast(100f)], 600f, Spacing, widths);
+
+            Expect(MathF.Abs(widths[0] - 100f) < 0.01f, "余裕があるのに固定幅が縮んでいる");
+            Expect(widths[1] > 400f, "余った幅が Fill へ配られていない");
+        }
+
+        // 下限の合計が行の幅を超える場合も、はみ出さない
+        {
+            Span<float> widths = stackalloc float[3];
+
+            ColumnLayout.Resolve(
+                [SizeSpec.Fill.AtLeast(300f), SizeSpec.Fill.AtLeast(300f),
+                 SizeSpec.Fill.AtLeast(300f)],
+                400f, Spacing, widths);
+
+            ExpectFits(widths, 400f, Spacing, "下限が入りきらないのにはみ出している");
+        }
+
+        // 固定幅の列にも下限が効く。下限の無い列から取る
+        {
+            Span<float> widths = stackalloc float[2];
+
+            ColumnLayout.Resolve(
+                [SizeSpec.Px(80f).AtLeast(120f), SizeSpec.Fill], 300f, Spacing, widths);
+
+            Expect(widths[0] >= 119.5f, "固定幅の列の下限が効いていない");
+            ExpectFits(widths, 300f, Spacing, "固定幅の下限で行からはみ出した");
+        }
     }
 
     /// <summary>

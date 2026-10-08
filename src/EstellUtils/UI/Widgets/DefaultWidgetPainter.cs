@@ -54,9 +54,12 @@ public class DefaultWidgetPainter : IWidgetPainter
 
         if (style == ButtonStyle.Link)
         {
+            // 下線は文字の幅に合わせて引くので、寄せ方は文字と同じものを使う。
+            // ここで中央寄せに決めてしまうと、列の中でリンクを左へ寄せられない
+            var align = visual.TextAlign ?? Align.Center;
             var size = TextPainter.Measure(label);
-            var placed = textArea.Place(size, Align.Center, Align.Center);
-            TextPainter.TextIn(textArea, textColor, label, Align.Center, Align.Center);
+            var placed = textArea.Place(size, align, Align.Center);
+            TextPainter.TextIn(textArea, textColor, label, align, Align.Center);
 
             // ホバー中だけ下線を引く
             if (visual.Hover > 0.01f)

@@ -18,6 +18,7 @@ namespace EstellUtils.UI.Layout;
 /// <item>固定幅と比率の列を確定する。</item>
 /// <item>それだけで入りきらなければ、固定幅と比率の列を比例で縮める。</item>
 /// <item>余りを <see cref="SizeMode.Fill"/> の列へ重みに応じて配る。</item>
+/// <item>下限 (<see cref="SizeSpec.AtLeast"/>) を割った列を押し上げ、余裕のある列から取る。</item>
 /// </list>
 /// </remarks>
 public static class ColumnLayout
@@ -110,16 +111,90 @@ public static class ColumnLayout
             used = available;
         }
 
-        if (totalWeight <= 0f)
-            return;
+        if (totalWeight > 0f)
+        {
+            var remaining = MathF.Max(0f, available - used);
 
-        var remaining = MathF.Max(0f, available - used);
+            for (var i = 0; i < count; i++)
+            {
+                if (columns[i].Mode == SizeMode.Fill)
+                    widths[i] = remaining * (columns[i].Value / totalWeight);
+            }
+        }
+
+        ApplyMinimums(columns, available, widths);
+    }
+
+    /// <summary>
+    /// 下限を割った列を押し上げ、足りない分を余裕のある列から取る。
+    /// </summary>
+    /// <remarks>
+    /// 固定幅の列の合計が行の幅を超えると <see cref="SizeMode.Fill"/> の列が
+    /// 極端に細くなる。下限を付けた列はここで確保し、代わりに余裕のある列を縮める。
+    /// </remarks>
+    private static void ApplyMinimums(
+        ReadOnlySpan<SizeSpec> columns, float available, Span<float> widths)
+    {
+        var count = columns.Length;
+        var deficit = 0f;
+        var slack = 0f;
 
         for (var i = 0; i < count; i++)
         {
-            if (columns[i].Mode == SizeMode.Fill)
-                widths[i] = remaining * (columns[i].Value / totalWeight);
+            var min = columns[i].Min;
+
+            // 下限の無い列は、幅のすべてが削れる余裕
+            if (min <= 0f)
+            {
+                slack += widths[i];
+                continue;
+            }
+
+            if (widths[i] < min)
+            {
+                deficit += min - widths[i];
+                widths[i] = min;
+            }
+            else
+            {
+                slack += widths[i] - min;
+            }
         }
+
+        if (deficit <= 0f)
+            return;
+
+        // 余裕に応じて削る。余裕の総量までしか取らないので、
+        // ここで他の列が下限を割ることはない
+        var take = MathF.Min(deficit, slack);
+
+        if (take > 0f && slack > 0f)
+        {
+            var ratio = take / slack;
+
+            for (var i = 0; i < count; i++)
+            {
+                var min = columns[i].Min;
+                var columnSlack = min <= 0f ? widths[i] : widths[i] - min;
+
+                if (columnSlack > 0f)
+                    widths[i] -= columnSlack * ratio;
+            }
+        }
+
+        // 下限の合計そのものが入りきらない場合は、はみ出す代わりに全部を縮める
+        var total = 0f;
+
+        for (var i = 0; i < count; i++)
+            total += widths[i];
+
+        if (total <= available || total <= 0f)
+            return;
+
+        var scale = available / total;
+
+        for (var i = 0; i < count; i++)
+            widths[i] *= scale;
     }
 
     /// <summary>列を並べたときに、隙間が占める合計幅。</summary>

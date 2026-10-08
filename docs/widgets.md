@@ -114,10 +114,17 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 
 | API | 説明 |
 |---|---|
-| `EUi.Button(label, style, width, disabled)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
+| `EUi.Button(label, style, width, disabled, textAlign)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
 | `EUi.SmallButton(label, style, width, disabled)` | 行の中へ小さく収める。`ImGui.SmallButton` の置き換え |
 | `ButtonStyle.Prominent` | 最も押してほしい操作。大きめの文字と明るい枠 |
 | `ButtonStyle.ProminentDanger` | `Prominent` の赤い版。「開始」と「停止」を同じ大きさで並べるときに |
+
+文字の寄せは `textAlign` で変えられます。`ButtonStyle.Link` にも効き、
+下線も文字の位置に合わせて引かれます（表の列の中でリンクを左へ寄せるときに使います）。
+
+```csharp
+EUi.Button(mob.Place, ButtonStyle.Link, textAlign: Align.Start);
+```
 | `EUi.ButtonAt(id, rect, label, style, disabled)` | 矩形を指定して描く。高さも自由 |
 | `EUi.ButtonWidth(label)` | ラベルに合わせた幅。行を自分で配るときに |
 | `EUi.IconButton(icon, id, style, disabled)` | FontAwesome の文字を渡す正方形ボタン |
@@ -190,6 +197,7 @@ EUi.SliderFloat("明るさ", ref v, 0f, 0.2f, decimals: 3);   // 名前付きで
 | `EUi.ComboBody(label, preview, width, listHeight, disabled)` | 一覧の中身を自分で描くドロップダウン |
 | `EUi.SelectableRow(id, selected, height, disabled)` | 中身を自分で描く選択行 |
 | `EUi.SortableTableHeader(id, columns, ref sort, …)` | 押して並べ替えられる見出し |
+| `EUi.InlineList(items, width, color, separator)` | 語を区切りで並べ、入らない分を「他 N」に |
 | `EUi.SkipCell()` | セルを 1 つ飛ばす |
 | `EUi.Place(width, height, horizontal, …)` | 場所を取ってから中へ並べる |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
@@ -791,6 +799,13 @@ using (EUi.Row(SizeSpec.Ratio(0.3f), SizeSpec.Fill))       // 3 割 / 残り
 **列幅の指定は「入るならこの幅で」という意味で、はみ出す許可ではありません。**
 固定幅の合計が行に収まらない場合は、はみ出す代わりに比例で縮みます。
 
+列を宣言していない横並び（`HStack` / `Cell` の中）でも同じです。
+部品が求めた幅が残り幅を超えると、はみ出す代わりに残り幅で頭打ちになります。
+`EUi.Label` は求めた幅より狭くなった時点で省略記号とツールチップを出すので、
+**黙って切られることはありません。**
+折り返す横並び（`EUi.HStack(wrap: true)`）だけは例外で、
+次の行で幅を取り直すため頭打ちにしません。
+
 ### 行からはみ出させない
 
 固定幅を自分で計算するとき、**列の間の隙間を引き忘れる**のがよくある間違いです。
@@ -1001,6 +1016,52 @@ if (EUi.SortableTableHeader("items", Columns, ref this.sort))
 押した列が昇順・降順で切り替わり、印（▲▼）が付きます。同じ列をもう一度押すと向きが反転します。
 `TableSort` は単純なプロパティだけなので、設定へそのまま保存できます。
 
+### 細くなりすぎない列
+
+固定幅の列の合計が窓の幅を超えると、`SizeSpec.Fill` の列が極端に細くなります。
+`AtLeast` で下限を付けると、代わりに下限の無い列が縮みます。
+
+```csharp
+private static readonly TableColumn[] Columns =
+[
+    new("モブ", 120f),
+    new("ドロップ品", SizeSpec.Fill.AtLeast(180f)),
+    new("場所", 140f),
+];
+```
+
+下限の合計そのものが入りきらない場合は、はみ出す代わりに全部の列を比例で縮めます。
+**下限は「入るならこの幅を確保する」という意味で、はみ出す許可ではありません。**
+
+### 利用者が列幅を変えられるようにする
+
+`EuTableLayout` を設定クラスへ持たせ、見出しへ渡すと、境をつまんで列幅を変えられます。
+
+```csharp
+// 設定クラス
+public EuTableLayout MobColumns { get; set; } = new();
+
+// 描画
+var columns = this.config.MobColumns.Apply(BaseColumns);
+
+EUi.TableHeader(columns, id: "mobs", resize: this.config.MobColumns,
+                onResized: this.config.Save);
+
+foreach (…)
+    using (EUi.TableRow(columns, i)) { … }
+```
+
+**`Apply` の戻り値を見出しと行の両方へ渡してください。** 宣言した列定義をそのまま
+行へ渡すと、変えた幅が見出しにだけ効いて列がずれます。
+
+`SortableTableHeader` にも同じ `resize` / `onResized` があります。境の近くは
+並べ替えではなく幅変えの当たり判定になるので、両方そのまま効きます。
+境をダブルクリックすると、その列だけ宣言した幅へ戻ります。
+`Reset()` で全部まとめて戻せます。
+
+変えた幅は `Widths`（列番号 → px）に入るだけなので、Newtonsoft.Json でも
+System.Text.Json でもそのまま保存できます。
+
 ### セルに複数のものを置く
 
 列を宣言した行では、ウィジェットを 1 つ置くごとに次の列へ進みます。
@@ -1026,6 +1087,24 @@ using (EUi.TableRow(columns, i))
 
 名前の下に補足を添えるような 2 段のセルには `EUi.CellStack()` を使います。
 高さを明示しなければ、中身に合わせて行が伸びます。
+
+**`Cell` / `CellStack` は自分の幅で中身を切り取ります。** 入りきらなかった中身が
+隣の列や送りのつまみへ描き込まれることはありません。
+あわせて、セルの中に置いた決まった幅の部品も列の残り幅で頭打ちになるので、
+`EUi.Label` の省略記号とツールチップがそのまま働きます。
+
+### 語を並べて「他 N」でまとめる
+
+ドロップ品のような短い語の並びは `EUi.InlineList` で置けます。
+入る分だけ並べ、残りは「他 N」になり、全部の語はツールチップで出ます。
+
+```csharp
+using (EUi.Cell())
+    EUi.InlineList(item.Drops);                  // 既定の区切りは「 ・ 」
+```
+
+区切りは `separator`、「他 N」ではなく省略記号だけにしたい場合は
+`countRemaining: false` を渡します。
 
 ### 折り返す列
 
