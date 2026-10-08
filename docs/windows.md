@@ -233,7 +233,8 @@ EUi.Windows.Add(this.window, mainUi: true, configUi: true);
 | `IsCollapsed` | タイトルバーだけに畳まれているか。コードから畳むこともできる |
 | `AutoScroll` | `Draw()` を送り領域で包むか (既定 true)。**表を置く窓では false にする** |
 | `AutoSize` | 中身に合わせて大きさを決める (`None` / `Height` / `Both`) |
-| `LastContentSize` | 前のフレームに測った中身の大きさ |
+| `LastContentSize` | 前のフレームに測った中身の大きさ（余白を含まない） |
+| `LastRequestedContentWidth` | 前のフレームに中身が希望した幅（切られる前の値） |
 
 `AutoScroll` が true のとき、`Draw()` は EstellUtils の送り領域の内側で呼ばれます。
 中身がまだ生 ImGui で独自の送りを持つ場合、つまみが 2 本並ぶことがあります。
@@ -250,8 +251,25 @@ this.AutoSize = WindowAutoSize.Both;   // None / Height / Both
 前のフレームに測った中身の大きさを `Size` へ反映し、`MinSize` / `MaxSize` で丸めます。
 有効な間は**送り領域とリサイズグリップを出しません**（送ると大きさが決まらないため）。
 
-`SizeSpec.Fill` で幅を取る部品があると、そこで幅が決まって縮まなくなります。
-内容どおりの幅にしたい場合は `EUi.Label` のように内容幅で取る部品を使ってください。
+幅は「中身が**希望した**幅」で決めます。窓の幅で切られた文字でも本来の幅が使われるので、
+長い行があれば窓がそこまで広がります。
+
+**`SizeSpec.Fill` と `SizeSpec.Ratio` で幅を取る部品は数えません。** あれは窓の幅から
+決まる値なので、数えると「窓が広がる → 希望も広がる」の繰り返しになって止まりません。
+そのため、区切り線のように横幅いっぱいを取る部品だけを置いた窓は幅が決まらず、
+`MinSize` の幅になります。内容どおりの幅にしたい部品は `EUi.Label` のように
+内容幅で取るものを使ってください。
+
+**小さな常駐窓では `MinSize` を下げてください。** 既定は 220x120 なので、
+それより小さくはなりません。
+
+```csharp
+this.AutoSize = WindowAutoSize.Both;
+this.MinSize = new Vector2(80f, 40f);
+```
+
+`LastContentSize` は余白を含まない中身の大きさ、`LastRequestedContentWidth` は
+切られる前に希望した幅です（どちらも前のフレームの値）。
 
 ## 表を置く窓では AutoScroll を切る
 

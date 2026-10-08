@@ -183,13 +183,6 @@ public sealed class UiContext
     }
 
     /// <summary>
-    /// ID を持たない要素 (ラベルなど) のホバー継続時間を測る。
-    /// 同じ矩形にマウスが留まり続けている秒数を返す。
-    /// </summary>
-    /// <remarks>
-    /// ホバーは同時に 1 箇所しか起きないため、直近の矩形だけを覚えておけば足りる。
-    /// </remarks>
-    /// <summary>
     /// 識別子つきでホバーの継続時間を測る。
     /// </summary>
     /// <remarks>
@@ -214,10 +207,29 @@ public sealed class UiContext
         return this.Time - state.HoverStartedAt;
     }
 
+    /// <summary>
+    /// ID を持たない要素 (ラベルなど) のホバー継続時間を測る。
+    /// 同じ矩形にマウスが留まり続けている秒数を返す。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ホバーは同時に 1 箇所しか起きないため、直近の矩形だけを覚えておけば足りる。
+    /// </para>
+    /// <para>
+    /// 送り領域で隠れた部分は見えていないので反応させない。クリップを見ないと、
+    /// 領域の外にマウスがあるのに、隠れた行のツールチップや右クリックメニューが出る。
+    /// </para>
+    /// </remarks>
     public float TrackHover(Rect rect)
     {
-        if (!this.Input.HasMousePos || !rect.Contains(this.Input.MousePos) || !this.IsWindowHovered)
+        if (!this.Input.HasMousePos || !rect.Contains(this.Input.MousePos) ||
+            !this.IsWindowHovered || !Render.Painter.IsInsideClip(this.Input.MousePos))
+        {
+            // 覚えている矩形も捨てる。残したままだと、一度外れて同じ矩形へ戻ったときに
+            // 前回の開始時刻が生きていて、待ち時間なしでツールチップが出る
+            this.hoverRect = default;
             return 0f;
+        }
 
         if (rect != this.hoverRect)
         {
@@ -305,6 +317,27 @@ public sealed class UiContext
             return scope.Allocate(size);
 
         var origin = ImGui.GetCursorScreenPos();
+        ImGui.Dummy(size);
+        return Rect.FromSize(origin, size);
+    }
+
+    /// <summary>
+    /// 起点を指定して領域を確保する。
+    /// </summary>
+    /// <remarks>
+    /// スコープを閉じた直後のように、ImGui のカーソルが中身の終端へ動いている場面で使う。
+    /// 終端から確保すると大きさが二重に数えられ、<c>AlwaysAutoResize</c> の窓が
+    /// 倍に広がる。レイアウトスコープが開いていれば、そちらが起点を持つので無視する。
+    /// </remarks>
+    public Rect AllocateAt(Vector2 origin, Vector2 size)
+    {
+        this.Stats.Allocations++;
+
+        var scope = this.Layout.Current;
+        if (scope is not null)
+            return scope.Allocate(size);
+
+        ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(size);
         return Rect.FromSize(origin, size);
     }

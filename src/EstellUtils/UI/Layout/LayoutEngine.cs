@@ -75,6 +75,11 @@ public sealed class LayoutEngine
         this.active.RemoveAt(this.active.Count - 1);
 
         var size = scope.ConsumedSize;
+
+        // プールへ戻すと読めなくなるので、ここで控える
+        var origin = scope.Origin;
+        var requestedWidth = scope.RequestedContentWidth + scope.Padding.TotalHorizontal;
+
         this.pool.Push(scope);
 
         if (!commitToParent)
@@ -83,12 +88,17 @@ public sealed class LayoutEngine
         var parent = this.Current;
         if (parent is not null)
         {
+            // 中身の希望幅も一緒に持ち上げる。消費した幅だけを渡すと、
+            // 入れ子の中で窓の幅に切られた文字の本来の幅が外へ伝わらない
             if (size != Vector2.Zero)
-                parent.Allocate(size);
+                parent.AllocateChild(size, requestedWidth);
         }
         else if (size != Vector2.Zero)
         {
-            // 最も外側のスコープ。ImGui 側のカーソルを進めて後続の描画と整合させる
+            // 最も外側のスコープ。ImGui 側のカーソルを進めて後続の描画と整合させる。
+            // 中身を置くたびにカーソルを終端へ動かしているので、起点へ戻してから置く。
+            // 戻さないと大きさが二重に数えられ、AlwaysAutoResize の窓が倍に広がる
+            ImGui.SetCursorScreenPos(origin);
             ImGui.Dummy(size);
         }
 

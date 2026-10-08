@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
@@ -150,6 +151,17 @@ public sealed class LayoutScope
     public EdgeInsets Padding { get; private set; }
 
     /// <summary>
+    /// 余白を差し引く前の左上。<see cref="ConsumedSize"/> の起点。
+    /// </summary>
+    /// <remarks>
+    /// 外側へ大きさを申告するとき、起点がここでないと二重に数えられる。
+    /// 中身を置くたびに ImGui のカーソルは終端へ動いているので、戻す先として使う。
+    /// </remarks>
+    public Vector2 Origin => new(
+        this.Bounds.Min.X - this.Padding.Left,
+        this.Bounds.Min.Y - this.Padding.Top);
+
+    /// <summary>
     /// このスコープが消費した大きさ。余白を含む (外側のレイアウトへ申告する値)。
     /// </summary>
     public Vector2 ConsumedSize
@@ -159,13 +171,40 @@ public sealed class LayoutScope
             if (this.ItemCount == 0)
                 return this.Padding.Total;
 
-            var inner = new Vector2(
+            return this.ContentSize + this.Padding.Total;
+        }
+    }
+
+    /// <summary>
+    /// 中身そのものの大きさ。余白を含まない。
+    /// </summary>
+    /// <remarks>
+    /// 外へ余白を足し直す側 (中身に合わせる窓など) が使う。
+    /// <see cref="ConsumedSize"/> を渡すと余白が二重に入る。
+    /// </remarks>
+    public Vector2 ContentSize
+        => this.ItemCount == 0
+            ? Vector2.Zero
+            : new Vector2(
                 this.ContentBounds.Max.X - this.Bounds.Min.X,
                 this.ContentBounds.Max.Y - this.Bounds.Min.Y);
 
-            return inner + this.Padding.Total;
-        }
-    }
+    /// <summary>
+    /// 中身が希望した幅。余白を含まない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 頭打ちの前の希望幅なので、窓の幅で切られた部品でも本来の幅が分かる。
+    /// 中身に合わせる窓が、長い文字に合わせて広がるために使う。
+    /// </para>
+    /// <para>
+    /// <see cref="SizeMode.Fill"/> と <see cref="SizeMode.Ratio"/> の指定は数えない。
+    /// あれは窓の幅から決まる値なので、数えると「窓が広がる → 希望も広がる」の
+    /// 繰り返しになって止まらない。
+    /// </para>
+    /// </remarks>
+    public float RequestedContentWidth
+        => this.ItemCount == 0 ? 0f : MathF.Max(0f, this.requestedMaxX - this.Bounds.Min.X);
 
     /// <summary>
     /// 次の要素が置かれる領域。入れ子のスコープを開くときの基準になる。
@@ -210,6 +249,8 @@ public sealed class LayoutScope
         this.ColumnIndex = 0;
         this.ItemCount = 0;
         this.ContentBounds = Rect.FromSize(bounds.Min, Vector2.Zero);
+        this.requestedMaxX = bounds.Min.X;
+        this.pendingRequestedWidth = -1f;
 
         // 呼び出し側の Span は借り物なので、内部バッファへ複製して保持する
         this.columnCount = columns.Length;
@@ -231,6 +272,10 @@ public sealed class LayoutScope
                 break;
             }
         }
+
+        // 前にこのスコープを使った行の実測を引き継がない。プールから取り回すので、
+        // 消さないと識別子を渡していない行が別の行の幅を拾う
+        Array.Clear(this.autoWidths);
 
         this.ResolveColumns();
     }
@@ -297,6 +342,37 @@ public sealed class LayoutScope
         return this.AllocateHorizontal(size);
     }
 
+    /// <summary>
+    /// 入れ子のスコープが消費した大きさを取り込む。
+    /// </summary>
+    /// <param name="size">消費した大きさ。</param>
+    /// <param name="requestedWidth">
+    /// 中身が希望した幅 (余白を含む)。中身に合わせる窓のために、
+    /// 入れ子の中の希望を外側まで持ち上げる。
+    /// </param>
+    internal Rect AllocateChild(Vector2 size, float requestedWidth)
+    {
+        this.pendingRequestedWidth = requestedWidth;
+        return this.Allocate(size);
+    }
+
+    /// <summary>
+    /// この確保で希望幅として数える値。負なら実際の大きさを使う。
+    /// </summary>
+    private float pendingRequestedWidth = -1f;
+
+    /// <summary>中身が希望した範囲の右端 (絶対座標)。</summary>
+    private float requestedMaxX;
+
+    /// <summary>希望した幅を覚える。</summary>
+    private void NoteRequestedWidth(Rect rect, float actualWidth)
+    {
+        var wanted = this.pendingRequestedWidth >= 0f ? this.pendingRequestedWidth : actualWidth;
+        this.pendingRequestedWidth = -1f;
+
+        this.requestedMaxX = MathF.Max(this.requestedMaxX, rect.Min.X + wanted);
+    }
+
     /// <summary>幅の指定方法と高さを与えて領域を確保する。</summary>
     public Rect Allocate(SizeSpec width, float height)
     {
@@ -307,7 +383,14 @@ public sealed class LayoutScope
             // 列が宣言されている行では、要素の希望幅より列幅を優先する。
             // そうしないと中身の短い要素で列がずれてしまう
             var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
-            resolved = this.columnWidths[index];
+
+            // 内容に合わせる列だけは例外。ピクセル指定の希望幅を通し、
+            // それを実測として次のフレームへ渡す。列幅 (前の実測) で上書きすると、
+            // 実測が常に列幅と等しくなって内容にまったく追従しない。
+            // 比率や残り幅の指定は「列の中での割合」なので、列幅のまま扱う
+            resolved = this.columnBuffer[index].Mode == SizeMode.Auto && width.Mode == SizeMode.Fixed
+                ? width.Resolve(0f)
+                : this.columnWidths[index];
         }
         else
         {
@@ -316,6 +399,12 @@ public sealed class LayoutScope
                 : this.RemainingWidthForNext;
 
             resolved = width.Resolve(available);
+
+            // 中身に合わせる窓のために、頭打ちの前の希望幅を覚える。
+            // 残り幅・比率の指定は窓の幅から決まる値なので数えない
+            this.pendingRequestedWidth = width.Mode is SizeMode.Fill or SizeMode.Ratio
+                ? 0f
+                : resolved;
 
             // 使える幅を超えた固定幅は頭打ちにする。超えたままにすると、
             // 文字が領域の端で黙って切られ、省略記号もツールチップも出ないまま
@@ -336,6 +425,7 @@ public sealed class LayoutScope
         var rect = Rect.FromSize(this.Cursor, size);
         this.Cursor = new Vector2(this.Bounds.Min.X, rect.Max.Y);
 
+        this.NoteRequestedWidth(rect, size.X);
         this.Track(rect);
         this.SyncImGuiCursor();
         return rect;
@@ -344,6 +434,11 @@ public sealed class LayoutScope
     private Rect AllocateHorizontal(Vector2 size)
     {
         var columnWidth = 0f;
+
+        // 内容に合わせる列は、頭打ちの前の希望幅を実測として覚える。
+        // 頭打ちの後の幅を覚えると「実測 ≤ 列幅 ≤ 前の実測」になり、
+        // 値は減ることしかできない。初回は 0 なので 0 に張り付く
+        var requested = size.X;
 
         // 列を宣言した行では、列ぶんだけカーソルを進める。
         // ただし大きさを直接渡す部品 (札・アイコン・画像) は、内容どおりの形で
@@ -382,13 +477,17 @@ public sealed class LayoutScope
 
         var rect = Rect.FromSize(new Vector2(this.Cursor.X, this.Cursor.Y + offset), size);
 
-        // 内容に合わせる列のために、実際に使った幅を覚えておく
+        // 内容に合わせる列のために、使った幅を覚えておく。
+        // 内容に合わせる列だけは頭打ちの前の希望幅を使う (上のコメント参照)
         if (this.columnCount > 0)
         {
             var index = Math.Min(this.ColumnIndex, this.columnCount - 1);
 
             if (index < this.measuredWidths.Length)
-                this.measuredWidths[index] = MathF.Max(this.measuredWidths[index], size.X);
+            {
+                var measured = this.columnBuffer[index].Mode == SizeMode.Auto ? requested : size.X;
+                this.measuredWidths[index] = MathF.Max(this.measuredWidths[index], measured);
+            }
         }
 
         // カーソルは列ぶん進める。中身が列より狭くても、次の要素は次の列から始まる
@@ -399,6 +498,8 @@ public sealed class LayoutScope
         this.LineHeight = MathF.Max(this.LineHeight, baseline);
         this.ColumnIndex++;
 
+        // 列を宣言した行では、列ぶん進めた幅までを希望として数える
+        this.NoteRequestedWidth(rect, MathF.Max(advance, requested));
         this.Track(rect);
         this.SyncImGuiCursor();
         return rect;
@@ -413,7 +514,32 @@ public sealed class LayoutScope
     /// 逆方向 (生 ImGui が進めたカーソルへ合わせる) は
     /// <see cref="EUi.SyncFromImGui"/> を呼ぶ。
     /// </remarks>
-    private void SyncImGuiCursor() => ImGui.SetCursorScreenPos(this.Cursor);
+    private void SyncImGuiCursor()
+    {
+        if (SuppressImGuiSync)
+            return;
+
+        SetImGuiCursor(this.Cursor);
+    }
+
+    /// <summary>ImGui のカーソルを動かす。</summary>
+    /// <remarks>
+    /// 別のメソッドへ分けて差し込みを禁じている。呼び出し元へ展開されると、
+    /// 止めている場合でも JIT が ImGui のアセンブリを読もうとして、
+    /// ゲーム無しの自己検証が動かせない。
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void SetImGuiCursor(Vector2 position) => ImGui.SetCursorScreenPos(position);
+
+    /// <summary>
+    /// ImGui へのカーソル同期を止める。自己検証からレイアウトを直接動かすために使う。
+    /// </summary>
+    /// <remarks>
+    /// 「測った幅を次のフレームへ持ち越す」経路は、以前ここの ImGui 依存のために
+    /// 検証できず、内容に合わせる列が 0 幅のまま動かない不具合を見逃した。
+    /// ゲーム無しで通せるようにしておく。
+    /// </remarks>
+    internal static bool SuppressImGuiSync { get; set; }
 
     /// <summary>横並びのとき、次の行へ移る。</summary>
     public void NewLine()

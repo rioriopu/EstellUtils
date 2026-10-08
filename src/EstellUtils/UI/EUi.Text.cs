@@ -61,10 +61,15 @@ public static partial class EUi
         if (!Painter.IsVisible(rect))
             return MakeTextResult(ctx, rect);
 
-        // 確保できた幅に収まらなければ切られる。1px の丸め差では立てない
-        var truncated = size.X > rect.Width + 1f;
+        // 「切られたか」は描画側の判断をそのまま使う。ここで同じ判定を書き直すと、
+        // 丸め差の扱いが食い違って、文字は欠けているのにツールチップが出なくなる
+        var drawnTruncated = TextPainter.TextIn(
+            rect, color ?? Colors.Text, text, align, Align.Center, ellipsize);
 
-        TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize);
+        // 省略しない指定のときは描画側が切らないので、はみ出したかどうかで判断する
+        var truncated = ellipsize
+            ? drawnTruncated
+            : size.X > rect.Width + TextPainter.EllipsisTolerance;
 
         var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 
@@ -192,8 +197,8 @@ public static partial class EUi
         if (!Painter.IsVisible(rect))
             return MakeTextResult(ctx, rect);
 
-        var truncated = TextPainter.Measure(text).X > rect.Width + 1f;
-        TextPainter.TextIn(rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
+        var truncated = TextPainter.TextIn(
+            rect, color ?? Colors.Text, text, align, Align.Center, ellipsize: true);
 
         var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 

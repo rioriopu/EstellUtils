@@ -46,11 +46,13 @@ public static class ThemeManager
     /// <para>
     /// 丸ごとテーマを派生させると毎回 10 個ほど確保することになる。
     /// ここでは積む深さごとにテーマを使い回し、色だけを写すので、
-    /// 2 回目以降は確保が起きない。
+    /// その深さを 2 回目以降に使うときは確保が起きない
+    /// (深さごとに 1 つ、初回だけテーマを複製する)。
     /// </para>
     /// <para>
     /// 土台は常に今のテーマなので、ウィンドウ単位のテーマの中でも正しく効く。
-    /// 寸法・動き・描画担当は今のテーマのものをそのまま共有する。
+    /// 寸法・動き・描画担当・拡大率は今のテーマのものをそのまま共有するので、
+    /// スコープの中でも <c>Metrics</c> と <c>Scale</c> は外と一致する。
     /// </para>
     /// </remarks>
     public static ThemeScope PushColor(ThemeColor role, uint color)
@@ -68,11 +70,10 @@ public static class ThemeManager
 
         var overlay = ColorOverlays[depth];
 
-        // 寸法や動きは今のテーマのものを使う。色だけを写して差し替える
-        overlay.Name = current.Name;
-        overlay.SetMetrics(current.Metrics);
-        overlay.Motion.CopyFrom(current.Motion);
-        overlay.Painter = current.Painter;
+        // 寸法・動き・描画担当は今のテーマのものを共有する。色だけを写して差し替える。
+        // SetMetrics は拡大前の基準値を受け取る前提なので、ここで渡してはいけない。
+        // 拡大後の値を渡すと、拡大率がもう一度掛かる
+        overlay.ShareTokensFrom(current);
         overlay.Colors.CopyFrom(current.Colors);
 
         foreach (var (role, color) in overrides)

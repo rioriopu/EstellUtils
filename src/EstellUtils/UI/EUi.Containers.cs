@@ -372,6 +372,9 @@ public readonly struct SectionHandle : IDisposable
         var ctx = UiContext.Current;
         var consumed = ctx.Layout.Current?.ConsumedSize ?? Vector2.Zero;
 
+        // 起点はスコープを閉じる前に控える。閉じるとプールへ戻って読めなくなる
+        var origin = ctx.Layout.Current?.Origin ?? ctx.CursorScreenPos;
+
         // 実際に消費する高さは開閉の進み具合を掛けたもの。外側への申告は自分で行う
         ctx.Layout.Pop(commitToParent: false);
         this.clip.Dispose();
@@ -381,7 +384,7 @@ public readonly struct SectionHandle : IDisposable
 
         var height = consumed.Y * this.openAmount;
         if (height > 0.5f)
-            ctx.Allocate(new Vector2(consumed.X, height));
+            ctx.AllocateAt(origin, new Vector2(consumed.X, height));
     }
 }
 

@@ -368,6 +368,8 @@ EstellUtils の部品は ImGui に項目として登録されません。ImGui �
 そこで幅が決まってしまって縮まなくなります（ImGui の `SetNextItemWidth(-1)` と同じ性質）。
 `EUi.Label` のように内容幅で取る部品は縮みます。
 
+`EuWindow.AutoSize` では `Fill` を幅の計算に数えないので、この問題は起きません。
+
 なお、**中身に合わせて大きさが変わる窓なら `EuWindow.AutoSize` が使えます**。
 こちらなら上の 3 点を気にする必要はありません。
 

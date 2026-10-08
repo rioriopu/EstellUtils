@@ -19,6 +19,9 @@ public static partial class EUi
     /// <summary>Spacer の誤用をすでに知らせたか。毎フレーム出しても仕方がないので一度だけ。</summary>
     private static bool spacerMisuseReported;
 
+    /// <summary>識別子なしで内容に合わせる列を使ったことを、一度だけ知らせたか。</summary>
+    private static bool autoColumnMisuseReported;
+
     /// <summary>次の要素を配置できる領域。</summary>
     public static Rect AvailableRect => UiContext.Current.Layout.AvailableRect;
 
@@ -160,8 +163,24 @@ public static partial class EUi
             LayoutKind.Horizontal, ctx.Layout.AvailableRect, gap, columns, false,
             default, align, Metrics.WidgetHeight);
 
-        if (!scope.HasAutoColumn || id.IsEmpty)
+        if (!scope.HasAutoColumn)
             return new LayoutHandle(ctx.Layout);
+
+        // 覚える先が無いと Auto の列は 0 幅のまま。黙って消えるので一度だけ知らせる
+        if (id.IsEmpty)
+        {
+            if (!autoColumnMisuseReported)
+            {
+                autoColumnMisuseReported = true;
+
+                UiLog.Warning(
+                    "SizeSpec.Auto の列は、前のフレームに測った幅を覚える先が要ります。" +
+                    "EUi.Row(\"行の識別子\", align, ...) の形で識別子を渡してください。" +
+                    "識別子が無い間は 0 幅になります。");
+            }
+
+            return new LayoutHandle(ctx.Layout);
+        }
 
         // 内容に合わせる列は、前のフレームに測った幅を使う
         var rowId = ctx.GetId(id);

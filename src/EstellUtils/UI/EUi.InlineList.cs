@@ -116,7 +116,7 @@ public static partial class EUi
             var measured = MeasureInline(items.Length - (i + 1), countRemaining, gap);
 
             // 1 語目は必ず出す。全部消えると何の列なのか分からなくなる
-            if (measured > rect.Width + 1f && i > 0)
+            if (measured > rect.Width + TextPainter.EllipsisTolerance && i > 0)
             {
                 inlineLength = mark;
                 break;
@@ -131,9 +131,9 @@ public static partial class EUi
             AppendRemaining(hidden, countRemaining, gap);
 
         var text = inlineBuffer.AsSpan(0, inlineLength);
-        var truncated = hidden > 0 || TextPainter.Measure(text).X > rect.Width + 1f;
 
-        TextPainter.TextIn(rect, color ?? Colors.Text, text, Align.Start, Align.Center);
+        var truncated = TextPainter.TextIn(rect, color ?? Colors.Text, text, Align.Start, Align.Center)
+            || hidden > 0;
 
         var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 
@@ -167,7 +167,7 @@ public static partial class EUi
             var suffix = hiddenAfter > 0 ? MeasureRemaining(hiddenAfter, countRemaining, gap) : 0f;
 
             // 1 語目は必ず出す。全部消えると何の列なのか分からなくなる
-            if (i > 0 && used + needed + suffix > rect.Width + 1f)
+            if (i > 0 && used + needed + suffix > rect.Width + TextPainter.EllipsisTolerance)
                 break;
 
             used += needed;
@@ -194,9 +194,7 @@ public static partial class EUi
             var room = MathF.Max(0f, rect.Max.X - x);
             var labelWidth = MathF.Min(wanted, room);
 
-            clipped |= wanted > room + 1f;
-
-            TextPainter.TextIn(
+            clipped |= TextPainter.TextIn(
                 SliceAt(rect, x, labelWidth), color, items[i], Align.Start, Align.Center);
 
             x += labelWidth;

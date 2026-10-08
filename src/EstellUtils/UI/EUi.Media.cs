@@ -216,9 +216,7 @@ public static partial class EUi
             : color ?? (selected ? Colors.TextHeading : Colors.Text);
 
         var textRect = rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
-        var truncated = TextPainter.Measure(display).X > textRect.Width + 1f;
-
-        TextPainter.TextIn(textRect, textColor, display, Align.Start, Align.Center);
+        var truncated = TextPainter.TextIn(textRect, textColor, display, Align.Start, Align.Center);
 
         var result = WidgetResult.From(interaction) with { Truncated = truncated };
 
@@ -287,8 +285,8 @@ public static partial class EUi
 
         if (!hasDetail)
         {
-            var truncatedOnly = TextPainter.Measure(display).X > inner.Width + 1f;
-            TextPainter.TextIn(inner, textColor, display, Align.Start, Align.Center);
+            var truncatedOnly = TextPainter.TextIn(
+                inner, textColor, display, Align.Start, Align.Center);
 
             var single = WidgetResult.From(interaction) with { Truncated = truncatedOnly };
 
@@ -303,15 +301,11 @@ public static partial class EUi
         var lineHeight = TextPainter.LineHeight;
         var nameArea = inner.CutTop(MathF.Min(lineHeight, inner.Height), out var detailArea);
 
-        var truncated =
-            TextPainter.Measure(display).X > nameArea.Width + 1f
-            || TextPainter.Measure(detail).X > detailArea.Width + 1f;
-
-        TextPainter.TextIn(nameArea, textColor, display, Align.Start, Align.Center);
+        var truncated = TextPainter.TextIn(nameArea, textColor, display, Align.Start, Align.Center);
 
         if (detailArea.Height > 1f)
         {
-            TextPainter.TextIn(
+            truncated |= TextPainter.TextIn(
                 detailArea,
                 disabled ? Colors.TextDisabled : detailColor ?? Colors.TextMuted,
                 detail, Align.Start, Align.Center);

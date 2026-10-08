@@ -6,6 +6,8 @@ using EstellUtils.UI;
 using EstellUtils.UI.Core;
 using EstellUtils.UI.Layout;
 using EstellUtils.UI.Render;
+using EstellUtils.UI.Theming;
+using EstellUtils.UI.Theming.Presets;
 
 namespace EstellUtils.SelfCheck;
 
@@ -39,6 +41,9 @@ internal static class Program
         CheckCrossAlign();
         CheckColumnLayout();
         CheckColumnMinimums();
+        CheckThemeOverlay();
+        CheckAutoColumnCarryOver();
+        CheckAutoSizeMeasure();
         CheckTabWrapping();
         CheckDropdownPlacement();
 
@@ -474,6 +479,212 @@ internal static class Program
         wide.Fill(500f);
 
         Expect(EUi.CountRows(wide, 100f, Gap) == 3, "1 枚ずつ 3 行にならない");
+    }
+
+    /// <summary>
+    /// 内容に合わせる列が、測った幅を次のフレームへ持ち越すことの検証。
+    /// </summary>
+    /// <remarks>
+    /// 以前は頭打ちの後の幅を実測として記録していたため、
+    /// 「実測 ≤ 列幅 ≤ 前の実測」となって値が増えることができず、
+    /// 初回の 0 幅から何フレーム経っても広がらなかった。
+    /// ColumnLayout へ値を直接渡す検証だけでは通ってしまうので、
+    /// LayoutScope を通した持ち越しをそのまま回す。
+    /// </remarks>
+    private static void CheckAutoColumnCarryOver()
+    {
+        // ImGui へのカーソル同期だけを止める。配分と実測の記録はそのまま動かす
+        LayoutScope.SuppressImGuiSync = true;
+
+        try
+        {
+            var scope = new LayoutScope();
+            var bounds = Rect.FromSize(0f, 0f, 400f, 24f);
+            var carried = new float[8];
+
+            // 1 フレーム分を回す。幅 width の部品を Auto 列へ、残りを Fill 列へ置く
+            float Frame(float width)
+            {
+                scope.Reset(
+                    LayoutKind.Horizontal, bounds, new Vector2(8f, 0f),
+                    [SizeSpec.Auto, SizeSpec.Fill], false, default, Align.Center, 24f);
+
+                scope.SetAutoWidths(carried);
+
+                var autoRect = scope.Allocate(SizeSpec.Px(width), 16f);
+                scope.Allocate(SizeSpec.Fill, 24f);
+
+                scope.MeasuredColumnWidths.CopyTo(carried);
+
+                return autoRect.Width;
+            }
+
+            // 初回は持ち越しが無いので 0 幅。ここは以前と同じ
+            Expect(Frame(80f) == 0f, "初回の Auto 列が 0 幅になっていない");
+
+            // 2 フレーム目には測った幅が届く
+            Expect(
+                MathF.Abs(Frame(80f) - 80f) < 0.01f,
+                $"2 フレーム目の Auto 列が内容幅になっていない: {Frame(80f)}");
+
+            // 内容が広がれば追従する
+            Frame(120f);
+            Expect(MathF.Abs(Frame(120f) - 120f) < 0.01f, "Auto 列が広がらない");
+
+            // 内容が縮んでも追従する
+            Frame(50f);
+            Expect(MathF.Abs(Frame(50f) - 50f) < 0.01f, "Auto 列が縮まない");
+
+            // 行に入りきらない内容は、はみ出す代わりに縮む
+            Frame(900f);
+            var huge = Frame(900f);
+
+            Expect(huge <= 400f + 0.01f, $"Auto 列が行からはみ出している: {huge}");
+            Expect(huge > 0f, "入りきらない Auto 列が消えている");
+
+            // プールから使い回しても、前の行の実測を引き継がない
+            scope.Reset(
+                LayoutKind.Horizontal, bounds, new Vector2(8f, 0f),
+                [SizeSpec.Auto, SizeSpec.Fill], false, default, Align.Center, 24f);
+
+            var fresh = scope.Allocate(SizeSpec.Px(80f), 16f);
+
+            Expect(fresh.Width == 0f, "使い回したスコープが前の行の幅を引き継いでいる");
+        }
+        finally
+        {
+            LayoutScope.SuppressImGuiSync = false;
+        }
+    }
+
+    /// <summary>
+    /// 中身に合わせる窓が使う計測値の検証。
+    /// </summary>
+    /// <remarks>
+    /// 以前は余白を含む <c>ConsumedSize</c> を測った値として使い、
+    /// そこへもう一度余白を足していた。余白 1 つ分だけ窓が大きくなり、
+    /// 横幅いっぱいを取る部品があると毎フレーム広がって上限まで止まらなかった。
+    /// </remarks>
+    private static void CheckAutoSizeMeasure()
+    {
+        LayoutScope.SuppressImGuiSync = true;
+
+        try
+        {
+            var scope = new LayoutScope();
+            var padding = EdgeInsets.All(14f);
+            var bounds = Rect.FromSize(0f, 0f, 400f, 300f);
+
+            // 余白つきの縦積みへ、幅 60 の部品を 1 つ置く
+            scope.Reset(LayoutKind.Vertical, bounds, new Vector2(0f, 4f), default, false, padding);
+            scope.Allocate(SizeSpec.Px(60f), 16f);
+
+            Expect(
+                MathF.Abs(scope.ContentSize.X - 60f) < 0.01f,
+                $"中身の幅に余白が入っている: {scope.ContentSize.X}");
+
+            Expect(
+                MathF.Abs(scope.ConsumedSize.X - (60f + padding.TotalHorizontal)) < 0.01f,
+                "消費した幅に余白が入っていない");
+
+            Expect(
+                MathF.Abs(scope.RequestedContentWidth - 60f) < 0.01f,
+                "希望した幅が内容幅になっていない");
+
+            // 横幅いっぱいを取る部品は希望幅に数えない。
+            // 数えると「窓が広がる → 希望も広がる」で止まらなくなる
+            scope.Reset(LayoutKind.Vertical, bounds, new Vector2(0f, 4f), default, false, padding);
+            scope.Allocate(SizeSpec.Fill, 2f);
+
+            Expect(
+                scope.RequestedContentWidth == 0f,
+                $"残り幅の指定を希望幅に数えている: {scope.RequestedContentWidth}");
+
+            // 窓の幅より長い部品は、描く幅は切られても希望幅には本来の幅が残る
+            scope.Reset(LayoutKind.Vertical, bounds, new Vector2(0f, 4f), default, false, padding);
+
+            var clipped = scope.Allocate(SizeSpec.Px(900f), 16f);
+
+            Expect(clipped.Width <= bounds.Width + 0.01f, "描く幅が領域からはみ出している");
+            Expect(
+                MathF.Abs(scope.RequestedContentWidth - 900f) < 0.01f,
+                $"切られた部品の本来の幅が残っていない: {scope.RequestedContentWidth}");
+        }
+        finally
+        {
+            LayoutScope.SuppressImGuiSync = false;
+        }
+    }
+
+    /// <summary>
+    /// 1 色だけ差し替えて積んだときの、寸法と拡大率の検証。
+    /// </summary>
+    /// <remarks>
+    /// 以前は拡大後の寸法を「拡大前の基準値」として渡していたため、
+    /// スコープの中だけ寸法が二重に拡大されていた (拡大率 1.5 で高さが 36 ではなく 54)。
+    /// 画面でしか気づけないので、ここで確かめる。
+    /// </remarks>
+    private static void CheckThemeOverlay()
+    {
+        var theme = XivNativeTheme.Create();
+        theme.Scale = 1.5f;
+        ThemeManager.SetDefault(theme);
+
+        var outsideHeight = ThemeManager.Current.Metrics.WidgetHeight;
+        var outsideScale = ThemeManager.Current.Scale;
+
+        using (ThemeManager.PushColor(ThemeColor.TextHeading, 0xFF0000FFu))
+        {
+            Expect(
+                MathF.Abs(ThemeManager.Current.Metrics.WidgetHeight - outsideHeight) < 0.01f,
+                $"色を差し替えた中で寸法が変わっている: {ThemeManager.Current.Metrics.WidgetHeight} != {outsideHeight}");
+
+            Expect(
+                MathF.Abs(ThemeManager.Current.Scale - outsideScale) < 0.001f,
+                "色を差し替えた中で拡大率が変わっている");
+
+            Expect(
+                ThemeManager.Current.Colors[ThemeColor.TextHeading] == 0xFF0000FFu,
+                "差し替えた色が効いていない");
+        }
+
+        Expect(
+            MathF.Abs(ThemeManager.Current.Metrics.WidgetHeight - outsideHeight) < 0.01f,
+            "抜けたあとに寸法が戻っていない");
+
+        // 拡大率を下げても、スコープの中が追従すること
+        theme.Scale = 1f;
+
+        var lowered = ThemeManager.Current.Metrics.WidgetHeight;
+
+        using (ThemeManager.PushColor(ThemeColor.TextHeading, 0xFF00FF00u))
+        {
+            Expect(
+                MathF.Abs(ThemeManager.Current.Metrics.WidgetHeight - lowered) < 0.01f,
+                "拡大率を下げたのにスコープの中が追従していない");
+
+            Expect(
+                MathF.Abs(ThemeManager.Current.Scale - 1f) < 0.001f,
+                "スコープの中の拡大率が古いまま残っている");
+        }
+
+        // 同じ深さを 2 回目以降に使うときは確保が起きないこと
+        using (ThemeManager.PushColor(ThemeColor.Text, 0xFFFFFFFFu))
+        {
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (var i = 0; i < 16; i++)
+        {
+            using (ThemeManager.PushColor(ThemeColor.Text, 0xFFFFFFFFu))
+            {
+            }
+        }
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Expect(allocated == 0L, $"色の差し替えで {allocated} バイト確保している");
     }
 
     /// <summary>

@@ -48,6 +48,9 @@ public abstract class EuWindow
 
     /// <summary>前のフレームに測った中身の大きさ。</summary>
     private Vector2 measuredContent;
+
+    /// <summary>前のフレームに中身が希望した幅。窓の幅で切られる前の値。</summary>
+    private float requestedContentWidth;
     private bool placed;
     private bool resizing;
     private Vector2 animatedSize;
@@ -329,14 +332,25 @@ public abstract class EuWindow
     /// </para>
     /// <para>
     /// 有効な間は送り領域とリサイズグリップを出さない。
-    /// また <see cref="SizeSpec.Fill"/> で幅を取る部品があると、
-    /// そこで幅が決まってしまって縮まなくなる (ImGui の -1 幅と同じ性質)。
+    /// </para>
+    /// <para>
+    /// 幅は「中身が希望した幅」で決める。<see cref="SizeSpec.Fill"/> や
+    /// <c>SizeSpec.Ratio</c> で幅を取る部品は窓の幅から決まる値なので数えない。
+    /// そのため、区切り線のように横幅いっぱいを取る部品があっても窓は広がらないが、
+    /// 逆にそれだけを置いた窓は幅が決まらないので、<see cref="MinSize"/> の幅になる。
+    /// </para>
+    /// <para>
+    /// 小さな常駐窓では、既定の <see cref="MinSize"/> (220x120) が下限として効く。
+    /// もっと小さくしたい場合は <see cref="MinSize"/> を下げる。
     /// </para>
     /// </remarks>
     public WindowAutoSize AutoSize { get; set; } = WindowAutoSize.None;
 
     /// <summary>前のフレームに測った中身の大きさ。余白は含まない。</summary>
     public Vector2 LastContentSize => this.measuredContent;
+
+    /// <summary>前のフレームに中身が希望した幅。窓の幅で切られる前の値。余白は含まない。</summary>
+    public float LastRequestedContentWidth => this.requestedContentWidth;
 
     /// <summary>
     /// 次に描かれるとき、このウィンドウを手前へ出す。
@@ -485,8 +499,15 @@ public abstract class EuWindow
         {
             var padding = this.Padding ?? EUi.Metrics.WindowPadding;
 
+            // 幅は「希望した幅」で決める。測った幅は窓の幅で頭打ちになっているので、
+            // そのまま使うと長い文字があっても広がれない。
+            // 希望幅には残り幅・比率の指定が入らないので、広がり続けることもない
+            var contentWidth = this.requestedContentWidth > 0f
+                ? this.requestedContentWidth
+                : this.measuredContent.X;
+
             var wanted = new Vector2(
-                this.measuredContent.X + padding.TotalHorizontal,
+                contentWidth + padding.TotalHorizontal,
                 this.measuredContent.Y + padding.TotalVertical + this.TitleBarHeight());
 
             var size = new Vector2(
@@ -607,8 +628,13 @@ public abstract class EuWindow
                 {
                     this.Draw();
 
-                    // 次のフレームの大きさを決めるために、中身を測っておく
-                    this.measuredContent = EUi.Context.Layout.Current?.ConsumedSize ?? Vector2.Zero;
+                    // 次のフレームの大きさを決めるために、中身を測っておく。
+                    // 余白は ResolveTargetSize で足すので、ここでは含めない値を取る。
+                    // ConsumedSize を使うと余白が二重に入り、窓が広がり続ける
+                    var scope = EUi.Context.Layout.Current;
+
+                    this.measuredContent = scope?.ContentSize ?? Vector2.Zero;
+                    this.requestedContentWidth = scope?.RequestedContentWidth ?? 0f;
                 }
             }
         }

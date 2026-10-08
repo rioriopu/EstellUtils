@@ -125,7 +125,7 @@ public static partial class EUi
         }
 
         ctx.Layout.Pop(commitToParent: false);
-        ctx.Allocate(rowRect.Size);
+        ctx.AllocateAt(rowRect.Min, rowRect.Size);
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
 
@@ -590,7 +590,7 @@ public static partial class EUi
         }
 
         ctx.Layout.Pop(commitToParent: false);
-        ctx.Allocate(rowRect.Size);
+        ctx.AllocateAt(rowRect.Min, rowRect.Size);
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
 
@@ -656,9 +656,9 @@ public static partial class EUi
         var rect = ctx.Allocate(SizeSpec.Fill, height);
 
         var textRect = rect.Shrink(EdgeInsets.Horizontal(Metrics.SpacingSm));
-        var truncated = TextPainter.Measure(text).X > textRect.Width + 1f;
 
-        TextPainter.TextIn(textRect, color ?? Colors.Text, text, resolvedAlign, Align.Center);
+        var truncated = TextPainter.TextIn(
+            textRect, color ?? Colors.Text, text, resolvedAlign, Align.Center);
 
         var result = MakeTextResult(ctx, rect) with { Truncated = truncated };
 
@@ -758,7 +758,7 @@ public readonly struct TableRowHandle : IDisposable
 
         // 行の高さは固定なので、レイアウトの実測ではなく行矩形の分を消費させる
         ctx.Layout.Pop(commitToParent: false);
-        ctx.Allocate(this.rowRect.Size);
+        ctx.AllocateAt(this.rowRect.Min, this.rowRect.Size);
 
         if (!this.autoHeight)
             return;

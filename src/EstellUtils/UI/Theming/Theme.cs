@@ -83,6 +83,46 @@ public sealed class Theme
         this.Metrics = metrics.Scaled(this.scale);
     }
 
+    /// <summary>
+    /// 寸法・動き・描画担当・追加トークンを、今のテーマから写し取る。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 1 色だけ差し替えて積むときに使う。<see cref="SetMetrics"/> は
+    /// 「拡大前の基準値」を受け取る前提なので、拡大後の <see cref="Metrics"/> を渡すと
+    /// もう一度拡大率が掛かる (拡大率 1.5 でウィジェット高さが 36 ではなく 54 になる)。
+    /// ここでは基準値と拡大率ごと受け継ぐので、二重には掛からない。
+    /// </para>
+    /// <para>
+    /// 寸法・動き・描画担当は参照をそのまま共有する。写しを作らないので確保が起きない。
+    /// 追加トークンだけは入れ物を使い回して詰め直す (容量が足りていれば確保されない)。
+    /// </para>
+    /// </remarks>
+    internal void ShareTokensFrom(Theme source)
+    {
+        this.Name = source.Name;
+        this.baseMetrics = source.baseMetrics;
+        this.Metrics = source.Metrics;
+        this.scale = source.scale;
+        this.Motion = source.Motion;
+        this.Painter = source.Painter;
+
+        CopyCustom(this.CustomColors, source.CustomColors);
+        CopyCustom(this.CustomMetrics, source.CustomMetrics);
+    }
+
+    /// <summary>追加トークンを詰め直す。どちらも空なら何もしない。</summary>
+    private static void CopyCustom<T>(Dictionary<string, T> target, Dictionary<string, T> source)
+    {
+        if (target.Count == 0 && source.Count == 0)
+            return;
+
+        target.Clear();
+
+        foreach (var pair in source)
+            target[pair.Key] = pair.Value;
+    }
+
     /// <summary>追加の色トークンを引く。未登録なら <paramref name="fallback"/> を返す。</summary>
     public uint Color(string key, uint fallback)
         => this.CustomColors.TryGetValue(key, out var value) ? value : fallback;

@@ -48,9 +48,13 @@ public static partial class EUi
         // 選んだタブは利用者の意図なので、別のタブを見ている間も覚えておく
         ref var before = ref ctx.Store.GetPersistentRef(euId);
 
-        // 覚えているのは「どのタブか」。番号だけだと、条件でタブが増減したときに
-        // 同じ番号にある別のタブへ移ってしまう
-        var selected = ResolveSelected(before, labels);
+        // SelectTab で外から番号の要求があればそちらを採る。
+        // 覚えている「どのタブか」を先に見てしまうと、前のフレームに書いた鍵が
+        // 必ず一致するので、要求が黙って捨てられる
+        var selected = before.SelectionRequested
+            ? Math.Clamp(before.SelectedIndex, 0, labels.Length - 1)
+            : ResolveSelected(before, labels);
+
         ApplyPendingLabel(euId, ref selected, labels);
 
         var result = DrawTabBar(ctx, euId, ref selected, labels);
@@ -130,7 +134,8 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
-        ref var state = ref ctx.Store.GetRef(ctx.GetId(id));
+        // タブバーと同じ入れ物を使う。別のタブを見ている間も要求を落とさない
+        ref var state = ref ctx.Store.GetPersistentRef(ctx.GetId(id));
         state.SelectedIndex = Math.Max(0, index);
         state.SelectionRequested = true;
     }

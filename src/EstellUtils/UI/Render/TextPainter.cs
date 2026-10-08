@@ -180,27 +180,56 @@ public static class TextPainter
     /// <param name="horizontal">横方向の寄せ。</param>
     /// <param name="vertical">縦方向の寄せ。</param>
     /// <param name="ellipsize">収まらないときに末尾を省略記号へ置き換えるか。</param>
-    public static void TextIn(
+    /// <returns>末尾を省略記号に置き換えたら true。</returns>
+    /// <remarks>
+    /// 「省略したか」を返すのは、呼び出し側が同じ判定を書き直さなくて済むようにするため。
+    /// 判定を 2 か所に持つと、丸め差の扱いが食い違って
+    /// 「文字は切られているのにツールチップが出ない」という形で表に出る。
+    /// </remarks>
+    public static bool TextIn(
         Rect rect, uint color, ReadOnlySpan<char> text,
         Align horizontal = Align.Start, Align vertical = Align.Center, bool ellipsize = true)
     {
-        if (text.IsEmpty || rect.IsEmpty || (color >> 24) == 0 || !Painter.IsVisible(rect))
-            return;
+        if (text.IsEmpty || (color >> 24) == 0)
+            return false;
+
+        // 幅が無ければ、文字があるのに何も描けていない。切られた扱いにする
+        if (rect.IsEmpty)
+            return ellipsize;
+
+        if (!Painter.IsVisible(rect))
+            return false;
 
         var size = Measure(text);
 
-        if (ellipsize && size.X > rect.Width)
+        if (ellipsize && size.X > rect.Width + EllipsisTolerance)
         {
             var truncated = Truncate(text, rect.Width);
             size = Measure(truncated);
             var pos = PlaceText(rect, size, horizontal, vertical);
             Text(pos, color, truncated);
-            return;
+            return true;
         }
 
         var position = PlaceText(rect, size, horizontal, vertical);
         Text(position, color, text);
+        return false;
     }
+
+    /// <summary>
+    /// 省略するかどうかを決めるときの許容差。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 矩形の幅は <c>Max.X - Min.X</c> で求めるため、座標に端数があると
+    /// 実測幅より 0.0001px ほど狭くなることがある (float の丸め)。
+    /// 許容差を入れないと、文字幅ちょうどで確保した領域なのに末尾が欠ける。
+    /// </para>
+    /// <para>
+    /// 文字の幅は整数へ切り上げられるので、0.5px の許容差で本当の不足を取りこぼすことはない。
+    /// </para>
+    /// </remarks>
+    public const float EllipsisTolerance = 0.5f;
 
     /// <summary>矩形の中で折り返しながらテキストを描き、実際に使った高さを返す。</summary>
     public static float TextWrappedIn(Rect rect, uint color, ReadOnlySpan<char> text)
@@ -222,7 +251,7 @@ public static class TextPainter
         if (text.IsEmpty || maxWidth <= 0f)
             return ReadOnlySpan<char>.Empty;
 
-        if (Measure(text).X <= maxWidth)
+        if (Measure(text).X <= maxWidth + EllipsisTolerance)
             return text;
 
         var ellipsisWidth = Measure(Ellipsis).X;
