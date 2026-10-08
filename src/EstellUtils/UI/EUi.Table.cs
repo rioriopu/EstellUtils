@@ -112,12 +112,18 @@ public static partial class EUi
     /// 見出しや追加用の行だけ縞を外したいときに指定する。
     /// </param>
     /// <param name="hoverable">
-    /// 行全体を押せるようにするか。true にすると、乗せたときに薄く光り、
-    /// <c>Result</c> からクリックや右クリックを受け取れる。
+    /// 行全体に反応させるか。true にすると、乗せたときに薄く光り、
+    /// <c>Result</c> から右クリックを受け取れる。
+    /// 左ボタンでは掴まないので、行の中に置いた部品はそのまま押せる。
+    /// </param>
+    /// <param name="clickable">
+    /// 行全体を左クリックでも押せるようにするか。
+    /// <b>行の中に押せる部品がある場合は使わないこと。</b>
+    /// 行が先に操作を掴むため、中の部品が押せなくなる。
     /// </param>
     public static TableRowHandle TableRow(
         ReadOnlySpan<TableColumn> columns, int index, float? height = null, bool selected = false,
-        bool? striped = null, bool hoverable = false)
+        bool? striped = null, bool hoverable = false, bool clickable = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -137,16 +143,23 @@ public static partial class EUi
         var available = ctx.Layout.AvailableRect;
         var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
 
-        // 行全体を押せるようにする場合は、ここで判定しておく
-        var interaction = hoverable
-            ? Interaction.Behavior(rowRect, rowId.Child("row"), InteractionFlags.AllowRightClick)
+        // 行全体の判定。乗せたことと右クリックだけなら、左ボタンでは掴まない。
+        // 掴むと、行は中の部品より先に判定されるので、中のボタンやチェックが
+        // 「他が操作中」と見なされて押せなくなる
+        var rowFlags = InteractionFlags.AllowRightClick;
+
+        if (!clickable)
+            rowFlags |= InteractionFlags.NoCapture;
+
+        var interaction = hoverable || clickable
+            ? Interaction.Behavior(rowRect, rowId.Child("row"), rowFlags)
             : default;
 
         if (selected)
         {
             Painter.Rect(rowRect, Colors.Selection);
         }
-        else if (hoverable && interaction.HoverAmount > 0.01f)
+        else if ((hoverable || clickable) && interaction.HoverAmount > 0.01f)
         {
             // 押せる行だと分かるよう、乗せたときに薄く光らせる
             Painter.Rect(

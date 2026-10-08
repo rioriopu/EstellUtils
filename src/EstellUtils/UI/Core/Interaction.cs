@@ -22,6 +22,15 @@ public enum InteractionFlags
     AllowRightClick = 1 << 3,
 
     /// <summary>
+    /// 左ボタンで操作を掴まない。乗せたことと右クリックだけを見る。
+    /// </summary>
+    /// <remarks>
+    /// 中に別の部品を置く枠 (表の行など) に使う。掴んでしまうと、
+    /// 中のボタンやチェックが「他が操作中」と見なされて押せなくなる。
+    /// </remarks>
+    NoCapture = 1 << 5,
+
+    /// <summary>
     /// 押下中に矩形の外へ出てもクリックを成立させる。スライダーのつまみのように
     /// 掴んだまま動かす操作で使う。
     /// </summary>
@@ -154,7 +163,11 @@ public static class Interaction
 
         if (!disabled)
         {
-            if (hovered && input.IsPressed(MouseButton.Left))
+            // 掴まない指定のときは ActiveId を取らない。
+            // 取ると、同じ場所にある中の部品が押せなくなる
+            var captures = (flags & InteractionFlags.NoCapture) == 0;
+
+            if (hovered && captures && input.IsPressed(MouseButton.Left))
             {
                 ctx.SetActiveId(id);
                 isActive = true;

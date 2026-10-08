@@ -116,6 +116,7 @@ EUi.Note(text, NoteKind.Warning, boxed: false);          // WrapColored と同�
 | `EUi.Button(label, style, width, disabled)` | `Normal` / `Primary` / `Danger` / `Ghost` / `Link` |
 | `EUi.SmallButton(label, style, width, disabled)` | 行の中へ小さく収める。`ImGui.SmallButton` の置き換え |
 | `ButtonStyle.Prominent` | 最も押してほしい操作。大きめの文字と明るい枠 |
+| `ButtonStyle.ProminentDanger` | `Prominent` の赤い版。「開始」と「停止」を同じ大きさで並べるときに |
 | `EUi.ButtonAt(id, rect, label, style, disabled)` | 矩形を指定して描く。高さも自由 |
 | `EUi.ButtonWidth(label)` | ラベルに合わせた幅。行を自分で配るときに |
 | `EUi.IconButton(icon, id, style, disabled)` | FontAwesome の文字を渡す正方形ボタン |
@@ -453,6 +454,17 @@ using (var p = EUi.Popup("rename", new Vector2(280f, 120f)))      // ループ�
 ```
 
 項目の多い一覧を入れる場合は `scroll: true` を渡すと、中身が送り領域で包まれます。
+
+`popup.JustOpened` は開いたフレームだけ true になります。開くたびに絞り込みの欄を空にする、
+といった初期化はここで行ってください（開くボタンの側で消す必要はありません）。
+
+```csharp
+using (var popup = EUi.Popup("add", new Vector2(300f, 220f)))
+{
+    if (popup.JustOpened) this.filter = string.Empty;
+    EUi.TextInput("絞り込み", ref this.filter, 64);
+}
+```
 
 確認ダイアログは外側をクリックしても閉じません。Esc で取り消しになります。
 背後を暗く覆いたい場合は `dimBackground: true` を渡します（既定は覆いません）。
@@ -902,6 +914,11 @@ switch (EUi.ContextMenu("rowMenu", row.Result, "コピー", "削除"))
     case 1: Delete(item); break;
 }
 ```
+
+`hoverable: true` は**左クリックを奪いません**。行の中のチェックやボタン、
+小窓を開くボタンはそのまま押せます。行そのものを左クリックで選ばせたい場合は
+`clickable: true` を渡してください（この場合は行が左クリックを掴むため、
+中の部品とは競合します）。
 
 縞を外したい行には `striped: false` を渡します（追加用の行や一括操作の行など）。
 

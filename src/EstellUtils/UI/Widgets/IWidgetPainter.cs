@@ -49,6 +49,14 @@ public enum ButtonStyle
     /// </summary>
     Prominent,
 
+    /// <summary>
+    /// 最も目を引かせたい、取り消しの効かない操作。<see cref="Prominent"/> の赤い版。
+    /// </summary>
+    /// <remarks>
+    /// 「開始」と「停止」のように、同じ大きさで並べたい組に使う。
+    /// </remarks>
+    ProminentDanger,
+
     /// <summary>枠と地を持たない。ホバー時だけ薄く反応する。</summary>
     Ghost,
 

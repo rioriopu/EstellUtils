@@ -48,7 +48,7 @@ public static partial class EUi
         var textSize = TextPainter.Measure(display);
 
         var resolvedHeight = height
-            ?? (style == ButtonStyle.Prominent
+            ?? (style is ButtonStyle.Prominent or ButtonStyle.ProminentDanger
                 ? Metrics.WidgetHeight * 1.35f
                 : MathF.Max(Metrics.WidgetHeight, textSize.Y + Metrics.WidgetPadding.TotalVertical));
 
@@ -59,7 +59,7 @@ public static partial class EUi
         var visual = WidgetVisual.From(interaction) with { TextAlign = textAlign };
 
         // 最も押してほしいボタンは文字も大きくする
-        if (style == ButtonStyle.Prominent)
+        if (style is ButtonStyle.Prominent or ButtonStyle.ProminentDanger)
         {
             using var font = PushFont(FontRole.Large);
             WidgetPainter.DrawButton(visual, display, style);

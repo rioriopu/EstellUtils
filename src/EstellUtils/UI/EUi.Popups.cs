@@ -180,12 +180,14 @@ public static partial class EUi
         var inset = padding ?? EdgeInsets.All(Metrics.SpacingSm);
         var region = Region(rect, inset);
 
+        var justOpened = ImGui.IsWindowAppearing();
+
         if (!scroll)
-            return new PopupScope(region, clip, rect);
+            return new PopupScope(region, clip, rect, justOpened);
 
         // 中身がはみ出す一覧を入れる場合は、送りで包む
         var area = Scroll(id + "##euPopupScroll", rect.Height - inset.TotalVertical);
-        return new PopupScope(region, clip, rect, area);
+        return new PopupScope(region, clip, rect, justOpened, area);
     }
 
     /// <summary>
@@ -668,23 +670,26 @@ public readonly struct PopupScope : IDisposable
     private readonly bool hasScroll;
     private readonly bool open;
 
-    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect)
+    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect, bool justOpened)
     {
         this.region = region;
         this.clip = clip;
         this.scroll = default;
         this.hasScroll = false;
         this.Rect = rect;
+        this.JustOpened = justOpened;
         this.open = true;
     }
 
-    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect, ScrollHandle scroll)
+    internal PopupScope(
+        LayoutHandle region, ClipScope clip, Rect rect, bool justOpened, ScrollHandle scroll)
     {
         this.region = region;
         this.clip = clip;
         this.scroll = scroll;
         this.hasScroll = true;
         this.Rect = rect;
+        this.JustOpened = justOpened;
         this.open = true;
     }
 
@@ -693,6 +698,14 @@ public readonly struct PopupScope : IDisposable
 
     /// <summary>ポップアップ全体の矩形。</summary>
     public Rect Rect { get; }
+
+    /// <summary>
+    /// このフレームで開いたか。
+    /// </summary>
+    /// <remarks>
+    /// 開くたびに入力欄を空にする、といった初期化に使う。
+    /// </remarks>
+    public bool JustOpened { get; }
 
     /// <inheritdoc/>
     public void Dispose()

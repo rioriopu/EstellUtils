@@ -259,6 +259,15 @@ public sealed class GalleryWindow : EuWindow
                 EUi.Toast("実行しました", "ボタンが押されたので処理を行いました。", NoteKind.Success);
         }
 
+        // 目立たせる 2 つは、押せるときと押せないときを並べて見比べられるようにする
+        using (EUi.HStack())
+        {
+            EUi.Button("開始", ButtonStyle.Prominent).Tip("ButtonStyle.Prominent");
+            EUi.Button("停止", ButtonStyle.ProminentDanger).Tip("ButtonStyle.ProminentDanger");
+            EUi.Button("開始##pd", ButtonStyle.Prominent, null, true);
+            EUi.Button("停止##pdd", ButtonStyle.ProminentDanger, null, true);
+        }
+
         EUi.Separator("切り替え");
 
         using (EUi.HStack(16f))
