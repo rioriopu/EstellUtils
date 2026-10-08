@@ -197,7 +197,8 @@ EUi.SliderFloat("明るさ", ref v, 0f, 0.2f, decimals: 3);   // 名前付きで
 | `EUi.ComboBody(label, preview, width, listHeight, disabled)` | 一覧の中身を自分で描くドロップダウン |
 | `EUi.SelectableRow(id, selected, height, disabled)` | 中身を自分で描く選択行 |
 | `EUi.SortableTableHeader(id, columns, ref sort, …)` | 押して並べ替えられる見出し |
-| `EUi.InlineList(items, width, color, separator)` | 語を区切りで並べ、入らない分を「他 N」に |
+| `EUi.InlineList(items, …, prefixWidth, drawPrefix)` | 語を区切りで並べ、入らない分を「他 N」に |
+| `EUi.ImageAt(texture, rect, tint)` | 矩形を指定して絵を描く。場所は消費しない |
 | `EUi.SkipCell()` | セルを 1 つ飛ばす |
 | `EUi.Place(width, height, horizontal, …)` | 場所を取ってから中へ並べる |
 | `EUi.ColorEdit(id, ref color, showAlpha, width)` | 色見本 + 自前のカラーピッカー |
@@ -1059,6 +1060,11 @@ foreach (…)
 境をダブルクリックすると、その列だけ宣言した幅へ戻ります。
 `Reset()` で全部まとめて戻せます。
 
+**`onResized` はつまみを離したときに 1 回だけ呼ばれます。** 動かしている間は呼ばれないので、
+そのまま設定の保存をつないで構いません（呼び出し側で間を置く必要はありません）。
+ダブルクリックで戻したときも 1 回だけ呼ばれます。
+戻り値は動かしている間も true になるので、幅に合わせて何かを作り直したい場合はこちらを見ます。
+
 変えた幅は `Widths`（列番号 → px）に入るだけなので、Newtonsoft.Json でも
 System.Text.Json でもそのまま保存できます。
 
@@ -1105,6 +1111,26 @@ using (EUi.Cell())
 
 区切りは `separator`、「他 N」ではなく省略記号だけにしたい場合は
 `countRemaining: false` を渡します。
+
+各語の前に絵を添えたい場合は `prefixWidth` と `drawPrefix` を渡します。
+**絵の出所はライブラリでは決めないので、描くのは呼び出し側です。**
+入る語の数は絵の幅も含めて決まります。
+
+```csharp
+using (EUi.Cell())
+{
+    EUi.InlineList(
+        row.DropNames, prefixWidth: 20f,
+        drawPrefix: (i, area) => EUi.ImageAt(row.DropIcons[i], area.Shrink(2f)));
+}
+```
+
+`prefixWidth` は絵と名前の間の空きも含めた幅です。渡した矩形の中をどう使うかは
+呼び出し側の自由なので、余白は `Shrink` で取ってください。
+`EUi.ImageAt(texture, rect)` は矩形を指定して絵を描くだけで、場所は消費しません。
+
+**`drawPrefix` にラムダを渡すと毎フレーム確保が起きます。** 行数の多い表では、
+閉じ込める変数を 1 つにまとめるなどして抑えてください。
 
 ### 折り返す列
 

@@ -38,6 +38,23 @@ public static partial class EUi
         return MakeTextResult(ctx, rect);
     }
 
+    /// <summary>
+    /// 矩形を指定して画像を描く。場所は消費しない。
+    /// </summary>
+    /// <param name="texture">Dalamud のテクスチャ。</param>
+    /// <param name="rect">描く矩形。</param>
+    /// <param name="tint">乗算色。省略すると白 (そのまま)。</param>
+    /// <remarks>
+    /// <c>EUi.InlineList</c> の <c>drawPrefix</c> や <c>EUi.CustomAt</c> のように、
+    /// 矩形を受け取って描く場面で使う。縦横の比は調整しないので、
+    /// 正方形でない絵は呼び出し側で矩形を整えること。
+    /// </remarks>
+    public static void ImageAt(IDalamudTextureWrap? texture, Rect rect, uint? tint = null)
+    {
+        if (texture is not null)
+            Painter.Image(texture.Handle, rect, tint ?? EuColor.White);
+    }
+
     /// <summary>画像を押せるボタンにする。</summary>
     /// <param name="texture">Dalamud のテクスチャ。</param>
     /// <param name="id">識別子。</param>

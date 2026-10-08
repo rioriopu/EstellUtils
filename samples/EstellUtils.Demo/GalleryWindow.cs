@@ -1042,9 +1042,16 @@ public sealed class GalleryWindow : EuWindow
             {
                 EUi.TableCell(row.Name);
 
-                // 入る分だけ並べ、残りは「他 N」。全文はツールチップで出る
+                // 入る分だけ並べ、残りは「他 N」。全文はツールチップで出る。
+                // 各語の前は呼び出し側が描く（ここでは色の違う丸で絵の代わり）
                 using (EUi.Cell())
-                    EUi.InlineList(row.Drops);
+                {
+                    EUi.InlineList(
+                        row.Drops, prefixWidth: 16f,
+                        drawPrefix: static (index, area) => Painter.Circle(
+                            area.Shrink(4f).Center, 4f,
+                            EUi.Colors.Accent));
+                }
 
                 // 列に入りきらない固定幅の中身も、隣の列へは出ない
                 using (EUi.Cell())

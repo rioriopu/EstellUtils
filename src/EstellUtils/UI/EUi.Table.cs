@@ -59,7 +59,11 @@ public static partial class EUi
     /// <param name="resize">
     /// 利用者が変えた列幅の入れ物。渡すと見出しの境をつまんで幅を変えられる。
     /// </param>
-    /// <param name="onResized">幅が変わったときに呼ぶ処理。設定の保存に使う。</param>
+    /// <param name="onResized">
+/// 幅が確定したときに呼ぶ処理。設定の保存に使う。
+/// つまみを離したときとダブルクリックで戻したときだけ呼ばれるので、
+/// 動かしている間に何度も書き出すことはない。
+/// </param>
     /// <returns>このフレームで列幅が変わったら true。</returns>
     /// <remarks>
     /// <para>
@@ -125,13 +129,15 @@ public static partial class EUi
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
 
-        if (resize is not null && DrawColumnResizers(ctx.GetId(id), cells, rowRect, resize))
-        {
-            onResized?.Invoke();
-            return true;
-        }
+        if (resize is null)
+            return false;
 
-        return false;
+        var changed = DrawColumnResizers(ctx.GetId(id), cells, rowRect, resize, out var committed);
+
+        if (committed)
+            onResized?.Invoke();
+
+        return changed;
     }
 
     /// <summary>
@@ -147,13 +153,19 @@ public static partial class EUi
     /// 列幅は押し始めた時点の幅を基準にする。毎フレームの差分を足していくと、
     /// 下限で止まったあとに戻すとき、指とつまみの位置がずれていく。
     /// </para>
+    /// <para>
+    /// <paramref name="committed"/> は離したときとダブルクリックのときだけ立てる。
+    /// 動かしている間に立てると、保存をつないだ呼び出し側が毎フレーム書き出すことになる。
+    /// </para>
     /// </remarks>
     private static bool DrawColumnResizers(
-        EuId id, ReadOnlySpan<Rect> cells, Rect rowRect, EuTableLayout layout)
+        EuId id, ReadOnlySpan<Rect> cells, Rect rowRect, EuTableLayout layout, out bool committed)
     {
         var ctx = UiContext.Current;
         var changed = false;
         var half = ResizerHalfWidth;
+
+        committed = false;
 
         for (var i = 0; i < cells.Length - 1; i++)
         {
@@ -167,16 +179,37 @@ public static partial class EUi
             ref var state = ref ctx.Store.GetRef(handleId);
 
             if (hit.Pressed)
+            {
                 state.DragAnchorValue = cells[i].Width;
+                state.Custom0 = 0f;
+            }
 
             if (hit.DoubleClicked)
             {
-                changed |= layout.Reset(i);
+                // 戻すのは 1 回で終わる操作。その場で確定させる
+                if (layout.Reset(i))
+                {
+                    changed = true;
+                    committed = true;
+                }
+
+                state.Custom0 = 0f;
             }
             else if (hit.Held && hit.DragDelta.X != 0f)
             {
-                changed |= layout.Set(
-                    i, MathF.Max(MinColumnWidth, state.DragAnchorValue + hit.DragDelta.X));
+                if (layout.Set(i, MathF.Max(MinColumnWidth, state.DragAnchorValue + hit.DragDelta.X)))
+                {
+                    changed = true;
+
+                    // 動かしている間は覚えておくだけ。離したときに 1 回だけ確定する
+                    state.Custom0 = 1f;
+                }
+            }
+
+            if (hit.Released && state.Custom0 > 0f)
+            {
+                state.Custom0 = 0f;
+                committed = true;
             }
 
             if (!hit.Hovered && !hit.Held)
@@ -445,7 +478,11 @@ public static partial class EUi
     /// <param name="resize">
     /// 利用者が変えた列幅の入れ物。渡すと見出しの境をつまんで幅を変えられる。
     /// </param>
-    /// <param name="onResized">幅が変わったときに呼ぶ処理。設定の保存に使う。</param>
+    /// <param name="onResized">
+/// 幅が確定したときに呼ぶ処理。設定の保存に使う。
+/// つまみを離したときとダブルクリックで戻したときだけ呼ばれるので、
+/// 動かしている間に何度も書き出すことはない。
+/// </param>
     /// <returns>このフレームで並べ替え、または列幅が変わったら true。</returns>
     /// <remarks>
     /// <para>
@@ -557,10 +594,12 @@ public static partial class EUi
 
         Painter.HLine(rowRect.Min.X, rowRect.Max.X, rowRect.Max.Y, Colors.Separator);
 
-        if (resize is not null && DrawColumnResizers(euId, cells, rowRect, resize))
+        if (resize is not null)
         {
-            onResized?.Invoke();
-            changed = true;
+            changed |= DrawColumnResizers(euId, cells, rowRect, resize, out var committed);
+
+            if (committed)
+                onResized?.Invoke();
         }
 
         return changed;
