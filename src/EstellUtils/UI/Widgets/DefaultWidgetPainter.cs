@@ -38,12 +38,48 @@ public class DefaultWidgetPainter : IWidgetPainter
     public virtual void DrawButton(in WidgetVisual visual, ReadOnlySpan<char> label, ButtonStyle style)
     {
         var rect = visual.Rect;
-        var rounding = Metrics.WidgetRounding;
 
         // 押し込んだときは沈ませたうえで、ほんの少し縮める。
         // 位置と大きさの両方が動くと、指で押し込んだような手応えになる
         var sink = visual.Press * 1.5f;
-        var body = rect.Offset(0f, sink).Shrink(visual.Press * 0.5f);
+
+        this.DrawButtonSurface(visual, style, sink);
+
+        var textColor = this.ResolveButtonTextColor(visual, style);
+
+        // 文字は沈み込みだけを追い、縮小は追わない。
+        // ボタンの幅は文字にちょうど合わせて作られるので、地に合わせて縮めると
+        // 押した瞬間にラベルが省略記号へ化けてしまう
+        var textArea = rect.Offset(0f, sink).Shrink(Metrics.WidgetPadding);
+
+        if (style == ButtonStyle.Link)
+        {
+            var size = TextPainter.Measure(label);
+            var placed = textArea.Place(size, Align.Center, Align.Center);
+            TextPainter.TextIn(textArea, textColor, label, Align.Center, Align.Center);
+
+            // ホバー中だけ下線を引く
+            if (visual.Hover > 0.01f)
+            {
+                Painter.HLine(
+                    placed.Min.X, placed.Max.X, placed.Max.Y,
+                    EuColor.ScaleAlpha(textColor, visual.Hover));
+            }
+
+            return;
+        }
+
+        TextPainter.TextIn(textArea, textColor, label, visual.TextAlign ?? Align.Center, Align.Center);
+    }
+
+    /// <summary>ボタンの地と枠を描く。文字は呼び出し側が描く。</summary>
+    /// <param name="visual">描画に必要な状態。</param>
+    /// <param name="style">見た目の種類。</param>
+    /// <param name="sink">押し込みで下へ沈める量。</param>
+    protected void DrawButtonSurface(in WidgetVisual visual, ButtonStyle style, float sink)
+    {
+        var rounding = Metrics.WidgetRounding;
+        var body = visual.Rect.Offset(0f, sink).Shrink(visual.Press * 0.5f);
 
         switch (style)
         {
@@ -73,32 +109,24 @@ public class DefaultWidgetPainter : IWidgetPainter
                 break;
             }
         }
+    }
 
-        var textColor = this.ResolveButtonTextColor(visual, style);
+    /// <inheritdoc/>
+    public virtual void DrawIconButton(
+        in WidgetVisual visual, ReadOnlySpan<char> icon, ButtonStyle style)
+    {
+        var sink = visual.Press * 1.5f;
 
-        // 文字は沈み込みだけを追い、縮小は追わない。
-        // ボタンの幅は文字にちょうど合わせて作られるので、地に合わせて縮めると
-        // 押した瞬間にラベルが省略記号へ化けてしまう
-        var textArea = rect.Offset(0f, sink).Shrink(Metrics.WidgetPadding);
+        this.DrawButtonSurface(visual, style, sink);
 
-        if (style == ButtonStyle.Link)
-        {
-            var size = TextPainter.Measure(label);
-            var placed = textArea.Place(size, Align.Center, Align.Center);
-            TextPainter.TextIn(textArea, textColor, label, Align.Center, Align.Center);
+        // 字形は四角いボタンの一辺とほぼ同じ大きさなので、文字用の余白を引くと
+        // 描ける幅が足りなくなって、省略で何も出なくなる。
+        // 余白を引かず、省略もせず、そのまま中央へ置く
+        var color = this.ResolveButtonTextColor(visual, style);
 
-            // ホバー中だけ下線を引く
-            if (visual.Hover > 0.01f)
-            {
-                Painter.HLine(
-                    placed.Min.X, placed.Max.X, placed.Max.Y,
-                    EuColor.ScaleAlpha(textColor, visual.Hover));
-            }
-
-            return;
-        }
-
-        TextPainter.TextIn(textArea, textColor, label, Align.Center, Align.Center);
+        TextPainter.TextIn(
+            visual.Rect.Offset(0f, sink), color, icon,
+            Align.Center, Align.Center, ellipsize: false);
     }
 
     /// <summary>ボタンの地と枠の色を決める。</summary>
@@ -202,14 +230,27 @@ public class DefaultWidgetPainter : IWidgetPainter
         var border = EuColor.Lerp(Colors.WidgetBorder, Colors.WidgetBorderHover, visual.Hover);
         Painter.RectOutline(rect, border, Metrics.WidgetBorderWidth, rounding);
 
-        if (visual.OnAmount > 0.01f)
-        {
-            var mark = visual.Disabled > 0f
-                ? EuColor.Lerp(Colors.Checkmark, Colors.TextDisabled, visual.Disabled)
-                : Colors.Checkmark;
+        var markColor = visual.Disabled > 0f
+            ? EuColor.Lerp(Colors.Checkmark, Colors.TextDisabled, visual.Disabled)
+            : Colors.Checkmark;
 
-            Painter.Check(rect, mark, MathF.Max(1.6f, rect.Width * 0.13f), visual.OnAmount);
+        // 一部だけ ON のときは、チェックではなく横棒を引く
+        if (visual.Mixed)
+        {
+            var bar = rect.Shrink(rect.Width * 0.3f);
+            var y = MathF.Round(bar.Center.Y);
+
+            Painter.Line(
+                new Vector2(bar.Min.X, y),
+                new Vector2(bar.Max.X, y),
+                visual.OnAmount > 0.01f ? markColor : Colors.Accent,
+                MathF.Max(2f, rect.Height * 0.12f));
+
+            return;
         }
+
+        if (visual.OnAmount > 0.01f)
+            Painter.Check(rect, markColor, MathF.Max(1.6f, rect.Width * 0.13f), visual.OnAmount);
     }
 
     /// <inheritdoc/>

@@ -67,6 +67,16 @@ public readonly record struct WidgetResult
     /// </remarks>
     public bool Committed { get; init; }
 
+    /// <summary>
+    /// Enter で確定されたか。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Committed"/> は焦点が外れたときにも立つので、
+    /// 「取り消し」ボタンを押して外れた場合まで確定として扱われる。
+    /// Enter だけを拾いたい場合はこちらを見る。
+    /// </remarks>
+    public bool Submitted { get; init; }
+
     /// <summary>ダブルクリックされたか。</summary>
     public bool DoubleClicked { get; init; }
 

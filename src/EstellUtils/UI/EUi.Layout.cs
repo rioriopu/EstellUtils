@@ -372,6 +372,57 @@ public static partial class EUi
     }
 
     /// <summary>
+    /// 大きさを決めて場所を取り、その中へ並べるスコープを開く。
+    /// </summary>
+    /// <param name="width">幅。</param>
+    /// <param name="height">高さ。省略すると標準のウィジェット高さ。</param>
+    /// <param name="horizontal">横に並べるか。false なら縦積み。</param>
+    /// <param name="spacing">要素間の空き。</param>
+    /// <param name="padding">内側の余白。</param>
+    /// <remarks>
+    /// <para>
+    /// 先に場所を取るので、行の中では<b>親の縦揃えが効きます</b>。
+    /// また列を宣言した行では、ここで列を 1 つ消費します。
+    /// </para>
+    /// <para>
+    /// <c>Reserve</c> で場所を取ってから <c>Region</c> を開く、という組み合わせを
+    /// 1 つにまとめたものです。
+    /// </para>
+    /// <code>
+    /// using (EUi.Row(SizeSpec.Fill, 120f))
+    /// {
+    ///     EUi.Label("目標");
+    ///
+    ///     using (EUi.Place(SizeSpec.Fill))       // 行の縦中央に置かれる
+    ///         EUi.InputInt("##target", ref target);
+    /// }
+    /// </code>
+    /// </remarks>
+    public static LayoutHandle Place(
+        SizeSpec width, float? height = null, bool horizontal = false,
+        float? spacing = null, EdgeInsets? padding = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        // ここで場所を取る。行の中なら、このときに縦の位置が決まる
+        var rect = ctx.Allocate(width, height ?? Metrics.WidgetHeight);
+
+        var gap = horizontal
+            ? new Vector2(spacing ?? Metrics.ItemSpacing.X, 0f)
+            : new Vector2(0f, spacing ?? Metrics.ItemSpacing.Y);
+
+        ctx.Layout.Push(
+            horizontal ? LayoutKind.Horizontal : LayoutKind.Vertical,
+            rect, gap, default, false, padding ?? default,
+            horizontal ? Align.Center : Align.Start,
+            horizontal ? rect.Height : 0f);
+
+        // 場所は上で取ってあるので、閉じるときに二重で消費しない
+        return new LayoutHandle(ctx.Layout, commitToParent: false);
+    }
+
+    /// <summary>
     /// 中身をひとまとまりとして扱うスコープを開く。
     /// </summary>
     /// <param name="id">ホバーの継続時間を覚えるための識別子。</param>

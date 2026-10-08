@@ -107,8 +107,17 @@ public static partial class EUi
     /// <param name="index">行番号。交互に背景色を変えるのに使う。</param>
     /// <param name="height">行の高さ。</param>
     /// <param name="selected">選択中の行として強調するか。</param>
+    /// <param name="striped">
+    /// 縞の地を敷くか。省略すると行番号の偶奇で決まる。
+    /// 見出しや追加用の行だけ縞を外したいときに指定する。
+    /// </param>
+    /// <param name="hoverable">
+    /// 行全体を押せるようにするか。true にすると、乗せたときに薄く光り、
+    /// <c>Result</c> からクリックや右クリックを受け取れる。
+    /// </param>
     public static TableRowHandle TableRow(
-        ReadOnlySpan<TableColumn> columns, int index, float? height = null, bool selected = false)
+        ReadOnlySpan<TableColumn> columns, int index, float? height = null, bool selected = false,
+        bool? striped = null, bool hoverable = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -121,15 +130,32 @@ public static partial class EUi
         var rowId = ctx.GetId("##euTableRow").Child(index);
         var measured = ctx.Store.GetRef(rowId).MeasuredHeight;
 
+        // 既定は部品を並べても窮屈にならない高さ。ウィジェットと同じにすると、
+        // 上下の行のボタンがすき間なく接して重なって見える
         var rowHeight = height
-            ?? (measured > 0f ? measured : Metrics.WidgetHeight);
+            ?? (measured > 0f ? measured : Metrics.TableRowHeight);
         var available = ctx.Layout.AvailableRect;
         var rowRect = Rect.FromSize(available.Min, new Vector2(available.Width, rowHeight));
 
+        // 行全体を押せるようにする場合は、ここで判定しておく
+        var interaction = hoverable
+            ? Interaction.Behavior(rowRect, rowId.Child("row"), InteractionFlags.AllowRightClick)
+            : default;
+
         if (selected)
+        {
             Painter.Rect(rowRect, Colors.Selection);
-        else if (index % 2 == 1)
+        }
+        else if (hoverable && interaction.HoverAmount > 0.01f)
+        {
+            // 押せる行だと分かるよう、乗せたときに薄く光らせる
+            Painter.Rect(
+                rowRect, EuColor.WithAlpha(Colors.SurfaceHover, interaction.HoverAmount * 0.6f));
+        }
+        else if (striped ?? (index % 2 == 1))
+        {
             Painter.Rect(rowRect, EuColor.WithAlpha(Colors.Surface, 0.45f));
+        }
 
         Span<SizeSpec> widths = stackalloc SizeSpec[Math.Max(1, columns.Length)];
         for (var i = 0; i < columns.Length; i++)
@@ -140,7 +166,7 @@ public static partial class EUi
             widths[..columns.Length], false, default, Align.Center, rowHeight);
 
         // 高さを明示していなければ、折り返す列とセルの中身の両方を拾って次フレームへ渡す
-        return new TableRowHandle(rowRect, rowId, height is null);
+        return new TableRowHandle(rowRect, rowId, height is null, WidgetResult.From(interaction));
     }
 
     /// <summary>
@@ -278,6 +304,21 @@ public static partial class EUi
         return new CellHandle(scope, rect);
     }
 
+    /// <summary>
+    /// セルを 1 つ飛ばす。列を消費するだけで何も描かない。
+    /// </summary>
+    /// <remarks>
+    /// 空文字の <c>TableCell</c> でも同じことができるが、意図が読み取りやすい。
+    /// </remarks>
+    public static void SkipCell()
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        var scope = ctx.Layout.Current;
+        ctx.Allocate(SizeSpec.Fill, ResolveCellHeight(scope, null));
+    }
+
     /// <summary>表のセルへ文字列を表示する。</summary>
     /// <param name="text">表示する文字列。</param>
     /// <param name="align">寄せ方。</param>
@@ -360,15 +401,35 @@ public readonly struct TableRowHandle : IDisposable
     private readonly EuId id;
     private readonly bool autoHeight;
 
-    internal TableRowHandle(Rect rowRect, EuId id = default, bool autoHeight = false)
+    internal TableRowHandle(
+        Rect rowRect, EuId id = default, bool autoHeight = false, WidgetResult result = default)
     {
         this.rowRect = rowRect;
         this.id = id;
         this.autoHeight = autoHeight;
+        this.Result = result;
     }
 
     /// <summary>行の矩形。行全体のクリック判定などに使う。</summary>
     public Rect Rect => this.rowRect;
+
+    /// <summary>
+    /// 行全体の入力結果。<c>hoverable: true</c> で開いたときだけ中身が入る。
+    /// </summary>
+    /// <remarks>
+    /// 行へ右クリックのメニューを付けるときは、これをそのまま
+    /// <c>EUi.ContextMenu</c> へ渡せる。
+    /// </remarks>
+    public WidgetResult Result { get; }
+
+    /// <summary>行がクリックされたか。</summary>
+    public bool Clicked => this.Result.Clicked;
+
+    /// <summary>行が右クリックされたか。</summary>
+    public bool RightClicked => this.Result.RightClicked;
+
+    /// <summary>行にマウスが乗っているか。</summary>
+    public bool Hovered => this.Result.Hovered;
 
     /// <inheritdoc/>
     public void Dispose()

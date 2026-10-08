@@ -78,11 +78,25 @@ public readonly record struct WidgetVisual
     /// <summary>ON への遷移量 (0〜1)。チェックマークの描き込みなどに使う。</summary>
     public float OnAmount { get; init; }
 
+    /// <summary>
+    /// 一部だけが ON の状態か。まとめて切り替えるチェックで使う。
+    /// </summary>
+    public bool Mixed { get; init; }
+
     /// <summary>0〜1 に正規化した値。スライダーや進捗表示で使う。</summary>
     public float Value { get; init; }
 
     /// <summary>キーボードフォーカスを持っているか。</summary>
     public bool Focused { get; init; }
+
+    /// <summary>
+    /// 文字の横方向の寄せ方。省略すると中央。
+    /// </summary>
+    /// <remarks>
+    /// 列を宣言した行では、ボタンが列の幅を受け取る。
+    /// 中央のままだと、左へ寄せたい文字がずれて見える。
+    /// </remarks>
+    public Align? TextAlign { get; init; }
 
     /// <summary>
     /// 文字や印に使う色。省略するとテーマの既定色。
@@ -123,6 +137,15 @@ public interface IWidgetPainter
 {
     /// <summary>ボタンを描く。</summary>
     void DrawButton(in WidgetVisual visual, ReadOnlySpan<char> label, ButtonStyle style);
+
+    /// <summary>
+    /// アイコンだけのボタンを描く。
+    /// </summary>
+    /// <remarks>
+    /// 字形は四角いボタンの一辺とほぼ同じ大きさになるので、文字用の余白を引くと
+    /// 描ける幅が足りず、省略で何も出なくなる。そのため描き方を分けている。
+    /// </remarks>
+    void DrawIconButton(in WidgetVisual visual, ReadOnlySpan<char> icon, ButtonStyle style);
 
     /// <summary>チェックボックスの四角部分を描く。</summary>
     void DrawCheckbox(in WidgetVisual visual);

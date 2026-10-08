@@ -74,6 +74,52 @@ public static partial class EUi
     /// </remarks>
     public static void OpenPopup(string id) => ImGui.OpenPopup(ResolvePopupId(id));
 
+    /// <summary>ラベルで要求されたポップアップ。次に描かれるときに開く。</summary>
+    private static readonly System.Collections.Generic.HashSet<string> PendingPopups =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 次に描かれるときにポップアップを開くよう要求する。
+    /// </summary>
+    /// <param name="id">ポップアップの識別子。</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="OpenPopup"/> は、呼んだ場所の ID の階層で識別子を決める。
+    /// そのため一覧のループの中で開き、ループの外で描くと噛み合わない。
+    /// </para>
+    /// <para>
+    /// こちらは文字列をそのまま覚えるので、どこで呼んでも、
+    /// 同じ文字列で描いているポップアップが開く。
+    /// </para>
+    /// <code>
+    /// foreach (var item in items)
+    /// {
+    ///     if (EUi.Button("名前を変える"))
+    ///     {
+    ///         this.renaming = item;
+    ///         EUi.RequestPopup("rename");    // ループの中から要求
+    ///     }
+    /// }
+    ///
+    /// using (var p = EUi.Popup("rename", new Vector2(280f, 120f)))   // ループの外で描く
+    /// {
+    ///     ...
+    /// }
+    /// </code>
+    /// </remarks>
+    public static void RequestPopup(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        PendingPopups.Add(id);
+    }
+
+    /// <summary>要求されていれば開く。描く側から呼ぶ。</summary>
+    private static void ConsumePendingRequest(string id, string popupId)
+    {
+        if (PendingPopups.Remove(id) && !ImGui.IsPopupOpen(popupId))
+            ImGui.OpenPopup(popupId);
+    }
+
     /// <summary>ポップアップが開いているか。</summary>
     public static bool IsPopupOpen(string id) => ImGui.IsPopupOpen(ResolvePopupId(id));
 
@@ -99,21 +145,28 @@ public static partial class EUi
     /// <param name="size">大きさ。</param>
     /// <param name="anchor">どこを基準に置くか。</param>
     /// <param name="padding">内側の余白。</param>
+    /// <param name="scroll">
+    /// 中身を送り領域で包むか。項目の多い一覧を入れる場合に true にする。
+    /// </param>
     public static PopupScope Popup(
         string id, Vector2 size,
-        PopupAnchor anchor = PopupAnchor.BelowLastItem, EdgeInsets? padding = null)
+        PopupAnchor anchor = PopupAnchor.BelowLastItem, EdgeInsets? padding = null,
+        bool scroll = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
         var position = ResolveAnchor(ctx, anchor, size);
+        var popupId = ResolvePopupId(id);
+
+        ConsumePendingRequest(id, popupId);
 
         // 位置は開いた時点で決めて固定する。毎フレーム置き直すと、
         // マウスの位置を基準にしたときにメニューが指へ追従してしまう
         ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
-        if (!BeginPopupBox(ResolvePopupId(id)))
+        if (!BeginPopupBox(popupId))
             return default;
 
         // ImGui が画面内へ収め直すことがあるので、実際の位置を取り直す
@@ -124,8 +177,15 @@ public static partial class EUi
         var clip = Painter.ClipFullScreen();
         DrawPopupSurface(rect);
 
-        var region = Region(rect, padding ?? EdgeInsets.All(Metrics.SpacingSm));
-        return new PopupScope(region, clip, rect);
+        var inset = padding ?? EdgeInsets.All(Metrics.SpacingSm);
+        var region = Region(rect, inset);
+
+        if (!scroll)
+            return new PopupScope(region, clip, rect);
+
+        // 中身がはみ出す一覧を入れる場合は、送りで包む
+        var area = Scroll(id + "##euPopupScroll", rect.Height - inset.TotalVertical);
+        return new PopupScope(region, clip, rect, area);
     }
 
     /// <summary>
@@ -153,6 +213,15 @@ public static partial class EUi
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
 
+        var popupId = ResolvePopupId(id);
+
+        ConsumePendingRequest(id, popupId);
+
+        // 閉じているうちは測らない。表の全行へメニューを付けると、
+        // 開いていないのに行の数だけ毎フレーム文字を測ることになる
+        if (!ImGui.IsPopupOpen(popupId))
+            return -1;
+
         var padding = Metrics.SpacingXs;
         var size = MeasureMenu(entries, padding, out var itemHeight, out var hasCheckColumn);
         var position = ResolveAnchor(ctx, anchor, size);
@@ -161,7 +230,7 @@ public static partial class EUi
         ImGui.SetNextWindowPos(position, ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(size);
 
-        if (!BeginPopupBox(ResolvePopupId(id)))
+        if (!BeginPopupBox(popupId))
             return -1;
 
         var rect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
@@ -595,12 +664,26 @@ public readonly struct PopupScope : IDisposable
 {
     private readonly LayoutHandle region;
     private readonly ClipScope clip;
+    private readonly ScrollHandle scroll;
+    private readonly bool hasScroll;
     private readonly bool open;
 
     internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect)
     {
         this.region = region;
         this.clip = clip;
+        this.scroll = default;
+        this.hasScroll = false;
+        this.Rect = rect;
+        this.open = true;
+    }
+
+    internal PopupScope(LayoutHandle region, ClipScope clip, Rect rect, ScrollHandle scroll)
+    {
+        this.region = region;
+        this.clip = clip;
+        this.scroll = scroll;
+        this.hasScroll = true;
         this.Rect = rect;
         this.open = true;
     }
@@ -616,6 +699,9 @@ public readonly struct PopupScope : IDisposable
     {
         if (!this.open)
             return;
+
+        if (this.hasScroll)
+            this.scroll.Dispose();
 
         this.region.Dispose();
         this.clip.Dispose();

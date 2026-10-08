@@ -56,6 +56,15 @@ public sealed class ThemeMetrics
     /// <summary>カード内側の余白。</summary>
     public EdgeInsets CardPadding { get; set; } = EdgeInsets.All(8f);
 
+    /// <summary>
+    /// 部品を並べる表の行の高さ。
+    /// </summary>
+    /// <remarks>
+    /// ウィジェットと同じ高さにすると、上下の行のボタンがすき間なく接して
+    /// 重なって見える。少し余裕を持たせる。
+    /// </remarks>
+    public float TableRowHeight { get; set; } = 30f;
+
     /// <summary>行の中へ小さく収めるウィジェットの高さ。</summary>
     public float SmallWidgetHeight { get; set; } = 18f;
 
@@ -185,6 +194,7 @@ public sealed class ThemeMetrics
         m.CardPadding *= scale;
         m.IndentWidth *= scale;
         m.SmallWidgetHeight *= scale;
+        m.TableRowHeight *= scale;
         m.SectionSpacing *= scale;
 
         m.SpacingXs *= scale;

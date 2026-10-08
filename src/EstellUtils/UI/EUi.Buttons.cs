@@ -29,9 +29,15 @@ public static partial class EUi
     /// 高さ。省略するとテーマの標準の高さ。
     /// 行の中へ小さく収めたい場合は <c>EUi.Metrics.SmallWidgetHeight</c> を渡す。
     /// </param>
+    /// <param name="textAlign">
+    /// 文字の横方向の寄せ方。省略すると中央。
+    /// 列を宣言した行ではボタンが列の幅を受け取るので、
+    /// 左へ寄せたい場合に指定する。
+    /// </param>
     public static WidgetResult Button(
         ReadOnlySpan<char> label, ButtonStyle style = ButtonStyle.Normal,
-        SizeSpec? width = null, bool disabled = false, float? height = null)
+        SizeSpec? width = null, bool disabled = false, float? height = null,
+        Align? textAlign = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -47,7 +53,9 @@ public static partial class EUi
         var rect = ctx.Allocate(width ?? SizeSpec.Px(ButtonWidth(display)), resolvedHeight);
 
         var interaction = Interaction.Behavior(rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
-        WidgetPainter.DrawButton(WidgetVisual.From(interaction), display, style);
+
+        var visual = WidgetVisual.From(interaction) with { TextAlign = textAlign };
+        WidgetPainter.DrawButton(visual, display, style);
 
         return WidgetResult.From(interaction);
     }
@@ -127,7 +135,7 @@ public static partial class EUi
         // 計測も描画もアイコンフォントの下で行う
         using (PushFont(FontRole.Icon))
         {
-            WidgetPainter.DrawButton(WidgetVisual.From(interaction), icon, style);
+            WidgetPainter.DrawIconButton(WidgetVisual.From(interaction), icon, style);
         }
 
         return WidgetResult.From(interaction);
@@ -139,7 +147,11 @@ public static partial class EUi
     /// <param name="label">ラベル。</param>
     /// <param name="value">対象の真偽値。変更されると書き換わる。</param>
     /// <param name="disabled">無効にするか。</param>
-    public static WidgetResult Checkbox(ReadOnlySpan<char> label, ref bool value, bool disabled = false)
+    /// <param name="size">
+    /// 四角の一辺。省略するとテーマの既定。アイコンボタンと並べるときに揃える。
+    /// </param>
+    public static WidgetResult Checkbox(
+        ReadOnlySpan<char> label, ref bool value, bool disabled = false, float? size = null)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -147,7 +159,7 @@ public static partial class EUi
         disabled |= IsDisabled;
 
         var id = ctx.GetId(label, out var display);
-        var boxSize = Metrics.CheckboxSize;
+        var boxSize = size ?? Metrics.CheckboxSize;
         var textSize = TextPainter.Measure(display);
 
         var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(boxSize, textSize.Y));
@@ -172,6 +184,76 @@ public static partial class EUi
         var visual = WidgetVisual.From(interaction, value, amount) with { Rect = boxRect };
         WidgetPainter.DrawCheckbox(visual);
 
+        DrawWidgetLabel(rect, boxRect.Max.X, display, interaction);
+
+        return WidgetResult.From(interaction, changed);
+    }
+
+    /// <summary>
+    /// 三つの状態を持つチェックボックス。
+    /// </summary>
+    /// <param name="label">ラベル。</param>
+    /// <param name="value">
+    /// 対象の値。<c>null</c> は「一部だけ ON」を表し、横棒で描かれる。
+    /// </param>
+    /// <param name="disabled">無効にするか。</param>
+    /// <param name="size">四角の一辺。省略するとテーマの既定。</param>
+    /// <remarks>
+    /// <para>
+    /// まとめて切り替えるチェックに使う。押すと、一部または全部 OFF なら全部 ON へ、
+    /// 全部 ON なら全部 OFF へ切り替わる (<c>null</c> からは <c>true</c> になる)。
+    /// </para>
+    /// <code>
+    /// var all = items.All(i => i.Enabled) ? true
+    ///         : items.Any(i => i.Enabled) ? (bool?)null
+    ///         : false;
+    ///
+    /// if (EUi.Checkbox("すべて有効", ref all))
+    ///     foreach (var i in items) i.Enabled = all == true;
+    /// </code>
+    /// </remarks>
+    public static WidgetResult Checkbox(
+        ReadOnlySpan<char> label, ref bool? value, bool disabled = false, float? size = null)
+    {
+        var ctx = UiContext.Current;
+        ctx.EnsureFrame();
+
+        disabled |= IsDisabled;
+
+        var id = ctx.GetId(label, out var display);
+        var boxSize = size ?? Metrics.CheckboxSize;
+        var textSize = TextPainter.Measure(display);
+
+        var height = MathF.Max(Metrics.WidgetHeight, MathF.Max(boxSize, textSize.Y));
+        var width = boxSize + (display.IsEmpty ? 0f : Metrics.LabelSpacing + MathF.Ceiling(textSize.X));
+        var rect = ctx.Allocate(SizeSpec.Px(width), height);
+
+        var interaction = Interaction.Behavior(
+            rect, id, disabled ? InteractionFlags.Disabled : InteractionFlags.None);
+
+        var changed = false;
+
+        if (interaction.Clicked)
+        {
+            // 一部または全部 OFF なら全部 ON へ。全部 ON なら全部 OFF へ
+            value = value != true;
+            changed = true;
+        }
+
+        var on = value == true;
+        var amount = AnimateOn(id, on);
+
+        var boxRect = Rect.FromCenter(
+            new Vector2(rect.Min.X + (boxSize * 0.5f), rect.Center.Y),
+            new Vector2(boxSize, boxSize));
+
+        var visual = WidgetVisual.From(interaction, on, amount) with
+        {
+            Rect = boxRect,
+            Mixed = value is null,
+        };
+
+        WidgetPainter.DrawCheckbox(visual);
         DrawWidgetLabel(rect, boxRect.Max.X, display, interaction);
 
         return WidgetResult.From(interaction, changed);

@@ -66,6 +66,9 @@ public static partial class EUi
     /// <param name="maxLength">最大文字数。</param>
     /// <param name="width">入力欄の幅。省略するとラベルの分を残した残り幅。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="autoFocus">
+    /// 初めて描かれたときに焦点を当てるか。小窓を開いてすぐ打てるようにする場合に使う。
+    /// </param>
     /// <remarks>
     /// <para>
     /// 枠・地・フォーカスリングは自前で描くが、文字の編集そのもの
@@ -79,7 +82,8 @@ public static partial class EUi
     /// </remarks>
     public static WidgetResult TextInput(
         string label, ref string value, string? hint = null,
-        int maxLength = 256, SizeSpec? width = null, bool disabled = false)
+        int maxLength = 256, SizeSpec? width = null, bool disabled = false,
+        bool autoFocus = false)
     {
         var ctx = UiContext.Current;
         ctx.EnsureFrame();
@@ -111,9 +115,15 @@ public static partial class EUi
 
         // ImGui の入力欄を枠の内側へ、背景・枠なしで重ねる
         var inner = rect.Shrink(Metrics.WidgetPadding);
-        var changed = TextInputRaw(id, ref value, hint, maxLength, inner, euId, out var committed);
+        var changed = TextInputRaw(
+            id, ref value, hint, maxLength, inner, euId,
+            out var committed, out var submitted, autoFocus);
 
-        return WidgetResult.From(interaction, changed) with { Committed = committed };
+        return WidgetResult.From(interaction, changed) with
+        {
+            Committed = committed,
+            Submitted = submitted,
+        };
     }
 
     /// <summary>
@@ -132,8 +142,27 @@ public static partial class EUi
     private static bool TextInputRaw(
         string id, ref string value, string? hint, int maxLength, Rect inner, EuId euId,
         out bool committed)
+        => TextInputRaw(id, ref value, hint, maxLength, inner, euId, out committed, out _, false);
+
+    /// <summary>Enter での確定と、開いたときの焦点当ても受け取る版。</summary>
+    private static bool TextInputRaw(
+        string id, ref string value, string? hint, int maxLength, Rect inner, EuId euId,
+        out bool committed, out bool submitted, bool autoFocus)
     {
         var ctx = UiContext.Current;
+
+        // 開いた直後だけ焦点を当てる。2 回目以降に当てると、
+        // 他の欄へ移れなくなってしまう
+        if (autoFocus)
+        {
+            ref var focusState = ref ctx.Store.GetRef(euId);
+
+            if (!focusState.Initialized)
+            {
+                focusState.Initialized = true;
+                ImGui.SetKeyboardFocusHere();
+            }
+        }
 
         ImGui.SetCursorScreenPos(inner.Min);
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0u);
@@ -145,17 +174,30 @@ public static partial class EUi
         ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0f);
         ImGui.SetNextItemWidth(inner.Width);
 
+        // Enter を押したことを受け取るために、確定で返る指定を足す
+        const ImGuiInputTextFlags Flags = ImGuiInputTextFlags.EnterReturnsTrue;
+
         bool changed;
+        bool entered;
+
         if (string.IsNullOrEmpty(hint))
-            changed = ImGui.InputText(id, ref value, maxLength);
+        {
+            entered = ImGui.InputText(id, ref value, maxLength, Flags);
+            changed = ImGui.IsItemEdited();
+        }
         else
-            changed = ImGui.InputTextWithHint(id, hint, ref value, maxLength);
+        {
+            entered = ImGui.InputTextWithHint(id, hint, ref value, maxLength, Flags);
+            changed = ImGui.IsItemEdited();
+        }
+
+        submitted = entered;
 
         var active = ImGui.IsItemActive();
 
         // 焦点が外れた、または Enter が押された時点で、実際に書き換わっていたか。
         // Changed は 1 文字ごとに立つので、確定の合図にはこちらを使う
-        committed = ImGui.IsItemDeactivatedAfterEdit();
+        committed = ImGui.IsItemDeactivatedAfterEdit() || entered;
 
         ImGui.PopStyleVar(2);
         ImGui.PopStyleColor(5);
@@ -322,16 +364,20 @@ public static partial class EUi
     /// <param name="max">上限。省略すると制限しない。</param>
     /// <param name="width">幅。省略すると残り幅いっぱい。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="height">
+    /// 高さ。省略するとテーマの標準の高さ。表の中へ小さく収めたい場合に指定する。
+    /// </param>
     /// <remarks>
     /// 座標やピクセル数のように範囲の広い値は、スライダーでは合わせきれない。
     /// そうした値はこちらで直接打ち込む。
     /// </remarks>
     public static WidgetResult InputInt(
         string label, ref int value, int step = 1,
-        int? min = null, int? max = null, SizeSpec? width = null, bool disabled = false)
+        int? min = null, int? max = null, SizeSpec? width = null, bool disabled = false,
+        float? height = null)
     {
         var text = value.ToString(CultureInfo.InvariantCulture);
-        var result = NumberInput(label, ref text, width, disabled, step != 0, out var stepped);
+        var result = NumberInput(label, ref text, width, disabled, step != 0, out var stepped, height);
 
         var changed = false;
 
@@ -359,12 +405,14 @@ public static partial class EUi
     /// <param name="max">上限。省略すると制限しない。</param>
     /// <param name="width">幅。省略すると残り幅いっぱい。</param>
     /// <param name="disabled">無効にするか。</param>
+    /// <param name="height">高さ。省略するとテーマの標準の高さ。</param>
     public static WidgetResult InputFloat(
         string label, ref float value, float step = 0f,
-        float? min = null, float? max = null, SizeSpec? width = null, bool disabled = false)
+        float? min = null, float? max = null, SizeSpec? width = null, bool disabled = false,
+        float? height = null)
     {
         var text = value.ToString("G", CultureInfo.InvariantCulture);
-        var result = NumberInput(label, ref text, width, disabled, step != 0f, out var stepped);
+        var result = NumberInput(label, ref text, width, disabled, step != 0f, out var stepped, height);
 
         var changed = false;
 
@@ -384,7 +432,8 @@ public static partial class EUi
 
     /// <summary>数値入力の共通部分。文字列として編集し、増減ボタンを添える。</summary>
     private static WidgetResult NumberInput(
-        string label, ref string text, SizeSpec? width, bool disabled, bool withStepper, out int stepped)
+        string label, ref string text, SizeSpec? width, bool disabled, bool withStepper,
+        out int stepped, float? height = null)
     {
         stepped = 0;
 
@@ -427,8 +476,15 @@ public static partial class EUi
         if (!display.IsEmpty)
             columns[count++] = SizeSpec.Px(labelSpace);
 
+        // 先に自分の矩形を取る。ここで親の縦揃えが効く。
+        // いきなり Row を開くと、行の上端から並べ始めてしまい、
+        // 高い行の中で数の欄だけが上に寄る
+        var rowWidth = fieldWidth + (buttonWidth * 2f) + labelSpace + ColumnSpacing(count);
+        var rowRect = ctx.Allocate(SizeSpec.Px(rowWidth), height ?? Metrics.WidgetHeight);
+
         WidgetResult result;
 
+        using (Region(rowRect, default, 0f))
         using (Row(Align.Center, columns[..count]))
         {
             result = TextInput("##value", ref text, null, 32, SizeSpec.Fill, disabled);
@@ -611,7 +667,7 @@ public static partial class EUi
         ImGui.SetNextWindowSize(new Vector2(rect.Width, popupHeight));
 
         if (!BeginPopupBox(popupId))
-            return default;
+            return new ComboScope(WidgetResult.From(interaction));
 
         var popupRect = Rect.FromSize(ImGui.GetWindowPos(), ImGui.GetWindowSize());
 
@@ -622,7 +678,8 @@ public static partial class EUi
         var region = Region(popupRect, EdgeInsets.All(popupPadding), 0f);
         var scroll = Scroll(label + "##euComboScroll", bodyHeight, 0f);
 
-        return new ComboScope(region, scroll, popupClip);
+        return new ComboScope(
+            region, scroll, popupClip, WidgetResult.From(interaction), ImGui.IsWindowAppearing());
     }
 
     /// <summary>
@@ -717,16 +774,48 @@ public readonly struct ComboScope : IDisposable
     private readonly ClipScope clip;
     private readonly bool open;
 
-    internal ComboScope(LayoutHandle region, ScrollHandle scroll, ClipScope clip)
+    internal ComboScope(
+        LayoutHandle region, ScrollHandle scroll, ClipScope clip,
+        WidgetResult header, bool justOpened)
     {
         this.region = region;
         this.scroll = scroll;
         this.clip = clip;
+        this.Header = header;
+        this.JustOpened = justOpened;
         this.open = true;
+    }
+
+    /// <summary>閉じているときの欄だけを返す。</summary>
+    internal ComboScope(WidgetResult header)
+    {
+        this.region = default;
+        this.scroll = default;
+        this.clip = default;
+        this.Header = header;
+        this.JustOpened = false;
+        this.open = false;
     }
 
     /// <summary>一覧が開いているか。中身はこれが true のときだけ描く。</summary>
     public bool IsOpen => this.open;
+
+    /// <summary>
+    /// 閉じているときの欄の入力結果。
+    /// </summary>
+    /// <remarks>
+    /// 欄そのものにツールチップや右クリックのメニューを付けるのに使う。
+    /// 一覧が開いていなくても入っている。
+    /// </remarks>
+    public WidgetResult Header { get; }
+
+    /// <summary>
+    /// このフレームで開いたか。
+    /// </summary>
+    /// <remarks>
+    /// 開くたびに絞り込みの欄を空にする、といった初期化に使う。
+    /// </remarks>
+    public bool JustOpened { get; }
 
     /// <summary>一覧を閉じる。項目を選んだときに呼ぶ。</summary>
     public readonly void Close()
